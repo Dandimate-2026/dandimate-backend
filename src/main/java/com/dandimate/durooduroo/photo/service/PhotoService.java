@@ -12,11 +12,11 @@ import org.springframework.stereotype.Service; import org.springframework.web.mu
 
 @Service
 public class PhotoService {
-    private final PhotoRepository photos; private final MemberRepository members; private final RoomRepository rooms;
-    public PhotoService(PhotoRepository photos, MemberRepository members, RoomRepository rooms){this.photos=photos;this.members=members;this.rooms=rooms;}
+    private final PhotoRepository photos; private final MemberRepository members; private final RoomRepository rooms; private final com.dandimate.durooduroo.room.service.RoomStateService roomStates;
+    public PhotoService(PhotoRepository photos, MemberRepository members, RoomRepository rooms, com.dandimate.durooduroo.room.service.RoomStateService roomStates){this.photos=photos;this.members=members;this.rooms=rooms;this.roomStates=roomStates;}
     public PhotoResponse upload(String roomId, String token, MultipartFile file) throws Exception {
         var member=members.findByRoomIdAndMemberToken(roomId, token).orElseThrow(()->new BusinessException("MEMBER_FORBIDDEN","방 참여자만 업로드할 수 있습니다."));
-        if(!rooms.existsById(roomId)) throw new BusinessException("ROOM_NOT_FOUND","존재하지 않는 방입니다.");
+        roomStates.require(roomId, com.dandimate.durooduroo.room.domain.RoomAction.UPLOAD_OR_FIRST_ENTRY);
         if(file.isEmpty() || file.getContentType()==null || !file.getContentType().startsWith("image/")) throw new BusinessException("INVALID_FILE","이미지 파일만 업로드할 수 있습니다.");
         if(photos.existsByRoomIdAndMemberId(roomId,member.getId())) throw new BusinessException("PHOTO_LIMIT","참여자당 사진 1장만 업로드할 수 있습니다.");
         String hash=sha256(file.getBytes()); var duplicate=photos.findByRoomIdAndFileHash(roomId,hash);

@@ -11,7 +11,7 @@ public record SpecCreateRoomResponse(RoomInfo room, MemberInfo member, String in
 
     public static SpecCreateRoomResponse from(Room room, Member member) {
         return new SpecCreateRoomResponse(
-                new RoomInfo(room.getId(), room.getTitle(), "COLLECTING", room.getCreatedAt().plusHours(48)),
+                new RoomInfo(room.getId(), room.getTitle(), room.getStatus().name(), room.getDeadlineAt()),
                 new MemberInfo(member.getId(), member.getNickname(), member.getRole().name(), "AZALEA"),
                 room.getInviteCode(), member.getMemberToken());
     }

@@ -19,8 +19,8 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/v1/photos")
 public class PhotoCompleteController {
-    private final PhotoRepository photos; private final MemberRepository members; private final ObjectStorage storage;
-    public PhotoCompleteController(PhotoRepository photos, MemberRepository members, ObjectStorage storage) { this.photos=photos; this.members=members; this.storage=storage; }
+    private final PhotoRepository photos; private final MemberRepository members; private final ObjectStorage storage; private final com.dandimate.durooduroo.room.service.RoomStateService roomStates;
+    public PhotoCompleteController(PhotoRepository photos, MemberRepository members, ObjectStorage storage, com.dandimate.durooduroo.room.service.RoomStateService roomStates) { this.photos=photos; this.members=members; this.storage=storage; this.roomStates=roomStates; }
 
     @PostMapping(value="/{photoId}/complete", consumes="multipart/form-data")
     public ApiResponse<PhotoResponse> complete(@PathVariable String photoId, @RequestHeader(required=false) String authorization,
@@ -29,6 +29,7 @@ public class PhotoCompleteController {
         String token = MemberTokenResolver.resolve(authorization, memberToken);
         var member = members.findByRoomIdAndMemberToken(photo.getRoomId(), token).orElseThrow(() -> new BusinessException("MEMBER_FORBIDDEN", "본인 사진만 완료할 수 있습니다."));
         if (!member.getId().equals(photo.getMemberId())) throw new BusinessException("FORBIDDEN", "본인 사진만 완료할 수 있습니다.");
+        roomStates.require(photo.getRoomId(), com.dandimate.durooduroo.room.domain.RoomAction.UPLOAD_OR_FIRST_ENTRY);
         if (file != null && !file.isEmpty()) {
             if (file.getContentType() == null || !file.getContentType().startsWith("image/")) throw new BusinessException("UPLOAD_VERIFICATION_FAILED", "이미지 파일만 업로드할 수 있습니다.");
             if (file.getSize() > 2_000_000) throw new BusinessException("FILE_TOO_LARGE", "사진은 2MB 이하이어야 합니다.");

@@ -31,8 +31,14 @@ public class InviteController {
         var room = rooms.findByInviteCode(inviteToken)
                 .orElseThrow(() -> new BusinessException("INVITE_NOT_FOUND", "유효하지 않은 초대 토큰입니다."));
         long count = members.countByRoomId(room.getId());
-        return ApiResponse.success(java.util.Map.of("roomName", room.getTitle(), "status", "CIRCULATING",
-                "memberCount", count, "capacity", 8, "canJoin", count < 8));
+        var data = new java.util.LinkedHashMap<String, Object>();
+        data.put("roomName", room.getTitle());
+        data.put("meetingDate", room.getMeetingDate());
+        data.put("status", room.getStatus().name());
+        data.put("memberCount", count);
+        data.put("capacity", com.dandimate.durooduroo.room.domain.Room.CAPACITY);
+        data.put("canJoin", count < com.dandimate.durooduroo.room.domain.Room.CAPACITY);
+        return ApiResponse.success(data);
     }
 
     @PostMapping("/{inviteToken}/join")

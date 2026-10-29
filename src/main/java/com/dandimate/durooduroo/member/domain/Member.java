@@ -54,7 +54,7 @@ public class Member {
     }
 
     public static Member join(String roomId, String nickname) {
-        return new Member(roomId, nickname, MemberRole.PARTICIPANT);
+        return new Member(roomId, nickname, MemberRole.MEMBER);
     }
 
     public static Member host(String roomId, String nickname) {

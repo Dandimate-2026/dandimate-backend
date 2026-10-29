@@ -32,6 +32,6 @@ class RoomServiceTest {
 
         assertThat(response.title()).isEqualTo("경주 여행");
         assertThat(response.inviteCode()).hasSize(6);
-        assertThat(response.status()).hasToString("OPEN");
+        assertThat(response.status()).hasToString("COLLECTING");
     }
 }

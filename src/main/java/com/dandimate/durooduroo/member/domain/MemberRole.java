@@ -3,5 +3,5 @@ package com.dandimate.durooduroo.member.domain;
 
 public enum MemberRole {
     HOST,
-    PARTICIPANT
+    MEMBER
 }

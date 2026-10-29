@@ -9,7 +9,6 @@ import com.dandimate.durooduroo.member.dto.SpecJoinRoomRequest;
 import com.dandimate.durooduroo.member.dto.SpecJoinRoomResponse;
 import com.dandimate.durooduroo.member.repository.MemberRepository;
 import com.dandimate.durooduroo.room.domain.Room;
-import com.dandimate.durooduroo.room.domain.RoomStatus;
 import com.dandimate.durooduroo.room.repository.RoomRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,8 +30,9 @@ public class MemberService {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException("ROOM_NOT_FOUND", "존재하지 않는 방입니다."));
 
-        if (room.getStatus() == RoomStatus.CLOSED) {
-            throw new BusinessException("ROOM_CLOSED", "종료된 방에는 참여할 수 없습니다.");
+        // 마감 후에도 입장할 수 있다 (FR-A5). 정원만 확인한다.
+        if (memberRepository.countByRoomId(roomId) >= Room.CAPACITY) {
+            throw new BusinessException("ROOM_FULL", "방 정원이 가득 찼습니다.");
         }
 
         String nickname = request.nickname().trim();
@@ -48,7 +48,7 @@ public class MemberService {
     public SpecJoinRoomResponse joinByInvite(String inviteToken, SpecJoinRoomRequest request) {
         Room room = roomRepository.findByInviteCode(inviteToken)
                 .orElseThrow(() -> new BusinessException("INVITE_NOT_FOUND", "유효하지 않은 초대 토큰입니다."));
-        if (memberRepository.countByRoomId(room.getId()) >= 8) {
+        if (memberRepository.countByRoomId(room.getId()) >= Room.CAPACITY) {
             throw new BusinessException("ROOM_FULL", "방 정원이 가득 찼습니다.");
         }
         String nickname = request.nickname().trim();

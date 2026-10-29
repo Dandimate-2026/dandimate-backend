@@ -21,3 +21,7 @@ storage:
   aws-region: ${AWS_REGION:ap-northeast-2}
   aws-bucket: ${AWS_S3_BUCKET:}
   aws-endpoint: ${AWS_S3_ENDPOINT:}
+
+# 데모 마감·되묻기 즉시 실행 (FR-H9). 운영에서는 false로 둔다.
+app:
+  demo-enabled: ${DEMO_ENABLED:false}

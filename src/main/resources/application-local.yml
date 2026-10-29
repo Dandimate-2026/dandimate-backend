@@ -18,3 +18,7 @@ openai:
 storage:
   type: local
   local-root: uploads
+
+# 데모 마감·되묻기 즉시 실행 (FR-H9). 운영에서는 끈다.
+app:
+  demo-enabled: true

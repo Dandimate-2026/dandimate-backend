@@ -35,7 +35,7 @@ public class SpecRoomController {
             throw new BusinessException("CONSENT_REQUIRED", e.getMessage());
         }
         String invite = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase();
-        Room room = rooms.save(Room.create(request.name().trim(), invite));
+        Room room = rooms.save(Room.create(request.name().trim(), invite, request.meetingDate()));
         Member host = members.save(Member.host(room.getId(), request.hostNickname().trim()));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(SpecCreateRoomResponse.from(room, host)));
     }
