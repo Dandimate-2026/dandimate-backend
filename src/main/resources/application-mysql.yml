@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/durooduroo?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=utf8mb4}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  stt-model: ${OPENAI_STT_MODEL:gpt-transcribe}
+
+storage:
+  type: ${STORAGE_TYPE:local}
+  local-root: ${STORAGE_LOCAL_ROOT:uploads}
+  aws-region: ${AWS_REGION:ap-northeast-2}
+  aws-bucket: ${AWS_S3_BUCKET:}
+  aws-endpoint: ${AWS_S3_ENDPOINT:}

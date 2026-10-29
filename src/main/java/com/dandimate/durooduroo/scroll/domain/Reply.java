@@ -1,0 +1,4 @@
+/** 문단에 남기는 참여자 답가입니다. */
+package com.dandimate.durooduroo.scroll.domain;
+import jakarta.persistence.*; import java.time.LocalDateTime; import java.util.UUID;
+@Entity @Table(name="replies") public class Reply { @Id private String id; @Column(nullable=false) private String paragraphId; @Column(nullable=false) private String memberId; @Column(nullable=false,length=1000) private String transcript; @Column(nullable=false) private LocalDateTime createdAt; protected Reply(){} private Reply(String p,String m,String t){id=UUID.randomUUID().toString();paragraphId=p;memberId=m;transcript=t;createdAt=LocalDateTime.now();} public static Reply create(String p,String m,String t){return new Reply(p,m,t);} public String getId(){return id;} public String getParagraphId(){return paragraphId;} public String getMemberId(){return memberId;} public String getTranscript(){return transcript;} public LocalDateTime getCreatedAt(){return createdAt;} }

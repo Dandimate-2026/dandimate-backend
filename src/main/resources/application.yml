@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: durooduroo-backend
+  profiles:
+    default: local
+  servlet:
+    multipart:
+      # 사진 2MB·음성 10MB 제한은 각 API가 검사하고, 여기서는 가장 큰 음성 기준으로 받는다.
+      max-file-size: 10MB
+      max-request-size: 11MB
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
