@@ -28,7 +28,7 @@ public class InviteController {
 
     @GetMapping("/{inviteToken}")
     public ApiResponse<?> preview(@PathVariable String inviteToken) {
-        var room = rooms.findByInviteCode(inviteToken)
+        var room = rooms.findByInviteToken(inviteToken)
                 .orElseThrow(() -> new BusinessException("INVITE_NOT_FOUND", "유효하지 않은 초대 토큰입니다."));
         long count = members.countByRoomId(room.getId());
         var data = new java.util.LinkedHashMap<String, Object>();

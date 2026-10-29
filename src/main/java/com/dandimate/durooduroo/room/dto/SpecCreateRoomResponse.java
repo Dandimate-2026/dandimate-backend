@@ -13,6 +13,6 @@ public record SpecCreateRoomResponse(RoomInfo room, MemberInfo member, String in
         return new SpecCreateRoomResponse(
                 new RoomInfo(room.getId(), room.getTitle(), room.getStatus().name(), room.getDeadlineAt()),
                 new MemberInfo(member.getId(), member.getNickname(), member.getRole().name(), "AZALEA"),
-                room.getInviteCode(), member.getMemberToken());
+                room.getIssuedInviteToken(), member.getIssuedAccessToken());
     }
 }

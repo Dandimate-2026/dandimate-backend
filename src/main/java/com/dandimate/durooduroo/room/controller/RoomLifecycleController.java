@@ -32,7 +32,7 @@ public class RoomLifecycleController {
     public ApiResponse<?> rotate(@PathVariable String roomId,@RequestHeader(required=false) String authorization,@RequestParam(required=false) String memberToken){
         var room=rooms.findById(roomId).orElseThrow(()->new BusinessException("ROOM_NOT_FOUND","존재하지 않는 방입니다.")); var me=members.findByRoomIdAndMemberToken(roomId,MemberTokenResolver.resolve(authorization,memberToken)).orElseThrow(()->new BusinessException("MEMBER_FORBIDDEN","방 참여자만 사용할 수 있습니다."));
         if(me.getRole()!=MemberRole.HOST) throw new BusinessException("HOST_ONLY","방장만 초대 토큰을 재발급할 수 있습니다.");
-        room.rotateInviteCode(UUID.randomUUID().toString().replace("-","").substring(0,6).toUpperCase()); rooms.save(room); return ApiResponse.success(Map.of("inviteToken",room.getInviteCode()));
+        String inviteToken=room.rotateInviteToken(); rooms.save(room); return ApiResponse.success(Map.of("inviteToken",inviteToken));
     }
 
     /** 조기·데모 마감. body의 mode는 EARLY(기본) 또는 DEMO이며, DEMO는 app.demo-enabled일 때만 허용한다. */

@@ -46,7 +46,7 @@ public class MemberService {
 
     @Transactional
     public SpecJoinRoomResponse joinByInvite(String inviteToken, SpecJoinRoomRequest request) {
-        Room room = roomRepository.findByInviteCode(inviteToken)
+        Room room = roomRepository.findByInviteToken(inviteToken)
                 .orElseThrow(() -> new BusinessException("INVITE_NOT_FOUND", "유효하지 않은 초대 토큰입니다."));
         if (memberRepository.countByRoomId(room.getId()) >= Room.CAPACITY) {
             throw new BusinessException("ROOM_FULL", "방 정원이 가득 찼습니다.");

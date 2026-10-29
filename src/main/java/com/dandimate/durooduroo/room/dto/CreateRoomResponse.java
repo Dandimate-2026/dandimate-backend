@@ -17,7 +17,7 @@ public record CreateRoomResponse(
         return new CreateRoomResponse(
                 room.getId(),
                 room.getTitle(),
-                room.getInviteCode(),
+                room.getIssuedInviteToken(),
                 room.getStatus(),
                 room.getCreatedAt()
         );

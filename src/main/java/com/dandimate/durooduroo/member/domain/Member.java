@@ -1,4 +1,4 @@
-/** 방에 참여한 사용자의 닉네임, 토큰, 역할을 관리한다. */
+/** 방에 참여한 사용자의 닉네임, 토큰 해시, 역할을 관리한다. */
 package com.dandimate.durooduroo.member.domain;
 
 import jakarta.persistence.Column;
@@ -6,10 +6,15 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
+import com.dandimate.durooduroo.common.auth.Tokens;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import org.springframework.data.domain.Persistable;
 
 @Entity
 @Table(
@@ -19,7 +24,7 @@ import java.util.UUID;
                 columnNames = {"room_id", "nickname"}
         )
 )
-public class Member {
+public class Member implements Persistable<String> {
 
     @Id
     @Column(length = 36, nullable = false, updatable = false)
@@ -31,8 +36,13 @@ public class Member {
     @Column(nullable = false, length = 30)
     private String nickname;
 
-    @Column(name = "member_token", nullable = false, unique = true, length = 36, updatable = false)
-    private String memberToken;
+    /** memberAccessToken 원문은 저장하지 않고 SHA-256 해시만 저장한다. */
+    @Column(name = "access_token_hash", nullable = false, unique = true, length = 64, updatable = false)
+    private String accessTokenHash;
+
+    /** 입장 직후 응답에 한 번만 내보낼 원문. DB에는 저장되지 않는다. */
+    @Transient
+    private String issuedAccessToken;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -44,11 +54,27 @@ public class Member {
     protected Member() {
     }
 
+    /** 직접 ID를 부여하므로 save()가 merge 대신 persist를 쓰도록 새 엔티티 여부를 알려 준다. */
+    @Transient
+    private boolean newEntity = true;
+
+    @PostLoad
+    @PostPersist
+    void markNotNew() {
+        this.newEntity = false;
+    }
+
+    @Override
+    public boolean isNew() {
+        return newEntity;
+    }
+
     private Member(String roomId, String nickname, MemberRole role) {
         this.id = UUID.randomUUID().toString();
         this.roomId = roomId;
         this.nickname = nickname;
-        this.memberToken = UUID.randomUUID().toString();
+        this.issuedAccessToken = Tokens.generate();
+        this.accessTokenHash = Tokens.hash(issuedAccessToken);
         this.role = role;
         this.createdAt = LocalDateTime.now();
     }
@@ -61,6 +87,7 @@ public class Member {
         return new Member(roomId, nickname, MemberRole.HOST);
     }
 
+    @Override
     public String getId() {
         return id;
     }
@@ -73,8 +100,8 @@ public class Member {
         return nickname;
     }
 
-    public String getMemberToken() {
-        return memberToken;
+    public String getIssuedAccessToken() {
+        return issuedAccessToken;
     }
 
     public MemberRole getRole() {

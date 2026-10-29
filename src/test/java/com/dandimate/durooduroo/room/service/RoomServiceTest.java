@@ -25,13 +25,12 @@ class RoomServiceTest {
 
     @Test
     void 방을_생성하면_제목과_초대코드가_반환된다() {
-        when(roomRepository.existsByInviteCode(any())).thenReturn(false);
         when(roomRepository.save(any(Room.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         CreateRoomResponse response = roomService.createRoom(new CreateRoomRequest("  경주 여행  "));
 
         assertThat(response.title()).isEqualTo("경주 여행");
-        assertThat(response.inviteCode()).hasSize(6);
+        assertThat(response.inviteCode()).hasSizeGreaterThanOrEqualTo(43);
         assertThat(response.status()).hasToString("COLLECTING");
     }
 }

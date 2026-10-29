@@ -11,7 +11,7 @@ class RoomTest {
 
     @Test
     void 엮는_중에는_쓰기_요청이_ROOM_WEAVING으로_거절된다() {
-        Room room = Room.create("경주", "ABC123");
+        Room room = Room.create("경주");
         room.startCirculating();
         room.startWeaving();
 
@@ -26,7 +26,7 @@ class RoomTest {
 
     @Test
     void 마감_시각_기본값은_생성_후_48시간이다() {
-        Room room = Room.create("경주", "ABC123");
+        Room room = Room.create("경주");
 
         assertThat(room.getStatus()).isEqualTo(RoomStatus.COLLECTING);
         assertThat(room.getDeadlineAt()).isEqualTo(room.getCreatedAt().plusHours(48));

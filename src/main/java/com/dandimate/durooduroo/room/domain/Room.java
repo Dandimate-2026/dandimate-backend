@@ -1,6 +1,7 @@
 /** 방의 식별자, 초대 코드, 제목, 상태와 상태 전이 규칙을 관리한다. */
 package com.dandimate.durooduroo.room.domain;
 
+import com.dandimate.durooduroo.common.auth.Tokens;
 import com.dandimate.durooduroo.common.exception.BusinessException;
 import com.dandimate.durooduroo.common.exception.ErrorCode;
 import jakarta.persistence.Column;
@@ -8,21 +9,25 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import org.springframework.data.domain.Persistable;
 
 @Entity
 @Table(
         name = "rooms",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_rooms_invite_code",
-                columnNames = "invite_code"
+                name = "uk_rooms_invite_token_hash",
+                columnNames = "invite_token_hash"
         )
 )
-public class Room {
+public class Room implements Persistable<String> {
 
     public static final int CAPACITY = 8;
     public static final int REGENERATION_LIMIT = 10;
@@ -37,8 +42,13 @@ public class Room {
 
     private LocalDate meetingDate;
 
-    @Column(name = "invite_code", nullable = false, length = 6)
-    private String inviteCode;
+    /** 초대 토큰 원문은 저장하지 않고 SHA-256 해시만 저장한다. */
+    @Column(name = "invite_token_hash", nullable = false, length = 64)
+    private String inviteTokenHash;
+
+    /** 생성·재발급 직후 응답에 한 번만 내보낼 원문. DB에는 저장되지 않는다. */
+    @Transient
+    private String issuedInviteToken;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -56,22 +66,37 @@ public class Room {
     protected Room() {
     }
 
-    private Room(String title, String inviteCode, LocalDate meetingDate) {
+    /** 직접 ID를 부여하므로 save()가 merge 대신 persist를 쓰도록 새 엔티티 여부를 알려 준다. */
+    @Transient
+    private boolean newEntity = true;
+
+    @PostLoad
+    @PostPersist
+    void markNotNew() {
+        this.newEntity = false;
+    }
+
+    @Override
+    public boolean isNew() {
+        return newEntity;
+    }
+
+    private Room(String title, LocalDate meetingDate) {
         this.id = UUID.randomUUID().toString();
         this.title = title;
-        this.inviteCode = inviteCode;
+        rotateInviteToken();
         this.meetingDate = meetingDate;
         this.status = RoomStatus.COLLECTING;
         this.createdAt = LocalDateTime.now();
         this.deadlineAt = createdAt.plusHours(DEFAULT_DEADLINE_HOURS);
     }
 
-    public static Room create(String title, String inviteCode) {
-        return new Room(title, inviteCode, null);
+    public static Room create(String title) {
+        return new Room(title, null);
     }
 
-    public static Room create(String title, String inviteCode, LocalDate meetingDate) {
-        return new Room(title, inviteCode, meetingDate);
+    public static Room create(String title, LocalDate meetingDate) {
+        return new Room(title, meetingDate);
     }
 
     /** 상태별 쓰기 허용 표를 어기면 WEAVING은 ROOM_WEAVING, 그 외는 INVALID_ROOM_STATE로 거절한다. */
@@ -118,10 +143,14 @@ public class Room {
         throw new BusinessException(ErrorCode.INVALID_ROOM_STATE, "지금 방 상태에서는 마감할 수 없어요.");
     }
 
-    public void rotateInviteCode(String inviteCode) {
-        this.inviteCode = inviteCode;
+    /** 새 초대 토큰을 발급한다. 기존 토큰은 해시가 바뀌므로 즉시 무효가 된다. */
+    public String rotateInviteToken() {
+        this.issuedInviteToken = Tokens.generate();
+        this.inviteTokenHash = Tokens.hash(issuedInviteToken);
+        return issuedInviteToken;
     }
 
+    @Override
     public String getId() {
         return id;
     }
@@ -134,8 +163,8 @@ public class Room {
         return meetingDate;
     }
 
-    public String getInviteCode() {
-        return inviteCode;
+    public String getIssuedInviteToken() {
+        return issuedInviteToken;
     }
 
     public RoomStatus getStatus() {

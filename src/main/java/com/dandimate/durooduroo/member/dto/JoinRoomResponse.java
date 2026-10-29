@@ -19,7 +19,7 @@ public record JoinRoomResponse(
                 member.getId(),
                 member.getRoomId(),
                 member.getNickname(),
-                member.getMemberToken(),
+                member.getIssuedAccessToken(),
                 member.getRole(),
                 member.getCreatedAt()
         );
