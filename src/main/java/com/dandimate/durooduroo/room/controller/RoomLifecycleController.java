@@ -20,15 +20,12 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/rooms")
 public class RoomLifecycleController {
-    private final RoomRepository rooms; private final MemberRepository members; private final WeaveJobService weaveJobs; private final boolean demoEnabled;
-    public RoomLifecycleController(RoomRepository rooms,MemberRepository members,WeaveJobService weaveJobs,@Value("${app.demo-enabled:false}") boolean demoEnabled){this.rooms=rooms;this.members=members;this.weaveJobs=weaveJobs;this.demoEnabled=demoEnabled;}
+    private final RoomRepository rooms; private final MemberRepository members; private final WeaveJobService weaveJobs; private final com.dandimate.durooduroo.room.service.RoomHomeService roomHome; private final boolean demoEnabled;
+    public RoomLifecycleController(RoomRepository rooms,MemberRepository members,WeaveJobService weaveJobs,com.dandimate.durooduroo.room.service.RoomHomeService roomHome,@Value("${app.demo-enabled:false}") boolean demoEnabled){this.rooms=rooms;this.members=members;this.weaveJobs=weaveJobs;this.roomHome=roomHome;this.demoEnabled=demoEnabled;}
 
     @GetMapping("/{roomId}")
     public ApiResponse<?> home(@PathVariable String roomId,@RequestHeader(required=false) String authorization){
-        var room=rooms.findById(roomId).orElseThrow(()->new BusinessException("ROOM_NOT_FOUND","존재하지 않는 방입니다."));
-        var me=members.findByRoomIdAndMemberToken(roomId,MemberTokenResolver.resolve(authorization)).orElseThrow(()->new BusinessException("MEMBER_FORBIDDEN","방 참여자만 조회할 수 있습니다."));
-        var list=members.findAllByRoomId(roomId).stream().map(m->Map.of("id",m.getId(),"nickname",m.getNickname(),"role",m.getRole().name())).toList();
-        return ApiResponse.success(Map.of("room",Map.of("id",room.getId(),"name",room.getTitle(),"status",room.getStatus().name(),"deadlineAt",room.getDeadlineAt()),"me",Map.of("id",me.getId(),"nickname",me.getNickname(),"role",me.getRole().name()),"members",list,"memberCount",list.size()));
+        return ApiResponse.success(roomHome.home(roomId,authorization));
     }
 
     @PostMapping("/{roomId}/invite-token/rotate") @Transactional

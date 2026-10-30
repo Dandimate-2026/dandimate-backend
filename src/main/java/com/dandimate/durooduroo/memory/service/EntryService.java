@@ -34,14 +34,17 @@ public class EntryService {
     private final MemoryEntryRepository entries;
     private final PhotoPassRepository passes;
     private final RoomStateService roomStates;
+    private final com.dandimate.durooduroo.askback.repository.AskbackRepository askbacks;
 
     public EntryService(PhotoRepository photos, MemberRepository members, MemoryEntryRepository entries,
-                        PhotoPassRepository passes, RoomStateService roomStates) {
+                        PhotoPassRepository passes, RoomStateService roomStates,
+                        com.dandimate.durooduroo.askback.repository.AskbackRepository askbacks) {
         this.photos = photos;
         this.members = members;
         this.entries = entries;
         this.passes = passes;
         this.roomStates = roomStates;
+        this.askbacks = askbacks;
     }
 
     @Transactional
@@ -142,11 +145,12 @@ public class EntryService {
         passes.findByPhotoIdAndMemberId(photoId, me.getId()).ifPresent(passes::delete);
     }
 
-    /** 사진 삭제 시 종속 원문과 패스를 함께 지운다. */
+    /** 사진 삭제 시 종속 원문과 패스를 지우고, 그 사진의 미응답 되묻기는 CANCELLED로 닫는다. */
     @Transactional
     public void deleteForPhoto(String photoId) {
         entries.deleteAll(entries.findAllByPhotoId(photoId));
         passes.deleteAll(passes.findAllByPhotoId(photoId));
+        askbacks.findAllByPhotoId(photoId).forEach(com.dandimate.durooduroo.askback.domain.Askback::cancel);
     }
 
     private Photo findPhoto(String photoId) {

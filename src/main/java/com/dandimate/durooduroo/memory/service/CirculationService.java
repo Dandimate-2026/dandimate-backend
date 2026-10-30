@@ -21,6 +21,7 @@ import com.dandimate.durooduroo.memory.repository.PhotoPassRepository;
 import com.dandimate.durooduroo.photo.domain.Photo;
 import com.dandimate.durooduroo.photo.dto.PhotoView;
 import com.dandimate.durooduroo.photo.repository.PhotoRepository;
+import com.dandimate.durooduroo.photo.service.PhotoUrls;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -40,12 +41,14 @@ public class CirculationService {
     private final PhotoRepository photos;
     private final MemoryEntryRepository entries;
     private final PhotoPassRepository passes;
+    private final PhotoUrls photoUrls;
 
-    public CirculationService(MemberRepository members, PhotoRepository photos, MemoryEntryRepository entries, PhotoPassRepository passes) {
+    public CirculationService(MemberRepository members, PhotoRepository photos, MemoryEntryRepository entries, PhotoPassRepository passes, PhotoUrls photoUrls) {
         this.members = members;
         this.photos = photos;
         this.entries = entries;
         this.passes = passes;
+        this.photoUrls = photoUrls;
     }
 
     public record Card(PhotoView photo, EntryView firstEntry, MyResponse myResponse, boolean locked, String lockReason, List<EntryView> otherEntries) {
@@ -92,7 +95,7 @@ public class CirculationService {
                 .filter(e -> e.getKind() != EntryKind.FIRST)
                 .map(e -> EntryView.of(e, roomMembers.get(e.getMemberId())))
                 .toList();
-        return new Card(PhotoView.of(photo, roomMembers.get(photo.getMemberId())), first, new MyResponse(status),
+        return new Card(PhotoView.of(photo, roomMembers.get(photo.getMemberId()), photoUrls.imageUrl(photo)), first, new MyResponse(status),
                 locked, locked ? "RESPOND_FIRST" : null, others);
     }
 

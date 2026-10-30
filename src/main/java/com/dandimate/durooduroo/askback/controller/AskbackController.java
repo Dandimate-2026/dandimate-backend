@@ -1,29 +1,69 @@
-/** 명세서 기준 되묻기 목록·답변·상태 변경 API입니다. */
+/** 명세서 기준 되묻기 목록·상세·답변·기억 안 나요·나중에·데모 실행 API입니다. */
 package com.dandimate.durooduroo.askback.controller;
 
-import com.dandimate.durooduroo.askback.domain.Askback;
-import com.dandimate.durooduroo.askback.repository.AskbackRepository;
+import com.dandimate.durooduroo.ai.dto.JobResponse;
+import com.dandimate.durooduroo.askback.dto.AskbackAnswerRequest;
+import com.dandimate.durooduroo.askback.service.AskbackService;
 import com.dandimate.durooduroo.common.api.ApiResponse;
-import com.dandimate.durooduroo.common.auth.MemberTokenResolver;
 import com.dandimate.durooduroo.common.exception.BusinessException;
-import com.dandimate.durooduroo.member.repository.MemberRepository;
-import org.springframework.http.*; import org.springframework.web.bind.annotation.*;
-import java.util.*;
+import com.dandimate.durooduroo.common.exception.ErrorCode;
+import jakarta.validation.Valid;
+import java.util.HashMap;
+import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
+@RequestMapping("/api/v1")
 public class AskbackController {
-    private final AskbackRepository askbacks; private final MemberRepository members; private final com.dandimate.durooduroo.room.service.RoomStateService roomStates;
-    public AskbackController(AskbackRepository askbacks,MemberRepository members,com.dandimate.durooduroo.room.service.RoomStateService roomStates){this.askbacks=askbacks;this.members=members;this.roomStates=roomStates;}
 
-    @GetMapping("/api/v1/rooms/{roomId}/askbacks/me")
-    public ApiResponse<?> list(@PathVariable String roomId,@RequestHeader(required=false) String authorization,@RequestParam(required=false) String status){String token=MemberTokenResolver.resolve(authorization);var me=members.findByRoomIdAndMemberToken(roomId,token).orElseThrow(()->new BusinessException("MEMBER_FORBIDDEN","참여자만 조회할 수 있습니다."));var list=askbacks.findAllByRoomIdAndTargetMemberId(roomId,me.getId()).stream().filter(a->status==null||status.equals(a.getStatus())).map(a->Map.of("id",a.getId(),"question",a.getQuestion(),"status",a.getStatus(),"createdAt",a.getCreatedAt())).toList();return ApiResponse.success(Map.of("askbacks",list));}
+    private final AskbackService askbackService;
+    private final boolean demoEnabled;
 
-    @GetMapping("/api/v1/askbacks/{askbackId}")
-    public ApiResponse<?> detail(@PathVariable String askbackId,@RequestHeader(required=false) String authorization){var a=askbacks.findById(askbackId).orElseThrow(()->new BusinessException("ASKBACK_NOT_FOUND","되묻기가 없습니다.")); authorize(a,authorization);return ApiResponse.success(Map.of("askback",Map.of("id",a.getId(),"question",a.getQuestion(),"status",a.getStatus(),"createdAt",a.getCreatedAt())));}
+    public AskbackController(AskbackService askbackService, @Value("${app.demo-enabled:false}") boolean demoEnabled) {
+        this.askbackService = askbackService;
+        this.demoEnabled = demoEnabled;
+    }
 
-    @PostMapping("/api/v1/askbacks/{askbackId}/answer")
-    public ApiResponse<?> answer(@PathVariable String askbackId,@RequestHeader(required=false) String authorization,@RequestBody Map<String,String> body){var a=askbacks.findById(askbackId).orElseThrow(()->new BusinessException("ASKBACK_NOT_FOUND","되묻기가 없습니다.")); authorize(a,authorization); roomStates.require(a.getRoomId(),com.dandimate.durooduroo.room.domain.RoomAction.ASKBACK_ANSWER); String text=body.get("transcript"); if(text==null||text.isBlank())throw new BusinessException("EMPTY_CONTENT","답변은 필수입니다."); a.answer(); askbacks.save(a); return ApiResponse.success(Map.of("askback",Map.of("id",a.getId(),"status",a.getStatus()),"entry",Map.of("transcript",text)));}
-    @PostMapping("/api/v1/askbacks/{askbackId}/forgot") public ApiResponse<?> forgot(@PathVariable String askbackId,@RequestHeader(required=false) String authorization){var a=askbacks.findById(askbackId).orElseThrow(()->new BusinessException("ASKBACK_NOT_FOUND","되묻기가 없습니다."));authorize(a,authorization);roomStates.require(a.getRoomId(),com.dandimate.durooduroo.room.domain.RoomAction.ASKBACK_ANSWER);a.forgot();askbacks.save(a);return ApiResponse.success(Map.of("status",a.getStatus()));}
-    @PostMapping("/api/v1/askbacks/{askbackId}/postpone") public ApiResponse<?> postpone(@PathVariable String askbackId,@RequestHeader(required=false) String authorization){var a=askbacks.findById(askbackId).orElseThrow(()->new BusinessException("ASKBACK_NOT_FOUND","되묻기가 없습니다."));authorize(a,authorization);roomStates.require(a.getRoomId(),com.dandimate.durooduroo.room.domain.RoomAction.ASKBACK_ANSWER);a.postpone();askbacks.save(a);return ApiResponse.success(Map.of("status",a.getStatus()));}
-    private void authorize(Askback a,String authorization){String token=MemberTokenResolver.resolve(authorization);var me=members.findByRoomIdAndMemberToken(a.getRoomId(),token).orElseThrow(()->new BusinessException("MEMBER_FORBIDDEN","참여자만 사용할 수 있습니다."));if(!me.getId().equals(a.getTargetMemberId()))throw new BusinessException("FORBIDDEN","대상 참여자만 조회할 수 있습니다.");}
+    @GetMapping("/rooms/{roomId}/askbacks/me")
+    public ApiResponse<?> mine(@PathVariable String roomId, @RequestHeader(required = false) String authorization,
+                               @RequestParam(required = false) String status) {
+        return ApiResponse.success(Map.of("askbacks", askbackService.mine(roomId, authorization, status)));
+    }
+
+    @GetMapping("/askbacks/{askbackId}")
+    public ApiResponse<?> detail(@PathVariable String askbackId, @RequestHeader(required = false) String authorization) {
+        return ApiResponse.success(Map.of("askback", askbackService.detail(askbackId, authorization)));
+    }
+
+    @PostMapping("/askbacks/{askbackId}/answer")
+    public ResponseEntity<ApiResponse<?>> answer(@PathVariable String askbackId, @RequestHeader(required = false) String authorization,
+                                                 @Valid @RequestBody AskbackAnswerRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(askbackService.answer(askbackId, authorization, request)));
+    }
+
+    @PostMapping("/askbacks/{askbackId}/forgot")
+    public ApiResponse<?> forgot(@PathVariable String askbackId, @RequestHeader(required = false) String authorization) {
+        var askback = askbackService.forgot(askbackId, authorization);
+        return ApiResponse.success(Map.of("askback", Map.of("id", askback.getId(), "status", askback.getStatus())));
+    }
+
+    @PostMapping("/askbacks/{askbackId}/postpone")
+    public ApiResponse<?> postpone(@PathVariable String askbackId, @RequestHeader(required = false) String authorization) {
+        var askback = askbackService.postpone(askbackId, authorization);
+        Map<String, Object> body = new HashMap<>();
+        body.put("id", askback.getId());
+        body.put("status", askback.getStatus());
+        body.put("postponedAt", askback.getPostponedAt());
+        return ApiResponse.success(Map.of("askback", body));
+    }
+
+    /** 데모 즉시 실행(FR-H9). app.demo-enabled일 때만 허용한다. */
+    @PostMapping("/rooms/{roomId}/askbacks/run")
+    public ResponseEntity<ApiResponse<?>> run(@PathVariable String roomId, @RequestHeader(required = false) String authorization) {
+        if (!demoEnabled) throw new BusinessException(ErrorCode.FORBIDDEN, "데모 기능은 사용할 수 없습니다.");
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResponse.success(Map.of("job", JobResponse.from(askbackService.runDemo(roomId, authorization)))));
+    }
 }

@@ -32,3 +32,7 @@ app:
     stale-check-interval-ms: 60000
     # 마감 시각이 지난 방을 찾는 주기
     deadline-check-interval-ms: 60000
+  media:
+    # 로컬 저장소 사진 URL 서명 키. 비우면 시작할 때마다 새로 만든다 (운영은 MEDIA_SIGNING_SECRET로 고정).
+    signing-secret: ${MEDIA_SIGNING_SECRET:}
+    url-ttl-seconds: 3600

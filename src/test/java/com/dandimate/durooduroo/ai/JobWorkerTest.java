@@ -24,8 +24,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
-/** 스케줄 실행은 사실상 끄고(1시간 주기) Worker·스케줄러를 직접 호출해 재시도와 시각을 결정적으로 검증한다. */
+/**
+ * 스케줄 실행은 사실상 끄고(1시간 주기) Worker·스케줄러를 직접 호출해 재시도와 시각을 결정적으로 검증한다.
+ * 다른 테스트 컨텍스트의 Worker가 같은 H2의 작업을 가져가지 않도록 전용 DB를 쓴다.
+ */
 @SpringBootTest(properties = {
+        "spring.datasource.url=jdbc:h2:mem:job-worker-test;MODE=MySQL;DB_CLOSE_DELAY=-1",
         "app.jobs.poll-interval-ms=3600000",
         "app.jobs.deadline-check-interval-ms=3600000",
         "app.jobs.stale-check-interval-ms=3600000",
@@ -109,7 +113,7 @@ class JobWorkerTest {
     @Test
     void 마감하면_미응답_되묻기는_EXPIRED가_된다() {
         String roomId = circulatingRoom();
-        Askback askback = askbacks.save(Askback.create(roomId, "member-1", "그때 왜 웃었어요?"));
+        Askback askback = askbacks.save(Askback.create(roomId, "photo-1", "member-1", "MISSING_REASON", "그때 왜 웃었어요?", java.util.List.of(), LocalDateTime.now().plusDays(1)));
 
         weaveJobs.close(roomId);
 
