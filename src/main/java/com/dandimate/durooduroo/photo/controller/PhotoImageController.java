@@ -29,7 +29,7 @@ public class PhotoImageController {
 
     @GetMapping("/api/v1/photos/{photoId}/image")
     public ResponseEntity<Resource> image(@PathVariable String photoId, @RequestParam long expires, @RequestParam String signature) {
-        if (!photoUrls.verify(photoId, expires, signature)) {
+        if (!photoUrls.verifyImage(photoId, expires, signature)) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "사진 주소가 만료됐어요. 목록을 다시 불러와 주세요.");
         }
         var photo = photos.findById(photoId).filter(p -> p.isReady())

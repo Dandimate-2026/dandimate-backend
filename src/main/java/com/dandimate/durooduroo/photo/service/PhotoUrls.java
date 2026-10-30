@@ -1,7 +1,7 @@
 /**
- * 응답에 넣을 사진 imageUrl을 만든다. img 태그는 Authorization 헤더를 보낼 수 없으므로 URL 자체가 권한을 담는다.
- * - S3: presigned GET URL
- * - 로컬: /api/v1/photos/{id}/image?expires=&signature= (HMAC-SHA256 서명, 기본 1시간)
+ * 사진 업로드 URL과 응답에 넣을 imageUrl을 만든다. 직접 업로드와 img 태그는 Authorization 헤더를 보낼 수 없으므로 URL 자체가 권한을 담는다.
+ * - S3: presigned PUT(업로드, 10분) / presigned GET(조회)
+ * - 로컬: PUT /api/v1/photos/{id}/upload, GET /api/v1/photos/{id}/image 에 expires·signature (HMAC-SHA256, 용도별로 다른 서명)
  * 서명 키(app.media.signing-secret)가 비어 있으면 시작할 때 무작위로 만들며, 그러면 재시작 후 이전 URL은 무효가 된다.
  */
 package com.dandimate.durooduroo.photo.service;
@@ -23,6 +23,8 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 @Component
 public class PhotoUrls {
 
+    public static final Duration UPLOAD_TTL = Duration.ofMinutes(10);
+
     private final ObjectStorage storage;
     private final byte[] secret;
     private final Duration ttl;
@@ -34,29 +36,42 @@ public class PhotoUrls {
         this.ttl = Duration.ofSeconds(ttlSeconds);
     }
 
+    public String uploadUrl(Photo photo) {
+        return storage.presignedPutUrl(photo.getStorageKey(), photo.getContentType(), UPLOAD_TTL)
+                .orElseGet(() -> signedAppUrl("upload", photo.getId(), UPLOAD_TTL));
+    }
+
     /** 업로드가 끝나지 않은 사진은 null. */
     public String imageUrl(Photo photo) {
         if (!photo.isReady()) return null;
-        return storage.presignedGetUrl(photo.getFileUrl(), ttl).orElseGet(() -> signedAppUrl(photo.getId()));
+        return storage.presignedGetUrl(photo.getFileUrl(), ttl).orElseGet(() -> signedAppUrl("image", photo.getId(), ttl));
     }
 
-    public boolean verify(String photoId, long expires, String signature) {
+    public boolean verifyUpload(String photoId, long expires, String signature) {
+        return verify("upload", photoId, expires, signature);
+    }
+
+    public boolean verifyImage(String photoId, long expires, String signature) {
+        return verify("image", photoId, expires, signature);
+    }
+
+    private boolean verify(String purpose, String photoId, long expires, String signature) {
         if (signature == null || Instant.now().getEpochSecond() > expires) return false;
-        return MessageDigest.isEqual(sign(photoId, expires).getBytes(StandardCharsets.UTF_8), signature.getBytes(StandardCharsets.UTF_8));
+        return MessageDigest.isEqual(sign(purpose, photoId, expires).getBytes(StandardCharsets.UTF_8), signature.getBytes(StandardCharsets.UTF_8));
     }
 
-    private String signedAppUrl(String photoId) {
-        long expires = Instant.now().plus(ttl).getEpochSecond();
-        return ServletUriComponentsBuilder.fromCurrentContextPath().path("/api/v1/photos/{photoId}/image")
-                .queryParam("expires", expires).queryParam("signature", sign(photoId, expires))
+    private String signedAppUrl(String purpose, String photoId, Duration validFor) {
+        long expires = Instant.now().plus(validFor).getEpochSecond();
+        return ServletUriComponentsBuilder.fromCurrentContextPath().path("/api/v1/photos/{photoId}/" + purpose)
+                .queryParam("expires", expires).queryParam("signature", sign(purpose, photoId, expires))
                 .buildAndExpand(photoId).toUriString();
     }
 
-    private String sign(String photoId, long expires) {
+    private String sign(String purpose, String photoId, long expires) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(secret, "HmacSHA256"));
-            byte[] digest = mac.doFinal((photoId + ":" + expires).getBytes(StandardCharsets.UTF_8));
+            byte[] digest = mac.doFinal((purpose + ":" + photoId + ":" + expires).getBytes(StandardCharsets.UTF_8));
             return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
         } catch (Exception e) {
             throw new IllegalStateException(e);

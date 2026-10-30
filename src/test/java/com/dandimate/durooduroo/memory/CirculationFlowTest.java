@@ -3,7 +3,6 @@ package com.dandimate.durooduroo.memory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -16,7 +15,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -120,9 +118,10 @@ class CirculationFlowTest {
                 "{\"files\":[{\"clientFileId\":\"c" + order + "\",\"fileName\":\"a.png\",\"contentType\":\"image/png\",\"sizeBytes\":10,\"displayOrder\":" + order + "}]}")
                 .andExpect(status().isCreated()));
         String photoId = JsonPath.read(requested, "$.data.uploads[0].photoId");
-        mockMvc.perform(multipart("/api/v1/photos/" + photoId + "/complete")
-                        .file(new MockMultipartFile("file", "a.png", "image/png", new byte[]{1, 2, 3}))
-                        .header("Authorization", "Bearer " + token))
+        String uploadUrl = JsonPath.read(requested, "$.data.uploads[0].uploadUrl");
+        mockMvc.perform(put(uploadUrl.substring("http://localhost".length())).contentType("image/png").content(new byte[]{1, 2, 3}))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/photos/" + photoId + "/complete").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
         return photoId;
     }

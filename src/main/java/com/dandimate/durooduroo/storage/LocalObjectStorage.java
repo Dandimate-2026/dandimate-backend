@@ -1,6 +1,98 @@
-/** 개발 환경에서 사용하는 로컬 파일 저장소입니다. 서명 URL이 없으므로 앱의 서명된 이미지 API로 파일을 내려준다. */
+/** 개발 환경에서 사용하는 로컬 파일 저장소입니다. presigned URL이 없으므로 앱의 서명된 업로드·이미지 API를 쓴다. */
 package com.dandimate.durooduroo.storage;
-import java.nio.file.*; import java.time.Duration; import java.util.Optional; import org.springframework.beans.factory.annotation.Value; import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty; import org.springframework.core.io.FileSystemResource; import org.springframework.core.io.Resource; import org.springframework.stereotype.Component; import org.springframework.web.multipart.MultipartFile;
-@Component @ConditionalOnProperty(name="storage.type",havingValue="local",matchIfMissing=true) public class LocalObjectStorage implements ObjectStorage {private final Path root;private final Path publicRoot;public LocalObjectStorage(@Value("${storage.local-root:uploads}") String root){this.root=Paths.get(root).toAbsolutePath().normalize();this.publicRoot=Paths.get(root).normalize();}public String put(String key,MultipartFile file)throws Exception{Path path=root.resolve(key).normalize();if(!path.startsWith(root)||path.equals(root))throw new IllegalArgumentException("invalid storage key");Files.createDirectories(path.getParent());file.transferTo(path);return publicRoot.resolve(root.relativize(path)).toString();}public void delete(String key){Path path=root.resolve(key).normalize();if(!path.startsWith(root))return;try{Files.deleteIfExists(path);}catch(Exception ignored){}}
-public Optional<String> presignedGetUrl(String location,Duration ttl){return Optional.empty();}
-public Optional<Resource> open(String location){try{Path relative=publicRoot.relativize(Paths.get(location).normalize());Path path=root.resolve(relative).normalize();if(!path.startsWith(root)||!Files.isRegularFile(path))return Optional.empty();return Optional.of(new FileSystemResource(path));}catch(IllegalArgumentException e){return Optional.empty();}}}
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.Duration;
+import java.util.Optional;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.MediaTypeFactory;
+import org.springframework.stereotype.Component;
+
+@Component
+@ConditionalOnProperty(name = "storage.type", havingValue = "local", matchIfMissing = true)
+public class LocalObjectStorage implements ObjectStorage {
+
+    private final Path root;
+    private final Path publicRoot;
+
+    public LocalObjectStorage(@Value("${storage.local-root:uploads}") String root) {
+        this.root = Paths.get(root).toAbsolutePath().normalize();
+        this.publicRoot = Paths.get(root).normalize();
+    }
+
+    @Override
+    public String locationFor(String key) {
+        return publicRoot.resolve(root.relativize(resolveKey(key))).toString();
+    }
+
+    @Override
+    public void putBytes(String key, byte[] bytes, String contentType) {
+        Path path = resolveKey(key);
+        try {
+            Files.createDirectories(path.getParent());
+            Files.write(path, bytes);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override
+    public void delete(String location) {
+        resolveLocation(location).ifPresent(path -> {
+            try {
+                Files.deleteIfExists(path);
+            } catch (IOException ignored) {
+                // 지우지 못한 파일은 다음 정리 작업에서 다시 시도한다.
+            }
+        });
+    }
+
+    @Override
+    public Optional<String> presignedPutUrl(String key, String contentType, Duration ttl) {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<StoredObject> head(String location) {
+        return resolveLocation(location).filter(Files::isRegularFile).map(path -> {
+            try {
+                String type = MediaTypeFactory.getMediaType(path.getFileName().toString()).map(Object::toString).orElse("application/octet-stream");
+                return new StoredObject(Files.size(path), type);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+    }
+
+    @Override
+    public Optional<String> presignedGetUrl(String location, Duration ttl) {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<Resource> open(String location) {
+        return resolveLocation(location).filter(Files::isRegularFile).map(FileSystemResource::new);
+    }
+
+    private Path resolveKey(String key) {
+        Path path = root.resolve(key).normalize();
+        if (!path.startsWith(root) || path.equals(root)) throw new IllegalArgumentException("invalid storage key");
+        return path;
+    }
+
+    private Optional<Path> resolveLocation(String location) {
+        try {
+            Path path = root.resolve(publicRoot.relativize(Paths.get(location).normalize())).normalize();
+            return path.startsWith(root) ? Optional.of(path) : Optional.empty();
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
+    }
+}
