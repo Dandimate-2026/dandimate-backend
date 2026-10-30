@@ -71,7 +71,7 @@ class ReplyFlowTest {
         assertThat(JsonPath.<List<String>>read(applied, "$.data.paragraphs[0].sources[*].quote"))
                 .containsExactly("막차 놓쳐서 뛰었잖아", "다리가 풀리는 줄 알았어", "역에 도착하고 나서 표를 잃어버렸어");
         mockMvc.perform(get("/api/v1/rooms/" + roomId + "/notifications").header("Authorization", "Bearer " + member))
-                .andExpect(jsonPath("$.data.notifications[?(@.type == 'REPLY_APPLIED')]").isNotEmpty());
+                .andExpect(jsonPath("$.data[?(@.type == 'REPLY_APPLIED')]").isNotEmpty());
 
         // 욕설은 거절
         String unsafe = reply(paragraphId, member, "이 씨발 진짜");

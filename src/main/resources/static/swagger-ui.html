@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>두루두루 Public API</title>
+  <link rel="stylesheet" href="/webjars/swagger-ui/5.17.14/swagger-ui.css">
+  <style>body { margin: 0; background: #fafafa; }</style>
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="/webjars/swagger-ui/5.17.14/swagger-ui-bundle.js"></script>
+<script>
+  // 계약서 원본: Dandimate-2026/dandimate-backend docs/swagger/openapi.yaml (src/main/resources/static/openapi/public-api.yaml로 복사)
+  window.ui = SwaggerUIBundle({ url: '/openapi/public-api.yaml', dom_id: '#swagger-ui', deepLinking: true });
+</script>
+</body>
+</html>

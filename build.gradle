@@ -22,11 +22,15 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'software.amazon.awssdk:s3:2.29.52'
+    // 계약서(static/openapi/public-api.yaml)를 /swagger-ui.html에서 보여 준다. 코드에서 문서를 생성하지는 않는다.
+    implementation 'org.webjars:swagger-ui:5.17.14'
 
     runtimeOnly 'com.mysql:mysql-connector-j'
 runtimeOnly 'com.h2database:h2'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    // 응답을 계약서 JSON Schema(2020-12)로 검증한다.
+    testImplementation 'com.networknt:json-schema-validator:1.5.6'
     testRuntimeOnly 'com.h2database:h2'
 }
 

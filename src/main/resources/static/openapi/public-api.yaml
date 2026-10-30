@@ -1,0 +1,1129 @@
+openapi: 3.1.0
+info:
+  title: Duruduru Public API
+  version: 0.1.0
+  description: Mobile web to a single Spring Boot application. OpenAI is called only from the server and is never exposed to clients.
+servers:
+  - url: https://api.example.com/api/v1
+tags:
+  - name: Rooms
+  - name: Photos
+  - name: Entries
+  - name: Circulation
+  - name: Askbacks
+  - name: Scrolls
+  - name: Replies
+  - name: Notifications
+security:
+  - memberBearer: []
+paths:
+  /rooms:
+    post:
+      tags: [Rooms]
+      summary: Create a room and its host
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoomRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateRoomResponse'
+        '400': {$ref: '#/components/responses/BadRequest'}
+  /invites/{inviteToken}:
+    get:
+      tags: [Rooms]
+      summary: Get minimum room preview before joining
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/InviteToken'
+      responses:
+        '200':
+          description: Room preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitePreviewResponse'
+        '404': {$ref: '#/components/responses/NotFound'}
+  /invites/{inviteToken}/join:
+    post:
+      tags: [Rooms]
+      summary: Join a room without an account
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/InviteToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinRoomRequest'
+      responses:
+        '201':
+          description: Joined
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinRoomResponse'
+        '409': {$ref: '#/components/responses/Conflict'}
+  /rooms/{roomId}:
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    get:
+      tags: [Rooms]
+      summary: Get room home state for the current member
+      responses:
+        '200':
+          description: Room home
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomHomeResponse'
+        '403': {$ref: '#/components/responses/Forbidden'}
+    patch:
+      tags: [Rooms]
+      summary: Update room settings (host only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: {type: string, minLength: 1, maxLength: 20}
+                meetingDate: {type: string, format: date}
+                deadlineAt: {type: string, format: date-time}
+      responses:
+        '200': {$ref: '#/components/responses/Ok'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    delete:
+      tags: [Rooms]
+      summary: Delete room and all content (host only)
+      responses:
+        '204': {description: Deleted}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /rooms/{roomId}/invite-token/rotate:
+    post:
+      tags: [Rooms]
+      summary: Rotate invite token (host only)
+      parameters:
+        - $ref: '#/components/parameters/RoomId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: New raw invite token, returned once
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [inviteToken]
+                    properties:
+                      inviteToken: {type: string}
+  /rooms/{roomId}/close:
+    post:
+      tags: [Rooms]
+      summary: Start early or demo close and weave
+      parameters:
+        - $ref: '#/components/parameters/RoomId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode: {$ref: '#/components/schemas/CloseMode'}
+      responses:
+        '202':
+          description: Weave queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAcceptedResponse'
+        '409': {$ref: '#/components/responses/Conflict'}
+  /rooms/{roomId}/photos/upload-requests:
+    post:
+      tags: [Photos]
+      summary: Create pending photos and presigned upload URLs
+      parameters:
+        - $ref: '#/components/parameters/RoomId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  minItems: 1
+                  maxItems: 3
+                  items: {$ref: '#/components/schemas/UploadFileRequest'}
+      responses:
+        '201':
+          description: Upload URLs issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadRequestsResponse'
+        '422': {$ref: '#/components/responses/Unprocessable'}
+  /photos/{photoId}/complete:
+    post:
+      tags: [Photos]
+      summary: Confirm an object-storage upload
+      parameters:
+        - $ref: '#/components/parameters/PhotoId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': {$ref: '#/components/responses/Ok'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /photos/{photoId}:
+    delete:
+      tags: [Photos]
+      summary: Delete own photo and dependent content
+      parameters:
+        - $ref: '#/components/parameters/PhotoId'
+      responses:
+        '204': {description: Deleted}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /photos/{photoId}/transcriptions:
+    post:
+      tags: [Entries]
+      summary: Upload voice and create an editable transcript draft
+      parameters:
+        - $ref: '#/components/parameters/PhotoId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, kind]
+              properties:
+                file: {type: string, format: binary}
+                kind:
+                  type: string
+                  enum: [FIRST, ADDON]
+      responses:
+        '201':
+          description: Transcript draft
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranscriptionDraftResponse'
+        '502': {$ref: '#/components/responses/AiFailure'}
+  /photos/{photoId}/entries:
+    post:
+      tags: [Entries]
+      summary: Confirm first entry or addon
+      parameters:
+        - $ref: '#/components/parameters/PhotoId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEntryRequest'
+      responses:
+        '201':
+          description: Entry confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryResponse'
+        '422': {$ref: '#/components/responses/Unprocessable'}
+  /photos/{photoId}/first-entry/skip:
+    post:
+      tags: [Entries]
+      summary: Publish a photo without a first entry for now
+      parameters:
+        - $ref: '#/components/parameters/PhotoId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': {$ref: '#/components/responses/Ok'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /entries/{entryId}:
+    patch:
+      tags: [Entries]
+      summary: Edit own transcript
+      parameters:
+        - $ref: '#/components/parameters/EntryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [transcript]
+              properties:
+                transcript: {type: string, minLength: 1, maxLength: 300}
+      responses:
+        '200': {$ref: '#/components/responses/Ok'}
+    delete:
+      tags: [Entries]
+      summary: Delete own entry
+      parameters:
+        - $ref: '#/components/parameters/EntryId'
+      responses:
+        '204': {description: Deleted}
+  /photos/{photoId}/passes/me:
+    put:
+      tags: [Circulation]
+      summary: Pass this photo
+      parameters:
+        - $ref: '#/components/parameters/PhotoId'
+      responses:
+        '200': {$ref: '#/components/responses/Ok'}
+    delete:
+      tags: [Circulation]
+      summary: Undo pass
+      parameters:
+        - $ref: '#/components/parameters/PhotoId'
+      responses:
+        '204': {description: Deleted}
+  /rooms/{roomId}/circulation:
+    get:
+      tags: [Circulation]
+      summary: Get cards with server-side content locking
+      parameters:
+        - $ref: '#/components/parameters/RoomId'
+        - name: cursor
+          in: query
+          schema: {type: string}
+        - name: size
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 50, default: 20}
+      responses:
+        '200':
+          description: Circulation page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CirculationResponse'
+  /rooms/{roomId}/askbacks/me:
+    get:
+      tags: [Askbacks]
+      summary: Get askbacks assigned to the current member
+      parameters:
+        - $ref: '#/components/parameters/RoomId'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AskbackStatus'
+      responses:
+        '200':
+          description: Askback list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AskbackListResponse'}
+  /askbacks/{askbackId}:
+    get:
+      tags: [Askbacks]
+      summary: Get an askback detail (target member only)
+      parameters:
+        - $ref: '#/components/parameters/AskbackId'
+      responses:
+        '200':
+          description: Askback detail
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AskbackDetailResponse'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /askbacks/{askbackId}/answer:
+    post:
+      tags: [Askbacks]
+      summary: Confirm an askback answer as a source entry
+      parameters:
+        - $ref: '#/components/parameters/AskbackId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AskbackAnswerRequest'
+      responses:
+        '201':
+          description: Answer confirmed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AskbackAnswerResponse'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /askbacks/{askbackId}/forgot:
+    post:
+      tags: [Askbacks]
+      summary: Mark an askback as forgotten
+      parameters:
+        - $ref: '#/components/parameters/AskbackId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': {$ref: '#/components/responses/Ok'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /askbacks/{askbackId}/postpone:
+    post:
+      tags: [Askbacks]
+      summary: Postpone an askback while keeping it pending
+      parameters:
+        - $ref: '#/components/parameters/AskbackId'
+      responses:
+        '200': {$ref: '#/components/responses/Ok'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /askbacks/{askbackId}/transcriptions:
+    post:
+      tags: [Askbacks]
+      summary: Create a voice transcript draft for an askback answer
+      parameters:
+        - $ref: '#/components/parameters/AskbackId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        '201':
+          description: Transcript draft
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TranscriptionDraftResponse'}
+        '502': {$ref: '#/components/responses/AiFailure'}
+  /rooms/{roomId}/askbacks/run:
+    post:
+      tags: [Askbacks]
+      summary: Run askback analysis immediately in demo mode (host only)
+      parameters:
+        - $ref: '#/components/parameters/RoomId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Analysis queued
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JobAcceptedResponse'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /rooms/{roomId}/scroll:
+    get:
+      tags: [Scrolls]
+      summary: Get the current scroll and paragraphs
+      parameters:
+        - $ref: '#/components/parameters/RoomId'
+      responses:
+        '200':
+          description: Scroll
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScrollResponse'
+        '409': {$ref: '#/components/responses/Conflict'}
+  /rooms/{roomId}/weave-jobs:
+    post:
+      tags: [Scrolls]
+      summary: Retry a failed weave (host only)
+      parameters:
+        - $ref: '#/components/parameters/RoomId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Queued
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JobAcceptedResponse'}
+  /jobs/{jobId}:
+    get:
+      tags: [Scrolls]
+      summary: Get AI job progress
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema: {$ref: '#/components/schemas/Id'}
+      responses:
+        '200':
+          description: Job
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JobResponse'}
+  /paragraphs/{paragraphId}/replies:
+    post:
+      tags: [Replies]
+      summary: Create a reply and queue partial reweave
+      parameters:
+        - $ref: '#/components/parameters/ParagraphId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReplyRequest'
+      responses:
+        '202':
+          description: Reply accepted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JobAcceptedResponse'}
+  /paragraphs/{paragraphId}/transcriptions:
+    post:
+      tags: [Replies]
+      summary: Create a voice transcript draft for a reply
+      parameters:
+        - $ref: '#/components/parameters/ParagraphId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        '201':
+          description: Transcript draft
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TranscriptionDraftResponse'}
+        '502': {$ref: '#/components/responses/AiFailure'}
+  /replies/{replyId}:
+    delete:
+      tags: [Replies]
+      summary: Delete own reply and restore/rebuild paragraph
+      parameters:
+        - name: replyId
+          in: path
+          required: true
+          schema: {$ref: '#/components/schemas/Id'}
+      responses:
+        '202':
+          description: Restore queued
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JobAcceptedResponse'}
+  /paragraphs/{paragraphId}/fidelity-rating:
+    put:
+      tags: [Replies]
+      summary: Upsert fidelity rating
+      parameters:
+        - $ref: '#/components/parameters/ParagraphId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [score]
+              properties:
+                score: {type: integer, minimum: 1, maximum: 5}
+      responses:
+        '200': {$ref: '#/components/responses/Ok'}
+  /paragraphs/{paragraphId}/reactions/ah-matda:
+    put:
+      tags: [Replies]
+      summary: Add ah-matda reaction
+      parameters:
+        - $ref: '#/components/parameters/ParagraphId'
+      responses:
+        '200': {$ref: '#/components/responses/Ok'}
+    delete:
+      tags: [Replies]
+      summary: Remove ah-matda reaction
+      parameters:
+        - $ref: '#/components/parameters/ParagraphId'
+      responses:
+        '204': {description: Deleted}
+  /rooms/{roomId}/notifications:
+    get:
+      tags: [Notifications]
+      summary: Get current member notifications
+      parameters:
+        - $ref: '#/components/parameters/RoomId'
+      responses:
+        '200':
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/Notification'}
+  /notifications/{notificationId}/read:
+    post:
+      tags: [Notifications]
+      summary: Mark notification as read
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema: {$ref: '#/components/schemas/Id'}
+      responses:
+        '200': {$ref: '#/components/responses/Ok'}
+  /rooms/{roomId}/events:
+    get:
+      tags: [Notifications]
+      summary: Server-sent event stream; clients fall back to 5-second polling
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RoomId'
+        - name: streamToken
+          in: query
+          required: true
+          description: One-time token valid for 60 seconds and bound to one room/member
+          schema: {type: string}
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema: {type: string}
+  /rooms/{roomId}/event-token:
+    post:
+      tags: [Notifications]
+      summary: Issue a one-time short-lived token for EventSource
+      parameters:
+        - $ref: '#/components/parameters/RoomId'
+      responses:
+        '201':
+          description: Stream token
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [eventsUrl, expiresAt]
+                    properties:
+                      eventsUrl: {type: string, format: uri}
+                      expiresAt: {type: string, format: date-time}
+components:
+  securitySchemes:
+    memberBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 16, maxLength: 128}
+    InviteToken:
+      name: inviteToken
+      in: path
+      required: true
+      schema: {type: string, minLength: 22}
+    RoomId:
+      name: roomId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Id'}
+    PhotoId:
+      name: photoId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Id'}
+    EntryId:
+      name: entryId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Id'}
+    ParagraphId:
+      name: paragraphId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Id'}
+    AskbackId:
+      name: askbackId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Id'}
+  responses:
+    Ok:
+      description: Success
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: {type: object}
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Unprocessable:
+      description: Validation or domain limit
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    AiFailure:
+      description: AI provider or validation failure
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+  schemas:
+    Id:
+      type: string
+      minLength: 16
+      maxLength: 40
+      examples: [01JABCD1234EFGH5678]
+    RoomStatus:
+      type: string
+      enum: [COLLECTING, CIRCULATING, WEAVING, GROWING]
+    CloseMode:
+      type: string
+      enum: [EARLY, DEMO]
+    FlowerCode:
+      type: string
+      enum: [AZALEA, FORSYTHIA, ROYAL_AZALEA, CANOLA, LILAC, FORGET_ME_NOT, TEAL, PURPLE]
+    Consent:
+      type: object
+      required: [version, terms, mediaProcessing, externalAiProcessing]
+      properties:
+        version: {type: string}
+        terms: {type: boolean, const: true}
+        mediaProcessing: {type: boolean, const: true}
+        externalAiProcessing: {type: boolean, const: true}
+    Member:
+      type: object
+      required: [id, nickname, role, flowerCode]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        nickname: {type: string, minLength: 1, maxLength: 10}
+        role: {type: string, enum: [HOST, MEMBER]}
+        flowerCode: {$ref: '#/components/schemas/FlowerCode'}
+        photoCount: {type: integer, minimum: 0, maximum: 3}
+        storyCount: {type: integer, minimum: 0}
+        responseRate: {type: number, minimum: 0, maximum: 1}
+    CreateRoomRequest:
+      type: object
+      additionalProperties: false
+      required: [name, meetingDate, hostNickname, consent]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 20}
+        meetingDate: {type: string, format: date}
+        hostNickname: {type: string, minLength: 1, maxLength: 10}
+        consent: {$ref: '#/components/schemas/Consent'}
+    CreateRoomResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [room, member, inviteToken, memberAccessToken]
+          properties:
+            room: {$ref: '#/components/schemas/RoomSummary'}
+            member: {$ref: '#/components/schemas/Member'}
+            inviteToken: {type: string}
+            memberAccessToken: {type: string}
+    RoomSummary:
+      type: object
+      required: [id, name, status, deadlineAt]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        name: {type: string}
+        meetingDate: {type: string, format: date}
+        status: {$ref: '#/components/schemas/RoomStatus'}
+        deadlineAt: {type: string, format: date-time}
+    InvitePreviewResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [roomName, status, memberCount, capacity, flowers, canJoin]
+          properties:
+            roomName: {type: string}
+            meetingDate: {type: string, format: date}
+            status: {$ref: '#/components/schemas/RoomStatus'}
+            memberCount: {type: integer, minimum: 0, maximum: 8}
+            capacity: {type: integer, const: 8}
+            flowers:
+              type: array
+              items: {$ref: '#/components/schemas/FlowerCode'}
+            canJoin: {type: boolean}
+    JoinRoomRequest:
+      type: object
+      additionalProperties: false
+      required: [nickname, consent]
+      properties:
+        nickname: {type: string, minLength: 1, maxLength: 10}
+        consent: {$ref: '#/components/schemas/Consent'}
+    JoinRoomResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [room, member, memberAccessToken]
+          properties:
+            room: {$ref: '#/components/schemas/RoomSummary'}
+            member: {$ref: '#/components/schemas/Member'}
+            memberAccessToken: {type: string}
+    RoomHomeResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [room, me, members, todayFlowers, myTodo, unreadCount, allCompleted]
+          properties:
+            room: {$ref: '#/components/schemas/RoomSummary'}
+            me: {$ref: '#/components/schemas/Member'}
+            members:
+              type: array
+              items: {$ref: '#/components/schemas/Member'}
+            todayFlowers:
+              type: array
+              items:
+                type: object
+                required: [memberId, flowerCode, entryKind]
+                properties:
+                  memberId: {$ref: '#/components/schemas/Id'}
+                  flowerCode: {$ref: '#/components/schemas/FlowerCode'}
+                  entryKind: {type: string, enum: [FIRST, ADDON]}
+            myTodo:
+              type: object
+              required: [needsFirstEntry, pendingCirculationCount, topAskback]
+              properties:
+                needsFirstEntry: {type: boolean}
+                pendingCirculationCount: {type: integer, minimum: 0}
+                topAskback:
+                  anyOf:
+                    - type: object
+                      required: [id, question]
+                      properties:
+                        id: {$ref: '#/components/schemas/Id'}
+                        question: {type: string, maxLength: 60}
+                    - type: 'null'
+            unreadCount: {type: integer, minimum: 0}
+            allCompleted: {type: boolean}
+    UploadFileRequest:
+      type: object
+      additionalProperties: false
+      required: [clientFileId, fileName, contentType, sizeBytes, displayOrder]
+      properties:
+        clientFileId: {type: string, maxLength: 64}
+        fileName: {type: string, maxLength: 255}
+        contentType: {type: string, enum: [image/jpeg, image/png, image/heic, image/heif]}
+        sizeBytes: {type: integer, minimum: 1, maximum: 2000000}
+        displayOrder: {type: integer, minimum: 1, maximum: 3}
+    UploadRequestsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [uploads]
+          properties:
+            uploads:
+              type: array
+              items:
+                type: object
+                required: [clientFileId, photoId, uploadUrl, expiresAt]
+                properties:
+                  clientFileId: {type: string}
+                  photoId: {$ref: '#/components/schemas/Id'}
+                  uploadUrl: {type: string, format: uri}
+                  expiresAt: {type: string, format: date-time}
+                  requiredHeaders: {type: object, additionalProperties: {type: string}}
+    TranscriptionDraftResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [transcriptionId, audioAssetId, transcript, expiresAt]
+          properties:
+            transcriptionId: {$ref: '#/components/schemas/Id'}
+            audioAssetId: {$ref: '#/components/schemas/Id'}
+            transcript: {type: string}
+            detectedLanguages: {type: array, items: {type: string}}
+            expiresAt: {type: string, format: date-time}
+    CreateEntryRequest:
+      type: object
+      additionalProperties: false
+      required: [kind, inputMode, transcript]
+      properties:
+        kind: {type: string, enum: [FIRST, ADDON]}
+        inputMode: {type: string, enum: [VOICE, TEXT]}
+        transcriptionId: {$ref: '#/components/schemas/Id'}
+        transcript: {type: string, minLength: 1, maxLength: 300}
+      allOf:
+        - if:
+            properties: {inputMode: {const: VOICE}}
+          then:
+            required: [transcriptionId]
+    Entry:
+      type: object
+      required: [id, photoId, member, kind, inputMode, transcript, confirmedAt]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        photoId: {$ref: '#/components/schemas/Id'}
+        member: {$ref: '#/components/schemas/Member'}
+        kind: {type: string, enum: [FIRST, ADDON, ASKBACK_ANSWER]}
+        inputMode: {type: string, enum: [VOICE, TEXT]}
+        transcript: {type: string}
+        audioUrl: {type: [string, 'null'], format: uri}
+        confirmedAt: {type: string, format: date-time}
+    EntryResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [entry]
+          properties:
+            entry: {$ref: '#/components/schemas/Entry'}
+            askbackJobId:
+              anyOf:
+                - $ref: '#/components/schemas/Id'
+                - type: 'null'
+    CirculationResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [cards]
+          properties:
+            cards:
+              type: array
+              items:
+                type: object
+                required: [photo, firstEntry, myResponse, locked, otherEntries]
+                properties:
+                  photo: {$ref: '#/components/schemas/Photo'}
+                  firstEntry:
+                    anyOf:
+                      - $ref: '#/components/schemas/Entry'
+                      - type: 'null'
+                  myResponse:
+                    type: object
+                    required: [status]
+                    properties:
+                      status: {type: string, enum: [NONE, ADDON, PASSED, OWN_PHOTO]}
+                  locked: {type: boolean}
+                  lockReason: {type: [string, 'null'], enum: [RESPOND_FIRST, null]}
+                  otherEntries:
+                    type: array
+                    items: {$ref: '#/components/schemas/Entry'}
+            nextCursor: {type: [string, 'null']}
+    Photo:
+      type: object
+      required: [id, imageUrl, uploader, displayOrder]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        imageUrl: {type: string, format: uri}
+        uploader: {$ref: '#/components/schemas/Member'}
+        displayOrder: {type: integer}
+    Askback:
+      type: object
+      required: [id, photo, gapType, question, evidenceNicknames, status, createdAt, expiresAt]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        photo: {$ref: '#/components/schemas/Photo'}
+        gapType: {type: string, enum: [CONFLICT, MISSING_REASON, NO_ADDON, MISSING_CONTEXT]}
+        question: {type: string, maxLength: 60}
+        evidenceNicknames:
+          type: array
+          items: {type: string, minLength: 1, maxLength: 10}
+        status: {$ref: '#/components/schemas/AskbackStatus'}
+        firstEntry:
+          anyOf:
+            - $ref: '#/components/schemas/Entry'
+            - type: 'null'
+        createdAt: {type: string, format: date-time}
+        expiresAt: {type: string, format: date-time}
+    AskbackStatus:
+      type: string
+      enum: [PENDING, ANSWERED, FORGOT, EXPIRED, CANCELLED]
+    AskbackListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [askbacks]
+          properties:
+            askbacks:
+              type: array
+              items: {$ref: '#/components/schemas/Askback'}
+    AskbackDetailResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [askback]
+          properties:
+            askback: {$ref: '#/components/schemas/Askback'}
+    AskbackAnswerRequest:
+      type: object
+      additionalProperties: false
+      required: [inputMode, transcript]
+      properties:
+        inputMode: {type: string, enum: [VOICE, TEXT]}
+        transcriptionId: {$ref: '#/components/schemas/Id'}
+        transcript: {type: string, minLength: 1, maxLength: 200}
+      allOf:
+        - if:
+            properties: {inputMode: {const: VOICE}}
+          then:
+            required: [transcriptionId]
+    AskbackAnswerResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [askback, entry]
+          properties:
+            askback:
+              type: object
+              required: [id, status]
+              properties:
+                id: {$ref: '#/components/schemas/Id'}
+                status: {type: string, const: ANSWERED}
+            entry: {$ref: '#/components/schemas/Entry'}
+    ScrollResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [id, version, participantCount, memberCount, paragraphs]
+          properties:
+            id: {$ref: '#/components/schemas/Id'}
+            version: {type: integer, minimum: 1}
+            participantCount: {type: integer}
+            memberCount: {type: integer}
+            generatedAt: {type: string, format: date-time}
+            paragraphs:
+              type: array
+              items: {$ref: '#/components/schemas/Paragraph'}
+    Paragraph:
+      type: object
+      required: [id, photo, body, version, sources, replyCount, ahMatdaCount, aiGenerated]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        photo: {$ref: '#/components/schemas/Photo'}
+        body: {type: string}
+        version: {type: integer, minimum: 1}
+        sources:
+          type: array
+          items:
+            type: object
+            required: [entryId, member, quote]
+            properties:
+              entryId: {$ref: '#/components/schemas/Id'}
+              member: {$ref: '#/components/schemas/Member'}
+              quote: {type: string}
+        replyCount: {type: integer, minimum: 0}
+        ahMatdaCount: {type: integer, minimum: 0}
+        aiGenerated: {type: boolean, const: true}
+    CreateReplyRequest:
+      type: object
+      additionalProperties: false
+      required: [inputMode, transcript]
+      properties:
+        inputMode: {type: string, enum: [VOICE, TEXT]}
+        transcriptionId: {$ref: '#/components/schemas/Id'}
+        transcript: {type: string, minLength: 1, maxLength: 200}
+    JobAcceptedResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [job]
+          properties:
+            job: {$ref: '#/components/schemas/Job'}
+    JobResponse:
+      type: object
+      required: [data]
+      properties:
+        data: {$ref: '#/components/schemas/Job'}
+    Job:
+      type: object
+      required: [id, type, status, createdAt, updatedAt]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        type: {type: string, enum: [ASKBACK_ANALYZE, WEAVE_SCROLL, REPLY_REWEAVE, MEDIA_DELETE]}
+        status: {type: string, enum: [QUEUED, RUNNING, SUCCEEDED, FAILED]}
+        progress:
+          type: object
+          properties:
+            completed: {type: integer, minimum: 0}
+            total: {type: integer, minimum: 0}
+        errorCode: {type: [string, 'null']}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    Notification:
+      type: object
+      required: [id, type, resourceType, resourceId, createdAt]
+      properties:
+        id: {$ref: '#/components/schemas/Id'}
+        type: {type: string, enum: [ASKBACK_RECEIVED, SCROLL_READY, REPLY_APPLIED]}
+        resourceType: {type: string}
+        resourceId: {$ref: '#/components/schemas/Id'}
+        readAt: {type: [string, 'null'], format: date-time}
+        createdAt: {type: string, format: date-time}
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code: {type: string}
+            message: {type: string}
+            details: {type: object, additionalProperties: true}
+            requestId: {type: string}
