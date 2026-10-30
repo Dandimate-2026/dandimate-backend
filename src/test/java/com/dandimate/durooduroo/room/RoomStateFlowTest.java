@@ -60,15 +60,18 @@ class RoomStateFlowTest {
         perform(post("/api/v1/photos/" + photoId + "/entries").header("Authorization", "Bearer " + member), "{\"transcript\":\"다리가 풀리는 줄 알았어\"}")
                 .andExpect(status().isOk());
 
-        // 참여자는 마감 불가, 방장 마감 → 엮기 성공 → GROWING
+        // mode는 필수, 참여자는 마감 불가, 방장 마감 → 엮기 성공 → GROWING
+        perform(post("/api/v1/rooms/" + roomId + "/close").header("Authorization", "Bearer " + host), "{}")
+                .andExpect(status().isBadRequest());
         perform(post("/api/v1/rooms/" + roomId + "/close").header("Authorization", "Bearer " + member), "{\"mode\":\"EARLY\"}")
                 .andExpect(status().isForbidden());
         String closed = body(perform(post("/api/v1/rooms/" + roomId + "/close").header("Authorization", "Bearer " + host), "{\"mode\":\"DEMO\"}")
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.roomStatus").value("GROWING"))
+                .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.data.job.type").value("WEAVE_SCROLL"))
                 .andExpect(jsonPath("$.data.job.status").value("SUCCEEDED")));
         String jobId = JsonPath.read(closed, "$.data.job.id");
+        mockMvc.perform(get("/api/v1/rooms/" + roomId).header("Authorization", "Bearer " + host))
+                .andExpect(jsonPath("$.data.room.status").value("GROWING"));
 
         mockMvc.perform(get("/api/v1/jobs/" + jobId).header("Authorization", "Bearer " + member))
                 .andExpect(status().isOk())
@@ -95,7 +98,7 @@ class RoomStateFlowTest {
         for (int i = 0; i < 10; i++) {
             mockMvc.perform(post("/api/v1/rooms/" + roomId + "/weave-jobs").header("Authorization", "Bearer " + host))
                     .andExpect(status().isAccepted())
-                    .andExpect(jsonPath("$.data.status").value("SUCCEEDED"));
+                    .andExpect(jsonPath("$.data.job.status").value("SUCCEEDED"));
         }
         mockMvc.perform(post("/api/v1/rooms/" + roomId + "/weave-jobs").header("Authorization", "Bearer " + host))
                 .andExpect(status().isUnprocessableEntity())

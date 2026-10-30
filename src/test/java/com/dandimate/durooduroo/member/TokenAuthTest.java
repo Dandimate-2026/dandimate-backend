@@ -78,6 +78,37 @@ class TokenAuthTest {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    void 토큰은_Authorization_헤더로만_받는다() throws Exception {
+        String created = createRoom("서연");
+        String roomId = JsonPath.read(created, "$.data.room.id");
+        String token = JsonPath.read(created, "$.data.memberAccessToken");
+
+        mockMvc.perform(get("/api/v1/rooms/" + roomId).param("memberToken", token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("INVALID_MEMBER_TOKEN"));
+        mockMvc.perform(get("/api/v1/rooms/" + roomId).header("Authorization", "Bearer "))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 이벤트_토큰은_201과_일회용_eventsUrl을_돌려준다() throws Exception {
+        String created = createRoom("서연");
+        String roomId = JsonPath.read(created, "$.data.room.id");
+        String token = JsonPath.read(created, "$.data.memberAccessToken");
+
+        String issued = mockMvc.perform(post("/api/v1/rooms/" + roomId + "/event-token").header("Authorization", "Bearer " + token))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.expiresAt").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        String eventsUrl = JsonPath.read(issued, "$.data.eventsUrl");
+
+        assertThat(eventsUrl).startsWith("http://localhost/api/v1/rooms/" + roomId + "/events?streamToken=");
+        String path = eventsUrl.substring("http://localhost".length());
+        mockMvc.perform(get(path)).andExpect(status().isOk());
+        mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+    }
+
     private String createRoom(String hostNickname) throws Exception {
         return mockMvc.perform(post("/api/v1/rooms").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"hostNickname\":\"" + hostNickname + "\"," + CONSENT + "}"))

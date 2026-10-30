@@ -10,5 +10,5 @@ import org.springframework.http.*; import org.springframework.web.bind.annotatio
 public class PhotoController {
     private final PhotoService service; public PhotoController(PhotoService service){this.service=service;}
     @PostMapping(consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ApiResponse<PhotoResponse>> upload(@PathVariable String roomId,@RequestParam String memberToken,@RequestPart MultipartFile file) throws Exception { return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(service.upload(roomId,memberToken,file))); }
+    public ResponseEntity<ApiResponse<PhotoResponse>> upload(@PathVariable String roomId,@RequestHeader(required=false) String authorization,@RequestPart MultipartFile file) throws Exception { return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(service.upload(roomId,com.dandimate.durooduroo.common.auth.MemberTokenResolver.resolve(authorization),file))); }
 }

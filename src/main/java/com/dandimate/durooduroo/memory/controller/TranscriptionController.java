@@ -19,11 +19,10 @@ public class TranscriptionController {
     public TranscriptionController(PhotoRepository photos, MemberRepository members, OpenAiTranscriptionService stt, com.dandimate.durooduroo.room.service.RoomStateService roomStates) { this.photos=photos; this.members=members; this.stt=stt; this.roomStates=roomStates; }
 
     @PostMapping(consumes="multipart/form-data")
-    public ApiResponse<?> transcribe(@PathVariable String photoId, @RequestHeader(required=false) String authorization,
-                                     @RequestParam(required=false) String memberToken, @RequestParam String kind,
+    public ApiResponse<?> transcribe(@PathVariable String photoId, @RequestHeader(required=false) String authorization, @RequestParam String kind,
                                      @RequestPart MultipartFile file) {
         var photo=photos.findById(photoId).orElseThrow(()->new BusinessException("PHOTO_NOT_FOUND","사진이 없습니다."));
-        String token=MemberTokenResolver.resolve(authorization,memberToken);
+        String token=MemberTokenResolver.resolve(authorization);
         members.findByRoomIdAndMemberToken(photo.getRoomId(),token).orElseThrow(()->new BusinessException("MEMBER_FORBIDDEN","참여자만 받아쓰기를 사용할 수 있습니다."));
         if(!"FIRST".equals(kind) && !"ADDON".equals(kind)) throw new BusinessException("INVALID_REQUEST","kind는 FIRST 또는 ADDON이어야 합니다.");
         roomStates.require(photo.getRoomId(), "FIRST".equals(kind) ? com.dandimate.durooduroo.room.domain.RoomAction.UPLOAD_OR_FIRST_ENTRY : com.dandimate.durooduroo.room.domain.RoomAction.ADDON_OR_PASS);

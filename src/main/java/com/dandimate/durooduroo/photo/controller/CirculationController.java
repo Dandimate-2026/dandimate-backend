@@ -17,8 +17,8 @@ public class CirculationController {
     private final MemberRepository members; private final PhotoRepository photos; private final MemoryEntryRepository entries;
     public CirculationController(MemberRepository members,PhotoRepository photos,MemoryEntryRepository entries){this.members=members;this.photos=photos;this.entries=entries;}
     @GetMapping
-    public ApiResponse<?> get(@PathVariable String roomId,@RequestHeader(required=false) String authorization,@RequestParam(required=false) String memberToken){
-        String token=MemberTokenResolver.resolve(authorization,memberToken); var me=members.findByRoomIdAndMemberToken(roomId,token).orElseThrow(()->new BusinessException("MEMBER_FORBIDDEN","방 참여자만 조회할 수 있습니다."));
+    public ApiResponse<?> get(@PathVariable String roomId,@RequestHeader(required=false) String authorization){
+        String token=MemberTokenResolver.resolve(authorization); var me=members.findByRoomIdAndMemberToken(roomId,token).orElseThrow(()->new BusinessException("MEMBER_FORBIDDEN","방 참여자만 조회할 수 있습니다."));
         List<Map<String,Object>> cards=new ArrayList<>();
         for(var photo:photos.findAllByRoomId(roomId)){
             var my=entries.findByPhotoIdAndMemberId(photo.getId(),me.getId());

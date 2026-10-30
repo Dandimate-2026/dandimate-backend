@@ -23,10 +23,9 @@ public class PhotoCompleteController {
     public PhotoCompleteController(PhotoRepository photos, MemberRepository members, ObjectStorage storage, com.dandimate.durooduroo.room.service.RoomStateService roomStates) { this.photos=photos; this.members=members; this.storage=storage; this.roomStates=roomStates; }
 
     @PostMapping(value="/{photoId}/complete", consumes="multipart/form-data")
-    public ApiResponse<PhotoResponse> complete(@PathVariable String photoId, @RequestHeader(required=false) String authorization,
-                                                @RequestParam(required=false) String memberToken, @RequestPart(required=false) MultipartFile file) throws Exception {
+    public ApiResponse<PhotoResponse> complete(@PathVariable String photoId, @RequestHeader(required=false) String authorization, @RequestPart(required=false) MultipartFile file) throws Exception {
         var photo = photos.findById(photoId).orElseThrow(() -> new BusinessException("PHOTO_NOT_FOUND", "사진이 없습니다."));
-        String token = MemberTokenResolver.resolve(authorization, memberToken);
+        String token = MemberTokenResolver.resolve(authorization);
         var member = members.findByRoomIdAndMemberToken(photo.getRoomId(), token).orElseThrow(() -> new BusinessException("MEMBER_FORBIDDEN", "본인 사진만 완료할 수 있습니다."));
         if (!member.getId().equals(photo.getMemberId())) throw new BusinessException("FORBIDDEN", "본인 사진만 완료할 수 있습니다.");
         roomStates.require(photo.getRoomId(), com.dandimate.durooduroo.room.domain.RoomAction.UPLOAD_OR_FIRST_ENTRY);
