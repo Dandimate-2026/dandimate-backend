@@ -34,9 +34,21 @@ public class MemberService {
         }
         String nickname = request.nickname().trim();
         if (memberRepository.existsByRoomIdAndNickname(room.getId(), nickname)) {
-            throw new BusinessException("DUPLICATE_NICKNAME", "같은 방에서 이미 사용 중인 닉네임입니다.");
+            throw new BusinessException(com.dandimate.durooduroo.common.exception.ErrorCode.NICKNAME_TAKEN, "이미 사용 중인 이름이에요.",
+                    java.util.Map.of("suggestions", suggestions(room.getId(), nickname)));
         }
         return SpecJoinRoomResponse.from(room, memberRepository.save(Member.join(room.getId(), nickname, nextFlower(room.getId()))));
+    }
+
+    /** 명세 1장: 닉네임이 겹치면 숫자를 붙인 추천 이름 2개(10자 이내, 이미 쓰는 이름 제외). 토큰을 잃은 사람도 기존 참여자로 복구하지 않고 새 이름을 쓴다. */
+    private java.util.List<String> suggestions(String roomId, String nickname) {
+        java.util.List<String> suggestions = new java.util.ArrayList<>();
+        for (int n = 2; suggestions.size() < 2 && n < 100; n++) {
+            String suffix = String.valueOf(n);
+            String candidate = nickname.substring(0, Math.min(nickname.length(), 10 - suffix.length())) + suffix;
+            if (!memberRepository.existsByRoomIdAndNickname(roomId, candidate)) suggestions.add(candidate);
+        }
+        return suggestions;
     }
 
     /** 동시에 입장하면 같은 꽃이 골라질 수 있지만 uk_members_room_flower가 한 명만 통과시킨다. */

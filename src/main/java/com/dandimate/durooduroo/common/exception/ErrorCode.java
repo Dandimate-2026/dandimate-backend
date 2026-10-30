@@ -45,6 +45,11 @@ public enum ErrorCode {
         return status;
     }
 
+    /** 명세 코드 이름이거나 별칭으로 등록된 문자열인지. */
+    public static boolean isMapped(String code) {
+        return Arrays.stream(values()).anyMatch(value -> value.name().equals(code) || value.aliases.contains(code));
+    }
+
     /** 명세 코드나 기존 코드 문자열을 명세 코드로 바꾼다. 알 수 없는 코드는 VALIDATION_ERROR로 본다. */
     public static ErrorCode from(String code) {
         return Arrays.stream(values())
