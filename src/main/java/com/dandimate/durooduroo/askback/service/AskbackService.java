@@ -43,32 +43,32 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AskbackService {
 
-    /** FR-D3: 참여자당 방 전체 누적 수신 한도. */
-    public static final int RECEIVE_LIMIT_PER_MEMBER = 2;
-
     private final AskbackRepository askbacks;
     private final MemberRepository members;
     private final PhotoRepository photos;
     private final MemoryEntryRepository entries;
     private final RoomRepository rooms;
     private final RoomStateService roomStates;
-    private final AskbackRuleService rules;
+    private final AskbackAnalysisService analysis;
+    private final com.dandimate.durooduroo.event.EventLogger events;
     private final AiJobRepository jobs;
     private final NotificationRepository notifications;
     private final MediaUrls mediaUrls;
     private final com.dandimate.durooduroo.memory.service.TranscriptionService transcriptions;
 
     public AskbackService(AskbackRepository askbacks, MemberRepository members, PhotoRepository photos, MemoryEntryRepository entries,
-                          RoomRepository rooms, RoomStateService roomStates, AskbackRuleService rules, AiJobRepository jobs,
+                          RoomRepository rooms, RoomStateService roomStates, AskbackAnalysisService analysis, AiJobRepository jobs,
                           NotificationRepository notifications, MediaUrls mediaUrls,
-                          com.dandimate.durooduroo.memory.service.TranscriptionService transcriptions) {
+                          com.dandimate.durooduroo.memory.service.TranscriptionService transcriptions,
+                          com.dandimate.durooduroo.event.EventLogger events) {
         this.askbacks = askbacks;
         this.members = members;
         this.photos = photos;
         this.entries = entries;
         this.rooms = rooms;
         this.roomStates = roomStates;
-        this.rules = rules;
+        this.analysis = analysis;
+        this.events = events;
         this.jobs = jobs;
         this.notifications = notifications;
         this.mediaUrls = mediaUrls;
@@ -108,6 +108,9 @@ public class AskbackService {
         MemoryEntry entry = entries.save(MemoryEntry.confirm(askback.getRoomId(), askback.getPhotoId(), askback.getTargetMemberId(),
                 EntryKind.ASKBACK_ANSWER, request.inputMode(), request.transcriptionId(), audioLocation, transcript));
         askback.answer(entry.getId());
+        photos.findById(askback.getPhotoId()).ifPresent(com.dandimate.durooduroo.photo.domain.Photo::bumpSourceRevision);
+        events.log(askback.getRoomId(), askback.getTargetMemberId(), "askback_responded", Map.of("choice", "answered"));
+        analysis.enqueue(askback.getPhotoId());
         Member me = members.findById(askback.getTargetMemberId()).orElseThrow();
         return Map.of("askback", Map.of("id", askback.getId(), "status", askback.getStatus()), "entry", EntryView.of(entry, me, mediaUrls.audioUrl(entry)));
     }
@@ -117,6 +120,7 @@ public class AskbackService {
         Askback askback = requireOwn(askbackId, authorization);
         roomStates.require(askback.getRoomId(), RoomAction.ASKBACK_ANSWER);
         askback.forgot();
+        events.log(askback.getRoomId(), askback.getTargetMemberId(), "askback_responded", Map.of("choice", "forgot"));
         return askback;
     }
 
@@ -125,35 +129,24 @@ public class AskbackService {
         Askback askback = requireOwn(askbackId, authorization);
         roomStates.require(askback.getRoomId(), RoomAction.ASKBACK_ANSWER);
         askback.postpone();
+        events.log(askback.getRoomId(), askback.getTargetMemberId(), "askback_responded", Map.of("choice", "later"));
         return askback;
     }
 
     /**
-     * 데모: 방장이 되묻기 분석을 즉시 실행한다(FR-H9). AskbackAiService를 붙이기 전까지 규칙으로 질문을 만든다.
-     * 노출된 사진마다 사진을 올린 사람을 대상으로 하며, FORGOT 응답자·미응답 질문이 있는 대상·수신 한도(2개) 도달자는 건너뛴다.
+     * 데모: 방장이 되묻기 분석을 즉시 실행한다(FR-H9). 노출된 사진마다 ASKBACK_ANALYZE 작업을 만들고(이미 대기 중이면 그대로)
+     * 첫 작업을 돌려준다. 질문은 Worker가 일반 분석과 같은 검증·한도를 거쳐 만든다.
      */
     @Transactional
     public AiJob runDemo(String roomId, String authorization) {
         Member me = requireMember(roomId, authorization);
         if (me.getRole() != MemberRole.HOST) throw new BusinessException(ErrorCode.FORBIDDEN, "방장만 실행할 수 있습니다.");
-        Room room = roomStates.require(roomId, RoomAction.ASKBACK_ANSWER);
-        Map<String, List<MemoryEntry>> entriesByPhoto = entries.findAllByRoomIdOrderByCreatedAtAsc(roomId).stream()
-                .collect(Collectors.groupingBy(MemoryEntry::getPhotoId));
-        for (Photo photo : photos.findAllByRoomId(roomId).stream().filter(Photo::isPublished).sorted(Comparator.comparing(Photo::getPublishedAt)).toList()) {
-            List<MemoryEntry> photoEntries = entriesByPhoto.getOrDefault(photo.getId(), List.of());
-            String target = photo.getMemberId();
-            boolean blocked = askbacks.findAllByPhotoId(photo.getId()).stream()
-                    .anyMatch(a -> a.getTargetMemberId().equals(target) && (a.getStatus().equals(Askback.PENDING) || a.getStatus().equals("FORGOT")));
-            if (photoEntries.isEmpty() || blocked || askbacks.countByRoomIdAndTargetMemberId(roomId, target) >= RECEIVE_LIMIT_PER_MEMBER) continue;
-            var rule = rules.decide(photoEntries);
-            Askback askback = askbacks.save(Askback.create(roomId, photo.getId(), target, rule.gapType(), rule.question(),
-                    photoEntries.stream().map(MemoryEntry::getId).toList(), room.getDeadlineAt()));
-            notifications.save(Notification.create(target, "ASKBACK_RECEIVED", "ASKBACK", askback.getId()));
-        }
-        AiJob job = AiJob.queued(roomId, AiJob.ASKBACK_ANALYZE);
-        job.claim();
-        job.succeed();
-        return jobs.save(job);
+        roomStates.require(roomId, RoomAction.ASKBACK_ANSWER);
+        List<String> jobIds = photos.findAllByRoomId(roomId).stream().filter(Photo::isPublished)
+                .sorted(Comparator.comparing(Photo::getPublishedAt))
+                .map(photo -> analysis.enqueue(photo.getId())).filter(Objects::nonNull).toList();
+        if (jobIds.isEmpty()) throw new BusinessException(ErrorCode.INVALID_ROOM_STATE, "분석할 이야기가 없거나 질문을 만들 수 없는 시점이에요.");
+        return jobs.findById(jobIds.get(0)).orElseThrow();
     }
 
     /** 사진이 삭제된 질문은 목록에서 뺀다(null). */

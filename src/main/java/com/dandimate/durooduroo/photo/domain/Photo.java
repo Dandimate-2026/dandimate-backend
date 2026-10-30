@@ -24,6 +24,8 @@ public class Photo {
     @Column(nullable = false) private int displayOrder;
     @Column(nullable = false, length = 20) private String status;
     private LocalDateTime publishedAt;
+    /** 확정 원문이 추가·수정·삭제될 때마다 1씩 오른다. AI 결과가 오래된 원문으로 만든 것인지 판단한다. */
+    @Column(nullable = false) private int sourceRevision;
     @Column(nullable = false) private LocalDateTime createdAt;
     protected Photo() {}
     /** 업로드 URL을 발급하며 UPLOADING 상태로 만든다. storageKey·fileUrl(저장 위치)은 서버가 정한다. */
@@ -36,9 +38,10 @@ public class Photo {
     /** 저장소 검증을 통과하면 READY. */
     public void complete(String fileHash) { this.fileHash = fileHash; this.status = READY; }
     public void publish() { if (publishedAt == null) publishedAt = LocalDateTime.now(); }
+    public void bumpSourceRevision() { sourceRevision++; }
     public boolean isReady() { return READY.equals(status); }
     public boolean isPublished() { return publishedAt != null; }
     public String getId(){return id;} public String getRoomId(){return roomId;} public String getMemberId(){return memberId;}
     public String getFileUrl(){return fileUrl;} public String getStorageKey(){return storageKey;} public String getContentType(){return contentType;} public String getFileHash(){return fileHash;} public int getDisplayOrder(){return displayOrder;}
-    public String getStatus(){return status;} public LocalDateTime getPublishedAt(){return publishedAt;} public LocalDateTime getCreatedAt(){return createdAt;}
+    public String getStatus(){return status;} public LocalDateTime getPublishedAt(){return publishedAt;} public int getSourceRevision(){return sourceRevision;} public LocalDateTime getCreatedAt(){return createdAt;}
 }

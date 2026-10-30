@@ -37,11 +37,15 @@ public class EntryService {
     private final com.dandimate.durooduroo.askback.repository.AskbackRepository askbacks;
     private final TranscriptionService transcriptions;
     private final com.dandimate.durooduroo.storage.MediaUrls mediaUrls;
+    private final com.dandimate.durooduroo.askback.service.AskbackAnalysisService askbackAnalysis;
+    private final com.dandimate.durooduroo.event.EventLogger events;
+    private final com.dandimate.durooduroo.room.service.RoomHomeService roomHome;
 
     public EntryService(PhotoRepository photos, MemberRepository members, MemoryEntryRepository entries,
                         PhotoPassRepository passes, RoomStateService roomStates,
                         com.dandimate.durooduroo.askback.repository.AskbackRepository askbacks, TranscriptionService transcriptions,
-                        com.dandimate.durooduroo.storage.MediaUrls mediaUrls) {
+                        com.dandimate.durooduroo.storage.MediaUrls mediaUrls, com.dandimate.durooduroo.askback.service.AskbackAnalysisService askbackAnalysis,
+                        com.dandimate.durooduroo.event.EventLogger events, com.dandimate.durooduroo.room.service.RoomHomeService roomHome) {
         this.photos = photos;
         this.members = members;
         this.entries = entries;
@@ -50,10 +54,16 @@ public class EntryService {
         this.askbacks = askbacks;
         this.transcriptions = transcriptions;
         this.mediaUrls = mediaUrls;
+        this.askbackAnalysis = askbackAnalysis;
+        this.events = events;
+        this.roomHome = roomHome;
     }
 
+    /** askbackJobId는 이 확정으로 만들어진(또는 이미 대기 중인) 되묻기 분석 작업. 질문을 만들 수 없는 상태면 null. */
+    public record Created(EntryView entry, String askbackJobId) {}
+
     @Transactional
-    public EntryView create(String photoId, String authorization, CreateEntryRequest request) {
+    public Created create(String photoId, String authorization, CreateEntryRequest request) {
         Photo photo = findPhoto(photoId);
         Member me = requireMember(photo, authorization);
         String transcript = request.transcript().strip();
@@ -92,8 +102,12 @@ public class EntryService {
             roomStates.onFirstEntryConfirmed(photo.getRoomId());
         } else {
             passes.findByPhotoIdAndMemberId(photoId, me.getId()).ifPresent(passes::delete);
+            events.log(photo.getRoomId(), me.getId(), "addon_submitted", java.util.Map.of("photoId", photoId));
+            logIfAllCompleted(photo.getRoomId());
         }
-        return EntryView.of(entry, me, mediaUrls.audioUrl(entry));
+        photo.bumpSourceRevision();
+        String askbackJobId = askbackAnalysis.enqueue(photoId);
+        return new Created(EntryView.of(entry, me, mediaUrls.audioUrl(entry)), askbackJobId);
     }
 
     @Transactional
@@ -103,6 +117,7 @@ public class EntryService {
         if (transcript == null || transcript.isBlank()) throw new BusinessException(ErrorCode.VALIDATION_ERROR, "내용은 필수입니다.");
         requireLength(entry.getKind(), transcript.strip());
         entry.edit(transcript.strip());
+        sourceChanged(entry.getPhotoId());
         return EntryView.of(entry, members.findById(entry.getMemberId()).orElseThrow(), mediaUrls.audioUrl(entry));
     }
 
@@ -111,6 +126,7 @@ public class EntryService {
         MemoryEntry entry = findOwnEntry(entryId, authorization);
         roomStates.require(entry.getRoomId(), RoomAction.DELETE_CONTENT);
         entries.delete(entry);
+        sourceChanged(entry.getPhotoId());
     }
 
     /**
@@ -140,7 +156,9 @@ public class EntryService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "이미 덧붙인 사진은 패스할 수 없어요.");
         }
         if (passes.findByPhotoIdAndMemberId(photoId, me.getId()).isEmpty()) {
-            passes.save(PhotoPass.of(photo.getRoomId(), photoId, me.getId()));
+            passes.saveAndFlush(PhotoPass.of(photo.getRoomId(), photoId, me.getId()));
+            events.log(photo.getRoomId(), me.getId(), "circulation_passed", java.util.Map.of("photoId", photoId));
+            logIfAllCompleted(photo.getRoomId());
         }
     }
 
@@ -158,6 +176,18 @@ public class EntryService {
         entries.deleteAll(entries.findAllByPhotoId(photoId));
         passes.deleteAll(passes.findAllByPhotoId(photoId));
         askbacks.findAllByPhotoId(photoId).forEach(com.dandimate.durooduroo.askback.domain.Askback::cancel);
+    }
+
+    /** 원문이 바뀌면 사진의 revision을 올리고 되묻기를 다시 분석한다. */
+    private void sourceChanged(String photoId) {
+        photos.findById(photoId).ifPresent(Photo::bumpSourceRevision);
+        askbackAnalysis.enqueue(photoId);
+    }
+
+    /** 전원 완료를 처음 달성했을 때 한 번만 남긴다. */
+    private void logIfAllCompleted(String roomId) {
+        entries.flush();
+        if (roomHome.allCompleted(roomId)) events.logOnce(roomId, "all_members_completed");
     }
 
     private Photo findPhoto(String photoId) {

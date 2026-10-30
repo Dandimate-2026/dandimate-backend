@@ -50,7 +50,8 @@ class ContractFlowTest {
                 .andExpect(jsonPath("$.data.myTodo.topAskback").isEmpty())
                 .andExpect(jsonPath("$.data.allCompleted").value(false));
 
-        entry(photoA, a, "FIRST", "다들 갑자기 웃었던 사진").andExpect(status().isCreated());
+        entry(photoA, a, "FIRST", "다들 갑자기 웃었던 사진").andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.askbackJobId").isNotEmpty());
 
         // B의 홈: 응답할 사진 1장, 아직 전원 완료 아님
         mockMvc.perform(get("/api/v1/rooms/" + roomId).header("Authorization", "Bearer " + b))
@@ -71,6 +72,9 @@ class ContractFlowTest {
         mockMvc.perform(post("/api/v1/rooms/" + roomId + "/askbacks/run").header("Authorization", "Bearer " + a))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.data.job.type").value("ASKBACK_ANALYZE"));
+        await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                mockMvc.perform(get("/api/v1/rooms/" + roomId + "/askbacks/me").header("Authorization", "Bearer " + a))
+                        .andExpect(jsonPath("$.data.askbacks.length()").value(1)));
         String mine = body(mockMvc.perform(get("/api/v1/rooms/" + roomId + "/askbacks/me").header("Authorization", "Bearer " + a)));
         String askbackId = JsonPath.read(mine, "$.data.askbacks[0].id");
         assertThat(JsonPath.<String>read(mine, "$.data.askbacks[0].photo.id")).isEqualTo(photoA);

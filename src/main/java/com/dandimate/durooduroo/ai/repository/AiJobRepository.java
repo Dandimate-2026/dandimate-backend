@@ -30,4 +30,6 @@ public interface AiJobRepository extends JpaRepository<AiJob, String> {
     List<AiJob> findRunnable(@Param("types") Collection<String> types, @Param("now") LocalDateTime now, Pageable pageable);
 
     List<AiJob> findAllByStatusAndUpdatedAtBefore(String status, LocalDateTime updatedBefore);
+
+    Optional<AiJob> findFirstByTypeAndTargetIdAndStatus(String type, String targetId, String status);
 }

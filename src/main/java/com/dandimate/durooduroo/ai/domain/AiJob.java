@@ -14,11 +14,11 @@ import java.util.UUID;
 public class AiJob {
     public static final String WEAVE_SCROLL="WEAVE_SCROLL"; public static final String ASKBACK_ANALYZE="ASKBACK_ANALYZE";
     public static final List<String> ACTIVE_STATUSES=List.of("QUEUED","RUNNING");
-    @Id private String id; @Column(nullable=false) private String roomId; @Column(nullable=false) private String type; @Column(nullable=false) private String status; private String errorCode;
+    @Id private String id; @Column(nullable=false) private String roomId; @Column(nullable=false) private String type; /** 작업 대상(ASKBACK_ANALYZE는 사진 ID). */ private String targetId; @Column(nullable=false) private String status; private String errorCode;
     @Column(nullable=false) private int attempts; @Column(nullable=false) private LocalDateTime nextRunAt; @Column(nullable=false) private LocalDateTime createdAt; @Column(nullable=false) private LocalDateTime updatedAt;
     protected AiJob() {}
     private AiJob(String roomId,String type) { id=UUID.randomUUID().toString(); this.roomId=roomId; this.type=type; status="QUEUED"; createdAt=LocalDateTime.now(); updatedAt=createdAt; nextRunAt=createdAt; }
-    public static AiJob queued(String roomId,String type){return new AiJob(roomId,type);}
+    public static AiJob queued(String roomId,String type){return new AiJob(roomId,type);} public static AiJob queued(String roomId,String type,String targetId){AiJob job=new AiJob(roomId,type);job.targetId=targetId;return job;}
     /** Worker가 실행을 시작한다. */
     public void claim(){status="RUNNING";attempts++;updatedAt=LocalDateTime.now();}
     public void succeed(){status="SUCCEEDED";errorCode=null;updatedAt=LocalDateTime.now();}
@@ -27,5 +27,5 @@ public class AiJob {
     public void fail(String errorCode){status="FAILED";this.errorCode=errorCode;updatedAt=LocalDateTime.now();}
     /** Worker가 죽어 RUNNING으로 남은 작업을 다시 실행 대기로 돌린다. */
     public void requeue(){status="QUEUED";updatedAt=LocalDateTime.now();nextRunAt=updatedAt;}
-    public String getId(){return id;} public String getRoomId(){return roomId;} public String getType(){return type;} public String getStatus(){return status;} public String getErrorCode(){return errorCode;} public int getAttempts(){return attempts;} public LocalDateTime getNextRunAt(){return nextRunAt;} public LocalDateTime getCreatedAt(){return createdAt;} public LocalDateTime getUpdatedAt(){return updatedAt;}
+    public String getId(){return id;} public String getRoomId(){return roomId;} public String getType(){return type;} public String getTargetId(){return targetId;} public String getStatus(){return status;} public String getErrorCode(){return errorCode;} public int getAttempts(){return attempts;} public LocalDateTime getNextRunAt(){return nextRunAt;} public LocalDateTime getCreatedAt(){return createdAt;} public LocalDateTime getUpdatedAt(){return updatedAt;}
 }

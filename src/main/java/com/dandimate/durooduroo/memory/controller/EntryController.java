@@ -21,13 +21,13 @@ public class EntryController {
         this.entryService = entryService;
     }
 
-    /** askbackJobId는 되묻기 Job을 붙이기 전까지 null이다. */
     @PostMapping("/photos/{photoId}/entries")
     public ResponseEntity<ApiResponse<?>> create(@PathVariable String photoId, @RequestHeader(required = false) String authorization,
                                                  @Valid @RequestBody CreateEntryRequest request) {
+        var created = entryService.create(photoId, authorization, request);
         Map<String, Object> data = new HashMap<>();
-        data.put("entry", entryService.create(photoId, authorization, request));
-        data.put("askbackJobId", null);
+        data.put("entry", created.entry());
+        data.put("askbackJobId", created.askbackJobId());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(data));
     }
 

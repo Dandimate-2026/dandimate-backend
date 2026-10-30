@@ -65,9 +65,7 @@ public class RoomHomeService {
         List<Photo> roomPhotos = photos.findAllByRoomId(roomId);
         List<Photo> published = roomPhotos.stream().filter(Photo::isPublished).toList();
         List<MemoryEntry> roomEntries = entries.findAllByRoomIdOrderByCreatedAtAsc(roomId);
-        Set<String> responded = new HashSet<>();
-        roomEntries.stream().filter(e -> e.getKind() == EntryKind.ADDON).forEach(e -> responded.add(e.getPhotoId() + ":" + e.getMemberId()));
-        for (PhotoPass pass : passes.findAllByRoomId(roomId)) responded.add(pass.getPhotoId() + ":" + pass.getMemberId());
+        Set<String> responded = responded(roomId, roomEntries);
 
         List<RoomHomeView.MemberStats> stats = roomMembers.stream().map(m -> stats(m, roomMembers, roomPhotos, published, roomEntries, responded)).toList();
         RoomHomeView.MemberStats myStats = stats.stream().filter(s -> s.id().equals(me.getId())).findFirst().orElseThrow();
@@ -85,14 +83,33 @@ public class RoomHomeService {
                 .sorted(Comparator.comparing((Askback a) -> a.getPostponedAt() != null).thenComparing(Askback::getCreatedAt))
                 .findFirst().map(a -> new RoomHomeView.TopAskback(a.getId(), a.getQuestion())).orElse(null);
 
-        boolean allCompleted = !published.isEmpty() && roomMembers.stream().allMatch(m -> published.stream()
-                .filter(p -> !p.getMemberId().equals(m.getId()))
-                .allMatch(p -> responded.contains(p.getId() + ":" + m.getId())));
+        boolean allCompleted = completed(roomMembers, published, responded);
 
         return new RoomHomeView(
                 new RoomHomeView.RoomSummary(room.getId(), room.getTitle(), room.getMeetingDate(), room.getStatus().name(), room.getDeadlineAt()),
                 myStats, stats, todayFlowers, new RoomHomeView.MyTodo(needsFirstEntry, pending, topAskback),
                 notifications.countByMemberIdAndReadAtIsNull(me.getId()), allCompleted);
+    }
+
+    /** 전원 완료 여부 (all_members_completed 이벤트 판정에도 쓴다). */
+    @Transactional(readOnly = true)
+    public boolean allCompleted(String roomId) {
+        List<Photo> published = photos.findAllByRoomId(roomId).stream().filter(Photo::isPublished).toList();
+        return completed(members.findAllByRoomId(roomId), published, responded(roomId, entries.findAllByRoomIdOrderByCreatedAtAsc(roomId)));
+    }
+
+    /** "사진ID:참여자ID" 형태로 덧붙임·패스 응답을 모은다. 되묻기 답은 응답으로 치지 않는다. */
+    private Set<String> responded(String roomId, List<MemoryEntry> roomEntries) {
+        Set<String> responded = new HashSet<>();
+        roomEntries.stream().filter(e -> e.getKind() == EntryKind.ADDON).forEach(e -> responded.add(e.getPhotoId() + ":" + e.getMemberId()));
+        for (PhotoPass pass : passes.findAllByRoomId(roomId)) responded.add(pass.getPhotoId() + ":" + pass.getMemberId());
+        return responded;
+    }
+
+    private boolean completed(List<Member> roomMembers, List<Photo> published, Set<String> responded) {
+        return !published.isEmpty() && roomMembers.stream().allMatch(m -> published.stream()
+                .filter(p -> !p.getMemberId().equals(m.getId()))
+                .allMatch(p -> responded.contains(p.getId() + ":" + m.getId())));
     }
 
     private RoomHomeView.MemberStats stats(Member member, List<Member> roomMembers, List<Photo> roomPhotos, List<Photo> published,

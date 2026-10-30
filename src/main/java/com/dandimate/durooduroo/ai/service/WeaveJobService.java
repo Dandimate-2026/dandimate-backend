@@ -36,15 +36,18 @@ public class WeaveJobService {
     private final AskbackRepository askbacks;
     private final MemberRepository members;
     private final NotificationRepository notifications;
+    private final com.dandimate.durooduroo.event.EventLogger events;
 
     public WeaveJobService(RoomRepository rooms, AiJobRepository jobs, AiParagraphService paragraphs,
-                           AskbackRepository askbacks, MemberRepository members, NotificationRepository notifications) {
+                           AskbackRepository askbacks, MemberRepository members, NotificationRepository notifications,
+                           com.dandimate.durooduroo.event.EventLogger events) {
         this.rooms = rooms;
         this.jobs = jobs;
         this.paragraphs = paragraphs;
         this.askbacks = askbacks;
         this.members = members;
         this.notifications = notifications;
+        this.events = events;
     }
 
     /** 조기·데모 마감: CIRCULATING → WEAVING + 작업 생성. 이미 엮는 중이면 진행 중인 작업을 돌려준다. */
@@ -103,7 +106,10 @@ public class WeaveJobService {
 
     private AiJob startWeaving(Room room) {
         room.startWeaving();
-        askbacks.findAllByRoomIdAndStatus(room.getId(), "PENDING").forEach(Askback::expire);
+        askbacks.findAllByRoomIdAndStatus(room.getId(), "PENDING").forEach(askback -> {
+            askback.expire();
+            events.log(room.getId(), askback.getTargetMemberId(), "askback_expired");
+        });
         return jobs.save(AiJob.queued(room.getId(), AiJob.WEAVE_SCROLL));
     }
 
