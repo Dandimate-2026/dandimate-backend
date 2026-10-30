@@ -228,14 +228,21 @@ async function viewHome(home) {
       : `<p class="muted">초대 링크는 처음 만들 때만 보여요. 새로 받으려면 재발급하세요.</p>`}
       <button class="small ghost" id="rotate">초대 링크 재발급</button></div>`;
   }
-  html += `<div class="card"><h2>할 일</h2>
-    <div>${home.myTodo.needsFirstEntry ? '· 내 사진에 첫 한마디를 남겨 주세요' : '· 내 사진 할 일 없음'}</div>
-    <div>· 응답할 친구 사진 ${home.myTodo.pendingCirculationCount}장</div>
-    ${home.myTodo.topAskback ? `<div class="ask">${esc(home.myTodo.topAskback.question)}</div>` : ''}
-    ${home.allCompleted ? '<div class="muted">모두 응답을 마쳤어요!</div>' : ''}</div>`;
+  // 할 일: 지금 할 수 있는 것만 버튼으로 보여 준다. 쓰기가 끝난 상태(엮는 중·완성)에서는 두루마리로 안내한다.
+  const todo = home.myTodo, open = ['COLLECTING', 'CIRCULATING'].includes(home.room.status);
+  const todos = [];
+  if (open && home.me.photoCount === 0) todos.push(['mine', '내 사진을 올려 주세요 (3장까지)']);
+  if (todo.needsFirstEntry) todos.push(['mine', '올린 사진에 첫 한마디를 남겨 주세요']);
+  if (todo.pendingCirculationCount) todos.push(['circle', `친구 사진 ${todo.pendingCirculationCount}장에 덧붙이거나 패스해 주세요`]);
+  if (todo.topAskback) todos.push(['ask', `되묻기: ${todo.topAskback.question}`]);
+  if (home.room.status === 'GROWING') todos.push(['scroll', '완성된 두루마리를 보고 답가를 달아 보세요']);
+  html += `<div class="card"><h2>할 일</h2>${todos.length
+    ? todos.map(([tab, text]) => `<button class="ghost" style="text-align:left" data-go="${tab}">${esc(text)}</button>`).join('')
+    : `<div class="muted">${home.allCompleted ? '모두 응답을 마쳤어요! 방장이 마감하면 두루마리가 엮여요.' : open ? '지금은 할 일이 없어요. 친구들이 사진을 올리면 알려 드릴게요.' : '두루마리를 엮는 중이에요.'}</div>`}</div>`;
   if (isHost && home.room.status === 'CIRCULATING') html += `<div class="card"><h2>마감하고 두루마리 엮기</h2><p class="muted">데모 마감은 바로 엮기를 시작해요.</p><button id="close">지금 마감하기</button></div>`;
   if (home.room.status === 'WEAVING') html += `<div class="card"><h2>두루마리를 엮는 중이에요</h2><p class="muted">잠시만 기다리면 완성돼요.</p></div>`;
   $('view').innerHTML = html;
+  document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { state.tab = b.dataset.go; render(); });
   $('copy')?.addEventListener('click', () => act(async () => {
     try { await navigator.clipboard.writeText($('inviteLink').value); toast('초대 링크를 복사했어요'); }
     catch { $('inviteLink').select(); toast('링크를 선택했어요. 복사해 주세요'); }

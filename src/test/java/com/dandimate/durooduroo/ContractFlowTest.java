@@ -101,7 +101,9 @@ class ContractFlowTest {
         assertThat(JsonPath.<List<String>>read(unlocked, "$.data.cards[0].otherEntries[*].kind")).containsExactly("ASKBACK_ANSWER");
         mockMvc.perform(get("/api/v1/rooms/" + roomId).header("Authorization", "Bearer " + a))
                 .andExpect(jsonPath("$.data.allCompleted").value(true))
-                .andExpect(jsonPath("$.data.members[0].responseRate").value(1.0))
+                // 응답률은 그 사람이 친구 사진에 응답한 비율: 사진을 올린 A는 응답할 사진이 없어 0, 패스한 B는 1
+                .andExpect(jsonPath("$.data.members[0].responseRate").value(0.0))
+                .andExpect(jsonPath("$.data.members[1].responseRate").value(1.0))
                 .andExpect(jsonPath("$.data.members[0].photoCount").value(1))
                 .andExpect(jsonPath("$.data.members[0].storyCount").value(1));
 
