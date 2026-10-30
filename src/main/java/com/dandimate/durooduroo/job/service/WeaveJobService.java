@@ -41,10 +41,13 @@ public class WeaveJobService {
     private final NotificationRepository notifications;
     private final com.dandimate.durooduroo.event.EventLogger events;
     private final TransactionTemplate tx;
+    private final com.dandimate.durooduroo.notification.service.Notifier notifier;
+    private final com.dandimate.durooduroo.notification.service.RoomEvents roomEvents;
 
     public WeaveJobService(RoomRepository rooms, AiJobRepository jobs, ScrollGenerationService paragraphs,
                            AskbackRepository askbacks, MemberRepository members, NotificationRepository notifications,
-                           com.dandimate.durooduroo.event.EventLogger events, PlatformTransactionManager transactionManager) {
+                           com.dandimate.durooduroo.event.EventLogger events, PlatformTransactionManager transactionManager,
+                           com.dandimate.durooduroo.notification.service.Notifier notifier, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents) {
         this.rooms = rooms;
         this.jobs = jobs;
         this.paragraphs = paragraphs;
@@ -53,6 +56,8 @@ public class WeaveJobService {
         this.notifications = notifications;
         this.events = events;
         this.tx = new TransactionTemplate(transactionManager);
+        this.notifier = notifier;
+        this.roomEvents = roomEvents;
     }
 
     /** 조기·데모 마감: CIRCULATING → WEAVING + 작업 생성. 이미 엮는 중이면 진행 중인 작업을 돌려준다. */
@@ -109,8 +114,8 @@ public class WeaveJobService {
             var scroll = paragraphs.save(plan, woven);
             job.succeed();
             lockRoom(roomId).completeWeaving();
-            members.findAllByRoomId(roomId).forEach(member ->
-                    notifications.save(Notification.create(member.getId(), "SCROLL_READY", "SCROLL", scroll.getId())));
+            members.findAllByRoomId(roomId).forEach(member -> notifier.notify(roomId, member.getId(), "SCROLL_READY", "SCROLL", scroll.getId()));
+            roomEvents.toRoom(roomId, "scroll.ready", java.util.Map.of("scrollId", scroll.getId(), "version", scroll.getVersion()));
         });
     }
 

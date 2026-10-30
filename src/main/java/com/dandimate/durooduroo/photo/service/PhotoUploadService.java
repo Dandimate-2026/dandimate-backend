@@ -44,13 +44,15 @@ public class PhotoUploadService {
     private final RoomStateService roomStates;
     private final ObjectStorage storage;
     private final MediaUrls mediaUrls;
+    private final com.dandimate.durooduroo.notification.service.RoomEvents roomEvents;
 
-    public PhotoUploadService(PhotoRepository photos, MemberRepository members, RoomStateService roomStates, ObjectStorage storage, MediaUrls mediaUrls) {
+    public PhotoUploadService(PhotoRepository photos, MemberRepository members, RoomStateService roomStates, ObjectStorage storage, MediaUrls mediaUrls, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents) {
         this.photos = photos;
         this.members = members;
         this.roomStates = roomStates;
         this.storage = storage;
         this.mediaUrls = mediaUrls;
+        this.roomEvents = roomEvents;
     }
 
     @Transactional
@@ -105,6 +107,7 @@ public class PhotoUploadService {
             throw new BusinessException(ErrorCode.UPLOAD_VERIFICATION_FAILED, "업로드 요청과 파일 형식이 달라요.");
         }
         photo.complete(hashOf(photo));
+        roomEvents.toMember(photo.getRoomId(), photo.getMemberId(), "photo.uploaded", Map.of("photoId", photo.getId(), "roomId", photo.getRoomId(), "status", photo.getStatus()));
         return photo;
     }
 

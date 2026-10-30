@@ -34,12 +34,13 @@ public class JobWorker {
     private final com.dandimate.durooduroo.askback.service.AskbackAnalysisService askbackAnalysis;
     private final com.dandimate.durooduroo.scroll.service.ReplyReweaveService replyReweave;
     private final TransactionTemplate tx;
+    private final com.dandimate.durooduroo.notification.service.RoomEvents roomEvents;
     private final Duration retryDelay;
     private final Duration staleAfter;
 
     public JobWorker(AiJobRepository jobs, WeaveJobService weaveJobs, com.dandimate.durooduroo.askback.service.AskbackAnalysisService askbackAnalysis,
                      com.dandimate.durooduroo.scroll.service.ReplyReweaveService replyReweave,
-                     PlatformTransactionManager transactionManager,
+                     PlatformTransactionManager transactionManager, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents,
                      @Value("${app.jobs.retry-delay-ms:5000}") long retryDelayMs,
                      @Value("${app.jobs.stale-after-ms:300000}") long staleAfterMs) {
         this.jobs = jobs;
@@ -47,6 +48,7 @@ public class JobWorker {
         this.askbackAnalysis = askbackAnalysis;
         this.replyReweave = replyReweave;
         this.tx = new TransactionTemplate(transactionManager);
+        this.roomEvents = roomEvents;
         this.retryDelay = Duration.ofMillis(retryDelayMs);
         this.staleAfter = Duration.ofMillis(staleAfterMs);
     }
@@ -66,6 +68,7 @@ public class JobWorker {
                     return job;
                 }).orElse(null));
         if (claimed == null) return false;
+        publishJob(claimed.getId());
 
         try {
             switch (claimed.getType()) {
@@ -83,7 +86,14 @@ public class JobWorker {
                 else job.retryAfter(job.getAttempts() == 1 ? Duration.ZERO : retryDelay, errorCode);
             });
         }
+        publishJob(claimed.getId());
         return true;
+    }
+
+    /** 공개 작업(되묻기 분석 제외)의 상태 변화를 방 전체에 알린다. */
+    private void publishJob(String jobId) {
+        jobs.findById(jobId).filter(job -> !AiJob.ASKBACK_ANALYZE.equals(job.getType())).ifPresent(job ->
+                roomEvents.toRoom(job.getRoomId(), "job.updated", java.util.Map.of("jobId", job.getId(), "status", job.getStatus())));
     }
 
     @Scheduled(fixedDelayString = "${app.jobs.stale-check-interval-ms:60000}")

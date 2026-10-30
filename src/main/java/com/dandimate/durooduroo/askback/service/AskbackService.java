@@ -51,6 +51,7 @@ public class AskbackService {
     private final RoomStateService roomStates;
     private final AskbackAnalysisService analysis;
     private final com.dandimate.durooduroo.event.EventLogger events;
+    private final com.dandimate.durooduroo.notification.service.RoomEvents roomEvents;
     private final AiJobRepository jobs;
     private final NotificationRepository notifications;
     private final MediaUrls mediaUrls;
@@ -60,7 +61,7 @@ public class AskbackService {
                           RoomRepository rooms, RoomStateService roomStates, AskbackAnalysisService analysis, AiJobRepository jobs,
                           NotificationRepository notifications, MediaUrls mediaUrls,
                           com.dandimate.durooduroo.memory.service.TranscriptionService transcriptions,
-                          com.dandimate.durooduroo.event.EventLogger events) {
+                          com.dandimate.durooduroo.event.EventLogger events, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents) {
         this.askbacks = askbacks;
         this.members = members;
         this.photos = photos;
@@ -69,6 +70,7 @@ public class AskbackService {
         this.roomStates = roomStates;
         this.analysis = analysis;
         this.events = events;
+        this.roomEvents = roomEvents;
         this.jobs = jobs;
         this.notifications = notifications;
         this.mediaUrls = mediaUrls;
@@ -110,6 +112,7 @@ public class AskbackService {
         askback.answer(entry.getId());
         photos.findById(askback.getPhotoId()).ifPresent(com.dandimate.durooduroo.photo.domain.Photo::bumpSourceRevision);
         events.log(askback.getRoomId(), askback.getTargetMemberId(), "askback_responded", Map.of("choice", "answered"));
+        roomEvents.toRoom(askback.getRoomId(), "entry.created", Map.of("photoId", askback.getPhotoId(), "entryId", entry.getId()));
         analysis.enqueue(askback.getPhotoId());
         Member me = members.findById(askback.getTargetMemberId()).orElseThrow();
         return Map.of("askback", Map.of("id", askback.getId(), "status", askback.getStatus()), "entry", EntryView.of(entry, me, mediaUrls.audioUrl(entry)));

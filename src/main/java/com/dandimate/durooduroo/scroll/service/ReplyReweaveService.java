@@ -67,11 +67,14 @@ public class ReplyReweaveService {
     private final ReplyAiService classifier;
     private final ParagraphReweaveAiService reweaver;
     private final TransactionTemplate tx;
+    private final com.dandimate.durooduroo.notification.service.Notifier notifier;
+    private final com.dandimate.durooduroo.notification.service.RoomEvents events;
 
     public ReplyReweaveService(AiJobRepository jobs, ReplyRepository replies, ParagraphRepository paragraphs, ParagraphSourceRepository sources,
                                ParagraphVersionRepository versions, PhotoRepository photos, MemoryEntryRepository entries, MemberRepository members,
                                RoomRepository rooms, NotificationRepository notifications, ScrollGenerationService generation,
-                               ReplyAiService classifier, ParagraphReweaveAiService reweaver, PlatformTransactionManager transactionManager) {
+                               ReplyAiService classifier, ParagraphReweaveAiService reweaver, PlatformTransactionManager transactionManager,
+                               com.dandimate.durooduroo.notification.service.Notifier notifier, com.dandimate.durooduroo.notification.service.RoomEvents events) {
         this.jobs = jobs;
         this.replies = replies;
         this.paragraphs = paragraphs;
@@ -86,6 +89,8 @@ public class ReplyReweaveService {
         this.classifier = classifier;
         this.reweaver = reweaver;
         this.tx = new TransactionTemplate(transactionManager);
+        this.notifier = notifier;
+        this.events = events;
     }
 
     public void execute(String jobId) {
@@ -123,7 +128,7 @@ public class ReplyReweaveService {
                 if (paragraph.getVersion() != snapshot.paragraph.getVersion()) return false;
                 revise(paragraph, woven, "REPLY_ADDED");
                 replies.findById(reply.getId()).orElseThrow().resolve(Reply.APPLIED, classification);
-                notifications.save(Notification.create(reply.getMemberId(), "REPLY_APPLIED", "PARAGRAPH", paragraph.getId()));
+                notifier.notify(reply.getRoomId(), reply.getMemberId(), "REPLY_APPLIED", "PARAGRAPH", paragraph.getId());
                 jobs.findById(job.getId()).orElseThrow().succeed();
                 return true;
             });
@@ -206,6 +211,7 @@ public class ReplyReweaveService {
         paragraph.revise(woven.body());
         generation.saveSources(paragraph.getId(), woven.citations());
         versions.save(ParagraphVersion.of(paragraph.getId(), paragraph.getVersion(), woven.body(), ScrollGenerationService.sourcesSummary(woven.citations()), reason));
+        events.toRoom(paragraph.getRoomId(), "paragraph.updated", Map.of("paragraphId", paragraph.getId(), "version", paragraph.getVersion()));
     }
 
     private void succeed(String jobId) {

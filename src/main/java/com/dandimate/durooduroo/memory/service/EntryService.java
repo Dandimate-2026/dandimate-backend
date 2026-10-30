@@ -41,13 +41,14 @@ public class EntryService {
     private final com.dandimate.durooduroo.event.EventLogger events;
     private final com.dandimate.durooduroo.room.service.RoomHomeService roomHome;
     private final com.dandimate.durooduroo.scroll.service.ReplyService replyService;
+    private final com.dandimate.durooduroo.notification.service.RoomEvents roomEvents;
 
     public EntryService(PhotoRepository photos, MemberRepository members, MemoryEntryRepository entries,
                         PhotoPassRepository passes, RoomStateService roomStates,
                         com.dandimate.durooduroo.askback.repository.AskbackRepository askbacks, TranscriptionService transcriptions,
                         com.dandimate.durooduroo.storage.MediaUrls mediaUrls, com.dandimate.durooduroo.askback.service.AskbackAnalysisService askbackAnalysis,
                         com.dandimate.durooduroo.event.EventLogger events, com.dandimate.durooduroo.room.service.RoomHomeService roomHome,
-                        com.dandimate.durooduroo.scroll.service.ReplyService replyService) {
+                        com.dandimate.durooduroo.scroll.service.ReplyService replyService, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents) {
         this.photos = photos;
         this.members = members;
         this.entries = entries;
@@ -60,6 +61,7 @@ public class EntryService {
         this.events = events;
         this.roomHome = roomHome;
         this.replyService = replyService;
+        this.roomEvents = roomEvents;
     }
 
     /** askbackJobId는 이 확정으로 만들어진(또는 이미 대기 중인) 되묻기 분석 작업. 질문을 만들 수 없는 상태면 null. */
@@ -101,14 +103,14 @@ public class EntryService {
         MemoryEntry entry = entries.save(MemoryEntry.confirm(photo.getRoomId(), photoId, me.getId(), request.kind(),
                 request.inputMode(), request.transcriptionId(), audioLocation, transcript));
         if (request.kind() == EntryKind.FIRST) {
-            photo.publish();
-            roomStates.onFirstEntryConfirmed(photo.getRoomId());
+            publish(photo);
         } else {
             passes.findByPhotoIdAndMemberId(photoId, me.getId()).ifPresent(passes::delete);
             events.log(photo.getRoomId(), me.getId(), "addon_submitted", java.util.Map.of("photoId", photoId));
             logIfAllCompleted(photo.getRoomId());
         }
         photo.bumpSourceRevision();
+        roomEvents.toRoom(photo.getRoomId(), "entry.created", java.util.Map.of("photoId", photoId, "entryId", entry.getId()));
         String askbackJobId = askbackAnalysis.enqueue(photoId);
         return new Created(EntryView.of(entry, me, mediaUrls.audioUrl(entry)), askbackJobId);
     }
@@ -144,8 +146,7 @@ public class EntryService {
         if (!me.getId().equals(photo.getMemberId())) throw new BusinessException(ErrorCode.FORBIDDEN, "첫 한마디는 사진을 올린 사람만 미룰 수 있어요.");
         roomStates.require(photo.getRoomId(), RoomAction.UPLOAD_OR_FIRST_ENTRY);
         if (!photo.isReady()) throw new BusinessException(ErrorCode.INVALID_ROOM_STATE, "사진 업로드가 끝나지 않았어요.");
-        photo.publish();
-        roomStates.onFirstEntryConfirmed(photo.getRoomId());
+        publish(photo);
         return photo;
     }
 
@@ -180,6 +181,14 @@ public class EntryService {
         entries.deleteAll(entries.findAllByPhotoId(photoId));
         passes.deleteAll(passes.findAllByPhotoId(photoId));
         askbacks.findAllByPhotoId(photoId).forEach(com.dandimate.durooduroo.askback.domain.Askback::cancel);
+    }
+
+    /** 사진을 돌려보기에 노출하고, 처음 노출될 때 방 전체에 photo.published를 보낸다. */
+    private void publish(Photo photo) {
+        boolean first = !photo.isPublished();
+        photo.publish();
+        roomStates.onFirstEntryConfirmed(photo.getRoomId());
+        if (first) roomEvents.toRoom(photo.getRoomId(), "photo.published", java.util.Map.of("photoId", photo.getId(), "roomId", photo.getRoomId()));
     }
 
     /** 원문이 바뀌면 사진의 revision을 올리고 되묻기를 다시 분석한다. */

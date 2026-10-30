@@ -63,10 +63,13 @@ public class AskbackAnalysisService {
     private final AskbackAiService ai;
     private final EventLogger events;
     private final TransactionTemplate tx;
+    private final com.dandimate.durooduroo.notification.service.Notifier notifier;
+    private final com.dandimate.durooduroo.notification.service.RoomEvents roomEvents;
 
     public AskbackAnalysisService(AiJobRepository jobs, PhotoRepository photos, RoomRepository rooms, MemberRepository members,
                                   MemoryEntryRepository entries, AskbackRepository askbacks, NotificationRepository notifications,
-                                  AskbackAiService ai, EventLogger events, PlatformTransactionManager transactionManager) {
+                                  AskbackAiService ai, EventLogger events, PlatformTransactionManager transactionManager,
+                                  com.dandimate.durooduroo.notification.service.Notifier notifier, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents) {
         this.jobs = jobs;
         this.photos = photos;
         this.rooms = rooms;
@@ -77,6 +80,8 @@ public class AskbackAnalysisService {
         this.ai = ai;
         this.events = events;
         this.tx = new TransactionTemplate(transactionManager);
+        this.notifier = notifier;
+        this.roomEvents = roomEvents;
     }
 
     /** 원문 확정·수정·삭제 후 호출한다. 질문을 만들 수 없는 상태면 null. */
@@ -151,7 +156,8 @@ public class AskbackAnalysisService {
         Room room = rooms.findById(prepared.roomId).orElseThrow();
         Askback askback = askbacks.save(Askback.create(prepared.roomId, prepared.photoId, result.targetMemberId(), result.gapType(),
                 result.question().strip(), result.evidenceEntryIds(), room.getDeadlineAt()));
-        notifications.save(Notification.create(result.targetMemberId(), "ASKBACK_RECEIVED", "ASKBACK", askback.getId()));
+        notifier.notify(prepared.roomId, result.targetMemberId(), "ASKBACK_RECEIVED", "ASKBACK", askback.getId());
+        roomEvents.toMember(prepared.roomId, result.targetMemberId(), "askback.created", Map.of("askbackId", askback.getId()));
         events.log(prepared.roomId, result.targetMemberId(), "askback_sent", Map.of("type", result.gapType(), "target", result.targetMemberId()));
     }
 
