@@ -2,6 +2,7 @@
  * OpenAI 연동 전까지 쓰는 답가 분류·재엮기 구현입니다 (app.ai.provider=rule, 기본값).
  * - "ㅋㅋ", "맞아" 같은 짧은 반응은 REACTION_ONLY, 금칙어는 UNSAFE, "사실은/아니야/정정"은 CORRECTION, 나머지는 NEW_FACT.
  * - 재엮기는 기존 문장과 인용을 그대로 두고 뒤에 한 문장을 붙인다. 정정은 기존 사실을 지우지 않고 "~라고 정정했다"로 병기한다.
+ *   결과가 기존 길이의 1.5배를 넘으면 "(닉네임: ‘원문’)" 짧은 형태로 붙인다.
  */
 package com.dandimate.durooduroo.ai.reply;
 
@@ -34,11 +35,18 @@ public class RuleBasedReplyAiService implements ReplyAiService, ParagraphReweave
     @Override
     public ReweaveResult reweave(ReweaveCommand command) {
         var reply = command.reply();
-        String verb = "CORRECTION".equals(command.classification()) ? "정정했다" : "덧붙였다";
-        String body = command.body() + " " + reply.nickname() + "은(는) ‘" + reply.transcript().strip() + "’라고 " + verb + ".";
+        String body = appendReply(command.body(), reply.nickname(), reply.transcript().strip(), command.classification());
         List<Citation> citations = new ArrayList<>(command.citations());
         citations.add(new Citation(reply.id(), reply.memberId(), reply.transcript().strip()));
         return new ReweaveResult("1.0", new WovenParagraph(command.photoId(), body, citations, Safety.allow()), "rule", "reweave-rule-v1", null);
+    }
+
+    /** 명세 9장: 결과 문단은 기존 길이의 1.5배를 넘지 않는다. 문장이 길면 짧은 형태로 붙인다. */
+    public static String appendReply(String body, String nickname, String quote, String classification) {
+        String verb = "CORRECTION".equals(classification) ? "정정했다" : "덧붙였다";
+        String sentence = body + " " + nickname + "은(는) ‘" + quote + "’라고 " + verb + ".";
+        if (sentence.length() <= body.length() * 1.5) return sentence;
+        return body + " (" + nickname + ("CORRECTION".equals(classification) ? " 정정: ‘" : ": ‘") + quote + "’)";
     }
 
     private ReplyClassificationResult result(String classification, double confidence, String reason) {

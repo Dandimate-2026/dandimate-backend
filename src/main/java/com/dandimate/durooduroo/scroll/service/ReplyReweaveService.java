@@ -183,17 +183,21 @@ public class ReplyReweaveService {
         var command = new ReweaveCommand(snapshot.paragraph.getId(), snapshot.paragraph.getPhotoId(), snapshot.paragraph.getVersion(), body,
                 snapshot.citations, new ReweaveCommand.ReplyInput(reply.getId(), reply.getMemberId(), author.getNickname(), reply.getTranscript()), classification);
         WovenParagraph result = reweaver.reweave(command).paragraph();
-        if (isValid(snapshot, reply, result)) return result;
+        if (isValid(snapshot, body, reply, result)) return result;
         log.warn("Reweave of paragraph {} for reply {} failed validation; appending verbatim", snapshot.paragraph.getId(), reply.getId());
-        String verb = "CORRECTION".equals(classification) ? "정정했다" : "덧붙였다";
         List<Citation> citations = new ArrayList<>(snapshot.citations);
         citations.add(new Citation(reply.getId(), reply.getMemberId(), reply.getTranscript().strip()));
-        return new WovenParagraph(snapshot.paragraph.getPhotoId(), body + " " + author.getNickname() + "은(는) ‘" + reply.getTranscript().strip() + "’라고 " + verb + ".", citations, null);
+        String appended = com.dandimate.durooduroo.ai.reply.RuleBasedReplyAiService.appendReply(body, author.getNickname(), reply.getTranscript().strip(), classification);
+        return new WovenParagraph(snapshot.paragraph.getPhotoId(), appended, citations, null);
     }
 
-    /** 8장 검증 + 기존 인용 유지: 인용은 이 사진의 원문이거나 이 답가(또는 이미 반영된 같은 문단의 답가)여야 하고 원문의 부분 문자열이어야 한다. */
-    private boolean isValid(Snapshot snapshot, Reply reply, WovenParagraph result) {
+    /**
+     * 8장 검증 + 기존 인용 유지 + 길이: 인용은 이 사진의 원문이거나 이 답가(또는 이미 반영된 같은 문단의 답가)여야 하고
+     * 원문의 부분 문자열이어야 하며, 결과 문단은 기존 길이의 1.5배를 넘지 않는다.
+     */
+    private boolean isValid(Snapshot snapshot, String baseBody, Reply reply, WovenParagraph result) {
         if (result == null || result.body() == null || result.body().isBlank() || result.citations() == null) return false;
+        if (result.body().length() > baseBody.length() * 1.5) return false;
         Set<String> kept = result.citations().stream().map(Citation::entryId).collect(Collectors.toSet());
         if (!kept.containsAll(snapshot.citations.stream().map(Citation::entryId).toList())) return false;
         Map<String, String[]> allowed = new HashMap<>();

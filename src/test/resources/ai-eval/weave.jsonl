@@ -1,0 +1,10 @@
+{"id":"weave-single-1","category":"원문 하나뿐","photos":[{"id":"p1","uploader":"m1","entries":[["e1","m1","FIRST","막차 놓쳐서 역까지 뛰었잖아."]]}],"members":[["m1","서연"]]}
+{"id":"weave-single-2","category":"원문 하나뿐","photos":[{"id":"p1","uploader":"m2","entries":[["e1","m2","FIRST","이날 처음으로 다 같이 노래방 갔어."]]}],"members":[["m2","지수"]]}
+{"id":"weave-conflict-1","category":"기억 엇갈림","photos":[{"id":"p1","uploader":"m1","entries":[["e1","m1","FIRST","지수가 먼저 뛰자고 했어."],["e2","m3","ADDON","아니야, 서연이가 먼저 뛰자고 했잖아."]]}],"members":[["m1","서연"],["m3","민호"]]}
+{"id":"weave-conflict-2","category":"기억 엇갈림","photos":[{"id":"p1","uploader":"m2","entries":[["e1","m2","FIRST","이날 비빔밥 먹었어."],["e2","m1","ADDON","그날은 칼국수였지."]]}],"members":[["m1","서연"],["m2","지수"]]}
+{"id":"weave-multi-1","category":"여러 사진","photos":[{"id":"p1","uploader":"m1","entries":[["e1","m1","FIRST","첫날 숙소"]]},{"id":"p2","uploader":"m2","entries":[["e2","m2","FIRST","둘째 날 바다"],["e3","m1","ADDON","파도 맞고 다 젖었지"]]}],"members":[["m1","서연"],["m2","지수"]]}
+{"id":"weave-no-entry-1","category":"한마디 없는 사진","photos":[{"id":"p1","uploader":"m1","entries":[]},{"id":"p2","uploader":"m2","entries":[["e1","m2","FIRST","다 같이 찍은 마지막 사진"]]}],"members":[["m1","서연"],["m2","지수"]]}
+{"id":"weave-askback-1","category":"되묻기 답 포함","photos":[{"id":"p1","uploader":"m1","entries":[["e1","m1","FIRST","다들 웃은 사진"],["e2","m1","ASKBACK_ANSWER","지수가 사진 찍다가 뒤로 넘어졌거든."]]}],"members":[["m1","서연"]]}
+{"id":"weave-profanity-1","category":"욕설·특정인 놀림","photos":[{"id":"p1","uploader":"m1","entries":[["e1","m1","FIRST","민호 진짜 바보같이 넘어졌어 ㅋㅋ"],["e2","m2","ADDON","그날 너무 웃겼다"]]}],"members":[["m1","서연"],["m2","지수"]]}
+{"id":"weave-long-1","category":"긴 원문","photos":[{"id":"p1","uploader":"m1","entries":[["e1","m1","FIRST","새벽 다섯 시에 일어나서 일출 보겠다고 토함산까지 올라갔는데 구름 때문에 해는 하나도 안 보였고 대신 다 같이 컵라면을 먹었어."]]}],"members":[["m1","서연"]]}
+{"id":"weave-dialect-1","category":"대구·경북 말투","photos":[{"id":"p1","uploader":"m1","entries":[["e1","m1","FIRST","니 그때 와 그랬노 진짜 웃기데이"]]}],"members":[["m1","서연"]]}
