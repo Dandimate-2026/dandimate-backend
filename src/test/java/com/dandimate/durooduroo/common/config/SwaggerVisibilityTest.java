@@ -22,11 +22,13 @@ class SwaggerVisibilityTest {
         void 문서와_계약서가_열린다() throws Exception {
             mockMvc.perform(get("/swagger-ui.html")).andExpect(status().isOk());
             mockMvc.perform(get("/openapi/public-api.yaml")).andExpect(status().isOk());
+            // local 프로필은 데모가 켜져 있어 데모 페이지도 열린다
+            mockMvc.perform(get("/demo.html")).andExpect(status().isOk());
         }
     }
 
     @Nested
-    @SpringBootTest(properties = {"app.swagger.enabled=false", "app.jobs.poll-interval-ms=3600000"})
+    @SpringBootTest(properties = {"app.swagger.enabled=false", "app.demo-enabled=false", "app.jobs.poll-interval-ms=3600000"})
     @AutoConfigureMockMvc
     class 꺼져_있으면 {
         @Autowired MockMvc mockMvc;
@@ -35,6 +37,7 @@ class SwaggerVisibilityTest {
         void 문서를_숨긴다() throws Exception {
             mockMvc.perform(get("/swagger-ui.html")).andExpect(status().isNotFound());
             mockMvc.perform(get("/openapi/public-api.yaml")).andExpect(status().isNotFound());
+            mockMvc.perform(get("/demo.html")).andExpect(status().isNotFound());
             mockMvc.perform(get("/api/v1/health")).andExpect(status().isOk());
         }
     }

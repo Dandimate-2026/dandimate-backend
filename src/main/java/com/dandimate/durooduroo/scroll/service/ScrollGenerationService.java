@@ -188,7 +188,7 @@ public class ScrollGenerationService {
     /** AI 출력이 끝내 검증을 통과하지 못하면 원문을 그대로 나열한다. */
     private Woven fallback(PhotoPlan photo, Map<String, Member> roomMembers) {
         String body = photo.entries().stream()
-                .map(e -> roomMembers.get(e.getMemberId()).getNickname() + "은(는) ‘" + e.getTranscript() + "’라고 기억했다.")
+                .map(e -> com.dandimate.durooduroo.ai.common.Josa.topic(roomMembers.get(e.getMemberId()).getNickname()) + " ‘" + e.getTranscript() + "’라고 기억했다.")
                 .collect(Collectors.joining(" "));
         List<Citation> citations = photo.entries().stream().map(e -> new Citation(e.getId(), e.getMemberId(), e.getTranscript())).toList();
         return new Woven(body, citations, false);
