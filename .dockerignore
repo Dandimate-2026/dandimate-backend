@@ -1,0 +1,9 @@
+.git
+.gradle
+build
+uploads
+.env
+.idea
+.vscode
+*.iml
+.DS_Store

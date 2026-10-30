@@ -22,6 +22,9 @@ server:
   forward-headers-strategy: framework
 
 app:
+  # API 문서(/swagger-ui.html, /openapi/public-api.yaml) 공개 여부
+  swagger:
+    enabled: ${SWAGGER_ENABLED:true}
   jobs:
     # Worker가 QUEUED 작업을 찾는 주기
     poll-interval-ms: 1000
