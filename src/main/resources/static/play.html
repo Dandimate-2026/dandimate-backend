@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>두루두루 체험</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Gowun+Batang:wght@400;700&display=swap">
+<style>
+/* 체험용 모바일 웹: 한 칼럼(최대 480px), 위에는 방 상태, 아래 탭으로 화면 전환. 실제 공개 API만 호출한다. */
+:root {
+  --bg: #eef0f4; --surface: #fff; --fg: #1c2130; --muted: #646d7e; --line: #dde1e8;
+  --accent: #33509f; --accent-soft: #e7ecf8; --ok: #1f7a4d; --ok-soft: #e2f2e9; --warn: #9a5b00; --warn-soft: #fbefd8; --bad: #b3261e;
+  --paper: #fbfaf6; --ink: #2a2620; --mark: #f3e2a6;
+  --body: "IBM Plex Sans KR", "Apple SD Gothic Neo", system-ui, sans-serif; --scroll: "Gowun Batang", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111419; --surface: #1a1f28; --fg: #e6e9ef; --muted: #9aa3b4; --line: #2b3240; --accent: #8fa9e8; --accent-soft: #1f2a44;
+    --ok: #6fcf9b; --ok-soft: #173326; --warn: #e8b35c; --warn-soft: #3a2c14; --bad: #f2a29b; --paper: #22201b; --ink: #ece6d8; --mark: #5a4b1c; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 var(--body); }
+.app { max-width: 480px; margin: 0 auto; min-height: 100vh; background: var(--surface); display: flex; flex-direction: column; }
+.top { padding: 16px max(16px, env(safe-area-inset-left)) 12px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.top h1 { margin: 0; font-size: 19px; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.me { font-size: 13px; color: var(--muted); }
+.flower { width: 11px; height: 11px; border-radius: 50%; display: inline-block; vertical-align: middle; }
+main { padding: 16px max(16px, env(safe-area-inset-left)) 96px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+.card { border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: var(--surface); }
+.card img { width: 100%; border-radius: 9px; display: block; max-height: 360px; object-fit: cover; background: var(--bg); }
+h2 { font-size: 16px; margin: 0; }
+.label { font-size: 12px; color: var(--muted); }
+.quote { background: var(--bg); border-radius: 9px; padding: 8px 11px; }
+.quote b { font-weight: 600; }
+.locked { border: 1px dashed var(--warn); background: var(--warn-soft); color: var(--warn); border-radius: 9px; padding: 8px 11px; font-size: 14px; }
+.ask { border-left: 3px solid var(--accent); padding: 8px 11px; background: var(--accent-soft); border-radius: 0 9px 9px 0; }
+label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+input[type=text], input[type=date], textarea { font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; width: 100%; }
+textarea { resize: vertical; min-height: 64px; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--muted); }
+button { font: inherit; font-weight: 600; cursor: pointer; border-radius: 9px; border: 1px solid var(--accent); background: var(--accent); color: #fff; padding: 9px 14px; }
+button.ghost { background: transparent; color: var(--accent); }
+button.small { padding: 5px 10px; font-size: 13px; }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.invite { display: flex; gap: 8px; }
+.invite input { flex: 1; min-width: 0; font-size: 13px; }
+nav { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
+nav .tabs { max-width: 480px; width: 100%; display: grid; grid-template-columns: repeat(5, 1fr); }
+nav button { border: 0; border-radius: 0; background: transparent; color: var(--muted); padding: 10px 2px; font-size: 13px; position: relative; }
+nav button[aria-current="page"] { color: var(--accent); }
+nav .badge { position: absolute; top: 5px; right: calc(50% - 22px); background: var(--bad); color: #fff; font-size: 10px; min-width: 16px; height: 16px; border-radius: 8px; display: grid; place-items: center; padding: 0 4px; }
+.scroll { background: var(--paper); color: var(--ink); border-radius: 12px; padding: 16px 18px; font-family: var(--scroll); font-size: 16px; line-height: 1.95; }
+.scroll mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 2px; }
+.empty { color: var(--muted); font-size: 14px; text-align: center; padding: 24px 8px; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(64px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--surface); padding: 9px 14px; border-radius: 10px; font-size: 14px; max-width: min(440px, calc(100vw - 32px)); z-index: 20; }
+.muted { color: var(--muted); font-size: 13px; }
+.rec { color: var(--bad); font-weight: 600; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top" id="top"><h1>두루두루 체험</h1><span class="me">사진과 이야기를 모아 두루마리를 엮어요</span></div>
+  <main id="view"></main>
+</div>
+<nav id="nav" hidden><div class="tabs">
+  <button data-tab="home">홈</button><button data-tab="mine">내 사진</button><button data-tab="circle">돌려보기</button><button data-tab="ask">되묻기</button><button data-tab="scroll">두루마리</button>
+</div></nav>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+const API = '/api/v1';
+const CONSENT = { version: '2026-10-01', terms: true, mediaProcessing: true, externalAiProcessing: true };
+const FLOWERS = { AZALEA: '#e86a92', FORSYTHIA: '#e8c13a', ROYAL_AZALEA: '#c25aa8', CANOLA: '#d7d23a', LILAC: '#a98bd8', FORGET_ME_NOT: '#6aa6e8', TEAL: '#2fa5a0', PURPLE: '#7b4fb0' };
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const flower = code => `<span class="flower" style="background:${FLOWERS[code] || '#999'}"></span>`;
+
+// 탭마다 다른 참여자: 토큰은 sessionStorage(이 탭에만)에 둔다.
+const session = {
+  get(roomId) { try { return JSON.parse(sessionStorage.getItem('duroo:' + roomId)); } catch { return null; } },
+  set(roomId, value) { try { sessionStorage.setItem('duroo:' + roomId, JSON.stringify(value)); } catch {} },
+};
+let state = { roomId: null, me: null, tab: 'home', home: null, events: null };
+
+function toast(message) {
+  const t = $('toast'); t.textContent = message; t.hidden = false;
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.hidden = true, 3200);
+}
+
+async function call(method, path, { json, body, headers = {}, raw, auth = true } = {}) {
+  const h = { ...headers };
+  if (auth && state.me) h.Authorization = 'Bearer ' + state.me.token;
+  if (method === 'POST') h['Idempotency-Key'] = crypto.randomUUID();
+  if (json !== undefined) { h['Content-Type'] = 'application/json'; body = JSON.stringify(json); }
+  const res = await fetch(raw ? path : API + path, { method, headers: h, body });
+  const text = await res.text();
+  const data = text ? (() => { try { return JSON.parse(text); } catch { return null; } })() : null;
+  if (!res.ok) {
+    const err = new Error(data?.error?.message || `요청 실패 (${res.status})`);
+    err.code = data?.error?.code; err.details = data?.error?.details;
+    throw err;
+  }
+  return data;
+}
+
+async function act(fn) {
+  try { await fn(); } catch (e) { toast(e.message); }
+}
+
+// ---- 라우팅: #join=초대토큰, #room=방ID ----
+function route() {
+  const hash = location.hash.slice(1);
+  const [key, value] = hash.split('=');
+  if (key === 'join' && value) return renderJoin(value);
+  if (key === 'room' && value) return enterRoom(value);
+  renderLanding();
+}
+window.addEventListener('hashchange', route);
+
+function renderLanding() {
+  $('nav').hidden = true;
+  $('top').innerHTML = `<h1>두루두루 체험</h1><span class="me">사진과 이야기를 모아 두루마리를 엮어요</span>`;
+  $('view').innerHTML = `
+    <div class="card"><h2>방 만들기</h2>
+      <label class="field">방 이름 (20자)<input type="text" id="roomName" maxlength="20" value="졸업 전 마지막 경주"></label>
+      <label class="field">모임 날짜<input type="date" id="meetingDate" value="2026-10-24"></label>
+      <label class="field">내 닉네임 (10자)<input type="text" id="hostNickname" maxlength="10" placeholder="예: 서연"></label>
+      <label class="check"><input type="checkbox" id="consent"> 약관, 사진·음성 처리, 외부 AI 전송에 동의해요</label>
+      <button id="create">방 만들기</button>
+    </div>
+    <p class="muted">초대받았다면 받은 초대 링크를 이 브라우저에서 열어 주세요. 한 탭은 한 사람입니다. 여러 명을 흉내 내려면 새 탭이나 시크릿 창에서 초대 링크를 여세요.</p>`;
+  $('create').onclick = () => act(async () => {
+    if (!$('consent').checked) return toast('필수 동의 항목에 동의해 주세요.');
+    const r = await call('POST', '/rooms', { auth: false, json: { name: $('roomName').value.trim(), meetingDate: $('meetingDate').value, hostNickname: $('hostNickname').value.trim(), consent: CONSENT } });
+    session.set(r.data.room.id, { token: r.data.memberAccessToken, memberId: r.data.member.id, nickname: r.data.member.nickname, invite: r.data.inviteToken });
+    location.hash = 'room=' + r.data.room.id;
+  });
+}
+
+async function renderJoin(invite) {
+  $('nav').hidden = true;
+  $('view').innerHTML = `<p class="empty">초대 정보를 불러오는 중…</p>`;
+  let preview;
+  try { preview = (await call('GET', '/invites/' + invite, { auth: false })).data; }
+  catch (e) { $('view').innerHTML = `<div class="card"><h2>초대 링크를 열 수 없어요</h2><p class="muted">${esc(e.message)} 방장에게 새 링크를 받아 주세요.</p><button class="ghost" onclick="location.hash=''">처음으로</button></div>`; return; }
+  $('top').innerHTML = `<h1>${esc(preview.roomName)}</h1><div class="row"><span class="chip">${preview.status}</span><span class="me">${preview.memberCount}/${preview.capacity}명 · ${preview.flowers.map(flower).join(' ')}</span></div>`;
+  $('view').innerHTML = `
+    <div class="card"><h2>닉네임으로 들어가기</h2>
+      <label class="field">닉네임 (10자)<input type="text" id="nickname" maxlength="10" placeholder="예: 지수"></label>
+      <label class="check"><input type="checkbox" id="consent"> 약관, 사진·음성 처리, 외부 AI 전송에 동의해요</label>
+      <button id="join" ${preview.canJoin ? '' : 'disabled'}>${preview.canJoin ? '들어가기' : '정원이 가득 찼어요'}</button>
+      <p class="muted" id="suggest"></p>
+    </div>`;
+  $('join').onclick = () => act(async () => {
+    if (!$('consent').checked) return toast('필수 동의 항목에 동의해 주세요.');
+    try {
+      const r = await call('POST', `/invites/${invite}/join`, { auth: false, json: { nickname: $('nickname').value.trim(), consent: CONSENT } });
+      session.set(r.data.room.id, { token: r.data.memberAccessToken, memberId: r.data.member.id, nickname: r.data.member.nickname });
+      location.hash = 'room=' + r.data.room.id;
+    } catch (e) {
+      if (e.code === 'NICKNAME_TAKEN') $('suggest').innerHTML = '이미 있는 이름이에요. 추천: ' + (e.details?.suggestions || []).map(s => `<button class="small ghost" onclick="document.getElementById('nickname').value='${esc(s)}'">${esc(s)}</button>`).join(' ');
+      throw e;
+    }
+  });
+}
+
+async function enterRoom(roomId) {
+  const me = session.get(roomId);
+  if (!me) {
+    $('nav').hidden = true;
+    $('view').innerHTML = `<div class="card"><h2>이 탭에서는 아직 참여하지 않았어요</h2><p class="muted">초대 링크로 들어오거나, 방을 만든 탭에서 열어 주세요.</p><button class="ghost" onclick="location.hash=''">처음으로</button></div>`;
+    return;
+  }
+  if (state.roomId !== roomId) {
+    state = { roomId, me, tab: 'home', home: null, events: null };
+    connectEvents();
+  }
+  $('nav').hidden = false;
+  await render();
+}
+
+// ---- 실시간 반영: SSE 이벤트가 오면 지금 화면을 다시 불러온다 ----
+async function connectEvents() {
+  try {
+    const r = await call('POST', `/rooms/${state.roomId}/event-token`);
+    const source = new EventSource(r.data.eventsUrl);
+    state.events = source;
+    const refresh = () => { clearTimeout(connectEvents.t); connectEvents.t = setTimeout(() => render(true), 400); };
+    ['photo.published', 'entry.created', 'askback.created', 'job.updated', 'scroll.ready', 'paragraph.updated', 'notification.created', 'photo.uploaded']
+      .forEach(name => source.addEventListener(name, refresh));
+    source.onerror = () => { source.close(); setTimeout(connectEvents, 5000); };
+  } catch { setTimeout(connectEvents, 5000); }
+}
+
+async function render(quiet) {
+  try {
+    const home = (await call('GET', `/rooms/${state.roomId}`)).data;
+    state.home = home;
+    const room = home.room;
+    $('top').innerHTML = `<h1>${esc(room.name)}</h1><div class="row"><span class="chip">${statusLabel(room.status)}</span><span class="me">${flower(home.me.flowerCode)} ${esc(home.me.nickname)}${home.me.role === 'HOST' ? ' · 방장' : ''}</span></div>`;
+    document.querySelectorAll('nav button').forEach(b => {
+      b.setAttribute('aria-current', b.dataset.tab === state.tab ? 'page' : 'false');
+      b.querySelector('.badge')?.remove();
+      const count = b.dataset.tab === 'circle' ? home.myTodo.pendingCirculationCount : b.dataset.tab === 'ask' ? (home.myTodo.topAskback ? 1 : 0) : 0;
+      if (count) b.insertAdjacentHTML('beforeend', `<span class="badge">${count}</span>`);
+    });
+    const views = { home: viewHome, mine: viewMine, circle: viewCircle, ask: viewAsk, scroll: viewScroll };
+    await views[state.tab](home);
+  } catch (e) { if (!quiet) toast(e.message); }
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => { state.tab = b.dataset.tab; render(); });
+
+function statusLabel(status) {
+  return { COLLECTING: '모으는 중', CIRCULATING: '돌려보는 중', WEAVING: '엮는 중', GROWING: '완성' }[status] || status;
+}
+
+// ---- 홈 ----
+async function viewHome(home) {
+  const isHost = home.me.role === 'HOST';
+  const link = state.me.invite ? `${location.origin}/play.html#join=${state.me.invite}` : null;
+  let html = `<div class="card"><h2>참여자 ${home.members.length}명</h2>${home.members.map(m => `<div class="row">${flower(m.flowerCode)} <b>${esc(m.nickname)}</b><span class="muted">사진 ${m.photoCount} · 이야기 ${m.storyCount} · 응답률 ${Math.round(m.responseRate * 100)}%</span></div>`).join('')}</div>`;
+  if (isHost) {
+    html += `<div class="card"><h2>초대하기</h2>${link
+      ? `<div class="invite"><input type="text" id="inviteLink" readonly value="${esc(link)}"><button class="small" id="copy">복사</button></div><p class="muted">새 탭이나 시크릿 창에 붙여 넣으면 다른 사람으로 들어갈 수 있어요.</p>`
+      : `<p class="muted">초대 링크는 처음 만들 때만 보여요. 새로 받으려면 재발급하세요.</p>`}
+      <button class="small ghost" id="rotate">초대 링크 재발급</button></div>`;
+  }
+  html += `<div class="card"><h2>할 일</h2>
+    <div>${home.myTodo.needsFirstEntry ? '· 내 사진에 첫 한마디를 남겨 주세요' : '· 내 사진 할 일 없음'}</div>
+    <div>· 응답할 친구 사진 ${home.myTodo.pendingCirculationCount}장</div>
+    ${home.myTodo.topAskback ? `<div class="ask">${esc(home.myTodo.topAskback.question)}</div>` : ''}
+    ${home.allCompleted ? '<div class="muted">모두 응답을 마쳤어요!</div>' : ''}</div>`;
+  if (isHost && home.room.status === 'CIRCULATING') html += `<div class="card"><h2>마감하고 두루마리 엮기</h2><p class="muted">데모 마감은 바로 엮기를 시작해요.</p><button id="close">지금 마감하기</button></div>`;
+  if (home.room.status === 'WEAVING') html += `<div class="card"><h2>두루마리를 엮는 중이에요</h2><p class="muted">잠시만 기다리면 완성돼요.</p></div>`;
+  $('view').innerHTML = html;
+  $('copy')?.addEventListener('click', () => act(async () => {
+    try { await navigator.clipboard.writeText($('inviteLink').value); toast('초대 링크를 복사했어요'); }
+    catch { $('inviteLink').select(); toast('링크를 선택했어요. 복사해 주세요'); }
+  }));
+  $('rotate')?.addEventListener('click', () => act(async () => {
+    const r = await call('POST', `/rooms/${state.roomId}/invite-token/rotate`);
+    state.me.invite = r.data.inviteToken; session.set(state.roomId, state.me); toast('새 초대 링크를 만들었어요. 예전 링크는 이제 열리지 않아요'); render();
+  }));
+  $('close')?.addEventListener('click', () => act(async () => { await call('POST', `/rooms/${state.roomId}/close`, { json: { mode: 'DEMO' } }); toast('마감했어요. 두루마리를 엮는 중이에요'); render(); }));
+}
+
+// ---- 내 사진: 업로드, 첫 한마디(글·음성), 나중에 ----
+async function viewMine(home) {
+  const circ = (await call('GET', `/rooms/${state.roomId}/circulation`)).data.cards.filter(c => c.photo.uploader.id === state.me.memberId);
+  const canUpload = ['COLLECTING', 'CIRCULATING'].includes(home.room.status);
+  let html = '';
+  if (canUpload) html += `<div class="card"><h2>사진 올리기</h2><p class="muted">JPEG·PNG·HEIC, 1인 3장까지. 2MB가 넘으면 줄여서 올려요.</p><input type="file" id="file" accept="image/jpeg,image/png,image/heic,image/heif"></div>`;
+  for (const photo of state.me.pending || []) html += pendingCard(photo);
+  circ.forEach(card => {
+    html += `<div class="card"><img src="${esc(card.photo.imageUrl)}" alt="내 사진"><span class="label">돌려보기에 올라간 내 사진</span>
+      ${card.firstEntry ? `<div class="quote"><b>첫 한마디</b> ${esc(card.firstEntry.transcript)}</div>` : '<div class="muted">한마디 없음</div>'}
+      ${card.otherEntries.map(e => `<div class="quote"><b>${esc(e.member.nickname)}</b> ${esc(e.transcript)}</div>`).join('')}</div>`;
+  });
+  if (!html) html = `<p class="empty">아직 올린 사진이 없어요.</p>`;
+  $('view').innerHTML = html;
+  $('file')?.addEventListener('change', e => act(() => upload(e.target.files[0])));
+  bindPending();
+}
+
+// 첫 한마디 전 사진은 목록 API가 없어 이 탭의 sessionStorage에 ID를 기억한다(새로고침해도 유지, 미리보기는 사라짐).
+const previews = {};
+function savePending(list) { state.me.pending = list; session.set(state.roomId, state.me); }
+
+function pendingCard(photo) {
+  return `<div class="card" data-photo="${photo.id}">${previews[photo.id] ? `<img src="${previews[photo.id]}" alt="올린 사진">` : ''}<span class="label">${photo.status === 'PROCESSING' ? 'HEIC 변환 중…' : '첫 한마디를 남기면 친구들에게 보여요'}</span>
+    <textarea id="first-${photo.id}" maxlength="300" placeholder="이 사진에 얽힌 이야기 (5~300자)"></textarea>
+    <div class="actions"><button class="small" data-first="${photo.id}">확정</button><button class="small ghost" data-voice="${photo.id}">음성으로</button><button class="small ghost" data-skip="${photo.id}">나중에</button><span class="rec" id="rec-${photo.id}"></span></div></div>`;
+}
+
+function bindPending() {
+  document.querySelectorAll('[data-first]').forEach(b => b.onclick = () => act(async () => {
+    const id = b.dataset.first, photo = state.me.pending.find(p => p.id === id);
+    await call('POST', `/photos/${id}/entries`, { json: { kind: 'FIRST', inputMode: photo.transcriptionId ? 'VOICE' : 'TEXT', transcriptionId: photo.transcriptionId, transcript: $('first-' + id).value } });
+    savePending(state.me.pending.filter(p => p.id !== id)); toast('첫 한마디를 남겼어요'); render();
+  }));
+  document.querySelectorAll('[data-skip]').forEach(b => b.onclick = () => act(async () => {
+    await call('POST', `/photos/${b.dataset.skip}/first-entry/skip`);
+    savePending(state.me.pending.filter(p => p.id !== b.dataset.skip)); toast('한마디 없이 돌려보기에 올렸어요'); render();
+  }));
+  document.querySelectorAll('[data-voice]').forEach(b => b.onclick = () => act(() => recordVoice(b.dataset.voice)));
+}
+
+/** 마이크로 녹음해 받아쓰기 초안을 받는다(로컬 설정은 가짜 STT라 고정 문장). 초안을 고쳐서 확정한다. */
+async function recordVoice(photoId) {
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast('이 브라우저에서는 녹음을 쓸 수 없어요');
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const recorder = new MediaRecorder(stream);
+  const chunks = [];
+  recorder.ondataavailable = e => chunks.push(e.data);
+  const label = $('rec-' + photoId);
+  let left = 6;
+  label.textContent = `녹음 중 ${left}초 (5초 이상 말해 주세요)`;
+  const timer = setInterval(() => { left--; label.textContent = `녹음 중 ${left}초`; if (left <= 0) recorder.stop(); }, 1000);
+  recorder.start();
+  await new Promise(r => recorder.onstop = r);
+  clearInterval(timer); stream.getTracks().forEach(t => t.stop());
+  label.textContent = '받아쓰는 중…';
+  const blob = new Blob(chunks, { type: recorder.mimeType.split(';')[0] });
+  const form = new FormData(); form.append('kind', 'FIRST'); form.append('file', blob, 'voice.' + (blob.type.includes('mp4') ? 'm4a' : 'webm'));
+  const draft = (await call('POST', `/photos/${photoId}/transcriptions`, { body: form })).data;
+  state.me.pending.find(p => p.id === photoId).transcriptionId = draft.transcriptionId;
+  savePending(state.me.pending);
+  $('first-' + photoId).value = draft.transcript;
+  label.textContent = '받아쓴 내용을 고친 뒤 확정하세요';
+}
+
+/** 2MB가 넘거나 큰 사진은 브라우저에서 JPEG로 줄인다. 브라우저가 못 여는 HEIC는 원본을 올려 서버가 바꾼다. */
+async function prepare(file) {
+  if (file.size <= 2_000_000 && /image\/(jpeg|png|heic|heif)/.test(file.type)) return file;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = url; });
+    const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas'); c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    for (const q of [0.85, 0.7, 0.55]) {
+      const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', q));
+      if (blob.size <= 2_000_000) return new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+    }
+    throw new Error('사진을 2MB 아래로 줄이지 못했어요');
+  } finally { URL.revokeObjectURL(url); }
+}
+
+async function upload(original) {
+  if (!original) return;
+  const file = await prepare(original);
+  const type = file.type || 'image/heic';
+  const r = await call('POST', `/rooms/${state.roomId}/photos/upload-requests`, { json: { files: [{ clientFileId: 'f-' + Date.now(), fileName: file.name, contentType: type, sizeBytes: file.size, displayOrder: Math.min(3, (state.me.pending?.length || 0) + 1) }] } });
+  const up = r.data.uploads[0];
+  await call('PUT', up.uploadUrl, { raw: true, auth: false, body: file, headers: up.requiredHeaders });
+  const done = (await call('POST', `/photos/${up.photoId}/complete`)).data.photo;
+  previews[up.photoId] = URL.createObjectURL(file);
+  savePending([...(state.me.pending || []), { id: up.photoId, status: done.status }]);
+  toast(done.status === 'PROCESSING' ? '사진을 올렸어요. HEIC를 변환하는 중이에요' : '사진을 올렸어요');
+  render();
+}
+
+// ---- 돌려보기 ----
+async function viewCircle() {
+  const cards = (await call('GET', `/rooms/${state.roomId}/circulation`)).data.cards.filter(c => c.photo.uploader.id !== state.me.memberId);
+  if (!cards.length) { $('view').innerHTML = `<p class="empty">친구들이 올린 사진이 아직 없어요.</p>`; return; }
+  $('view').innerHTML = cards.map(card => `<div class="card"><img src="${esc(card.photo.imageUrl)}" alt="${esc(card.photo.uploader.nickname)}의 사진">
+    <span class="label">${flower(card.photo.uploader.flowerCode)} ${esc(card.photo.uploader.nickname)}의 사진 · 내 응답 ${({ NONE: '아직', ADDON: '덧붙임', PASSED: '패스' })[card.myResponse.status]}</span>
+    ${card.firstEntry ? `<div class="quote"><b>${esc(card.firstEntry.member.nickname)}</b> ${esc(card.firstEntry.transcript)}</div>` : '<div class="muted">한마디 없음</div>'}
+    ${card.locked ? '<div class="locked">내 기억을 먼저 남기면 다른 친구들의 이야기가 보여요</div>' : card.otherEntries.map(e => `<div class="quote"><b>${esc(e.member.nickname)}</b>${e.kind === 'ASKBACK_ANSWER' ? ' (되묻기 답)' : ''} ${esc(e.transcript)}</div>`).join('')}
+    <textarea id="addon-${card.photo.id}" maxlength="200" placeholder="내가 기억하는 이 순간 (1~200자)"></textarea>
+    <div class="actions"><button class="small" data-addon="${card.photo.id}">덧붙이기</button>${card.myResponse.status === 'NONE' ? `<button class="small ghost" data-pass="${card.photo.id}">패스</button>` : ''}</div></div>`).join('');
+  document.querySelectorAll('[data-addon]').forEach(b => b.onclick = () => act(async () => {
+    await call('POST', `/photos/${b.dataset.addon}/entries`, { json: { kind: 'ADDON', inputMode: 'TEXT', transcript: $('addon-' + b.dataset.addon).value } });
+    toast('덧붙였어요'); render();
+  }));
+  document.querySelectorAll('[data-pass]').forEach(b => b.onclick = () => act(async () => { await call('PUT', `/photos/${b.dataset.pass}/passes/me`); toast('패스했어요'); render(); }));
+}
+
+// ---- 되묻기 ----
+async function viewAsk() {
+  const list = (await call('GET', `/rooms/${state.roomId}/askbacks/me`)).data.askbacks;
+  if (!list.length) { $('view').innerHTML = `<p class="empty">받은 질문이 없어요. 원문이 쌓이면 AI가 빈 곳을 찾아 물어봐요.</p>`; return; }
+  $('view').innerHTML = list.map(a => `<div class="card"><img src="${esc(a.photo.imageUrl)}" alt="질문한 사진"><span class="label">${esc(a.evidenceNicknames.join(', '))} 님의 이야기를 읽고 물어봤어요 · ${({ PENDING: '답을 기다려요', ANSWERED: '답했어요', FORGOT: '기억 안 남', EXPIRED: '지났어요', CANCELLED: '취소됨' })[a.status] || a.status}</span>
+    <div class="ask">${esc(a.question)}</div>
+    ${a.status === 'PENDING' ? `<textarea id="ans-${a.id}" maxlength="200" placeholder="생각나는 대로 답해 주세요 (1~200자)"></textarea>
+      <div class="actions"><button class="small" data-answer="${a.id}">답하기</button><button class="small ghost" data-forgot="${a.id}">기억 안 나요</button><button class="small ghost" data-later="${a.id}">나중에</button></div>` : ''}</div>`).join('');
+  document.querySelectorAll('[data-answer]').forEach(b => b.onclick = () => act(async () => {
+    await call('POST', `/askbacks/${b.dataset.answer}/answer`, { json: { inputMode: 'TEXT', transcript: $('ans-' + b.dataset.answer).value } }); toast('답이 그 사진의 이야기가 됐어요'); render();
+  }));
+  document.querySelectorAll('[data-forgot]').forEach(b => b.onclick = () => act(async () => { await call('POST', `/askbacks/${b.dataset.forgot}/forgot`); toast('괜찮아요, 다른 친구가 기억할지도 몰라요'); render(); }));
+  document.querySelectorAll('[data-later]').forEach(b => b.onclick = () => act(async () => { await call('POST', `/askbacks/${b.dataset.later}/postpone`); toast('나중에 다시 보여 드릴게요'); render(); }));
+}
+
+// ---- 두루마리·답가 ----
+async function viewScroll(home) {
+  if (home.room.status !== 'GROWING') { $('view').innerHTML = `<p class="empty">${home.room.status === 'WEAVING' ? '두루마리를 엮는 중이에요…' : '방장이 마감하면 두루마리가 만들어져요.'}</p>`; return; }
+  let scroll;
+  try { scroll = (await call('GET', `/rooms/${state.roomId}/scroll`)).data; }
+  catch (e) { $('view').innerHTML = `<p class="empty">${esc(e.message)}</p>`; return; }
+  $('view').innerHTML = `<p class="muted">두루마리 v${scroll.version} · 함께한 사람 ${scroll.participantCount}/${scroll.memberCount}명 · 형광펜은 실제 원문 인용이에요</p>` + scroll.paragraphs.map(p => {
+    let body = esc(p.body);
+    p.sources.forEach(s => { const q = esc(s.quote); body = body.split(q).join(`<mark title="${esc(s.member.nickname)}">${q}</mark>`); });
+    return `<div class="card"><img src="${esc(p.photo.imageUrl)}" alt="${esc(p.photo.uploader.nickname)}의 사진"><div class="scroll">${body}</div>
+      <span class="label">문단 v${p.version} · 답가 ${p.replyCount} · 아 맞다 ${p.ahMatdaCount}</span>
+      <textarea id="reply-${p.id}" maxlength="200" placeholder="빠진 이야기나 바로잡을 내용을 답가로 남겨요"></textarea>
+      <div class="actions"><button class="small" data-reply="${p.id}">답가 달기</button><button class="small ghost" data-ah="${p.id}">아 맞다</button></div></div>`;
+  }).join('');
+  document.querySelectorAll('[data-reply]').forEach(b => b.onclick = () => act(async () => {
+    await call('POST', `/paragraphs/${b.dataset.reply}/replies`, { json: { inputMode: 'TEXT', transcript: $('reply-' + b.dataset.reply).value } });
+    toast('답가를 남겼어요. 반응은 그대로, 새 사실은 문단에 엮여요');
+  }));
+  document.querySelectorAll('[data-ah]').forEach(b => b.onclick = () => act(async () => { await call('PUT', `/paragraphs/${b.dataset.ah}/reactions/ah-matda`); render(); }));
+}
+
+route();
+</script>
+</body>
+</html>

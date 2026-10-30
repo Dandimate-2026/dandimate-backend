@@ -24,6 +24,7 @@ class SwaggerVisibilityTest {
             mockMvc.perform(get("/openapi/public-api.yaml")).andExpect(status().isOk());
             // local 프로필은 데모가 켜져 있어 데모 페이지도 열린다
             mockMvc.perform(get("/demo.html")).andExpect(status().isOk());
+            mockMvc.perform(get("/play.html")).andExpect(status().isOk());
         }
     }
 
@@ -38,6 +39,7 @@ class SwaggerVisibilityTest {
             mockMvc.perform(get("/swagger-ui.html")).andExpect(status().isNotFound());
             mockMvc.perform(get("/openapi/public-api.yaml")).andExpect(status().isNotFound());
             mockMvc.perform(get("/demo.html")).andExpect(status().isNotFound());
+            mockMvc.perform(get("/play.html")).andExpect(status().isNotFound());
             mockMvc.perform(get("/api/v1/health")).andExpect(status().isOk());
         }
     }

@@ -1,4 +1,4 @@
-/** 데모 페이지(/demo.html)는 app.demo-enabled=true일 때만 연다. 운영(mysql 프로필 기본값)에서는 404. */
+/** 데모 페이지(/demo.html, /play.html)는 app.demo-enabled=true일 때만 연다. 운영(mysql 프로필 기본값)에서는 404. */
 package com.dandimate.durooduroo.common.config;
 
 import jakarta.servlet.FilterChain;
@@ -16,7 +16,8 @@ public class DemoPageFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().equals("/demo.html");
+        String uri = request.getRequestURI();
+        return !uri.equals("/demo.html") && !uri.equals("/play.html");
     }
 
     @Override
