@@ -1,0 +1,50 @@
+spring:
+  application:
+    name: durooduroo-backend
+  profiles:
+    default: local
+  servlet:
+    multipart:
+      # 사진 2MB·음성 10MB 제한은 각 API가 검사하고, 여기서는 가장 큰 음성 기준으로 받는다.
+      max-file-size: 10MB
+      max-request-size: 11MB
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
+  # nginx 뒤에서 eventsUrl 같은 절대 URL이 https·실제 호스트로 만들어지도록 X-Forwarded-* 헤더를 따른다.
+  forward-headers-strategy: framework
+
+app:
+  # API 문서(/swagger-ui.html, /openapi/public-api.yaml) 공개 여부
+  swagger:
+    enabled: ${SWAGGER_ENABLED:true}
+  jobs:
+    # Worker가 QUEUED 작업을 찾는 주기
+    poll-interval-ms: 1000
+    # 실패 시 즉시 1회, 이 시간 뒤 1회 재시도한다 (FR-E7)
+    retry-delay-ms: 5000
+    # 이 시간 동안 갱신 없는 RUNNING 작업은 QUEUED로 되돌린다
+    stale-after-ms: 300000
+    stale-check-interval-ms: 60000
+    # 마감 시각이 지난 방을 찾는 주기
+    deadline-check-interval-ms: 60000
+  media:
+    # 로컬 저장소 사진 URL 서명 키. 비우면 시작할 때마다 새로 만든다 (운영은 MEDIA_SIGNING_SECRET로 고정).
+    signing-secret: ${MEDIA_SIGNING_SECRET:}
+    url-ttl-seconds: 3600
+  ai:
+    # rule(기본, 규칙 기반 임시 구현) 또는 openai(OPENAI_API_KEY와 OPENAI_TEXT_MODEL 필요)
+    provider: ${AI_PROVIDER:rule}
+  stt:
+    # openai(기본, OPENAI_API_KEY 필요) 또는 fake(키 없이 개발·데모할 때 고정 문장을 돌려준다)
+    provider: ${STT_PROVIDER:openai}
+  audio:
+    # 음성 길이 측정용. 없으면 MP4/M4A/WAV만 직접 잰다 (webm은 운영 서버에 ffprobe 설치 권장)
+    ffprobe-path: ${FFPROBE_PATH:ffprobe}

@@ -1,18 +1,10 @@
-# Gradle
 .gradle/
 build/
-!gradle/wrapper/gradle-wrapper.jar
-
-# IntelliJ IDEA
+uploads/
+.env
+.DS_Store
+*.log
 .idea/
 *.iml
-*.iws
-*.ipr
-
-# Spring / local environment
-.env
-*.log
+!gradle/wrapper/gradle-wrapper.jar
 out/
-
-# macOS
-.DS_Store

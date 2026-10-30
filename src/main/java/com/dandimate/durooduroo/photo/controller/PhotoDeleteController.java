@@ -1,0 +1,16 @@
+/** 명세서 기준 본인 사진 삭제 API입니다. */
+package com.dandimate.durooduroo.photo.controller;
+
+import com.dandimate.durooduroo.common.auth.MemberTokenResolver;
+import com.dandimate.durooduroo.common.exception.BusinessException;
+import com.dandimate.durooduroo.member.repository.MemberRepository;
+import com.dandimate.durooduroo.photo.repository.PhotoRepository;
+import org.springframework.http.ResponseEntity; import org.springframework.web.bind.annotation.*;
+
+@RestController @RequestMapping("/api/v1/photos")
+public class PhotoDeleteController {
+    private final PhotoRepository photos; private final MemberRepository members; private final com.dandimate.durooduroo.room.service.RoomStateService roomStates; private final com.dandimate.durooduroo.memory.service.EntryService entryService; private final com.dandimate.durooduroo.storage.ObjectStorage storage;
+    public PhotoDeleteController(PhotoRepository photos,MemberRepository members,com.dandimate.durooduroo.room.service.RoomStateService roomStates,com.dandimate.durooduroo.memory.service.EntryService entryService,com.dandimate.durooduroo.storage.ObjectStorage storage){this.storage=storage;this.photos=photos;this.members=members;this.roomStates=roomStates;this.entryService=entryService;}
+    @DeleteMapping("/{photoId}")
+    public ResponseEntity<Void> delete(@PathVariable String photoId,@RequestHeader(required=false) String authorization){var photo=photos.findById(photoId).orElseThrow(()->new BusinessException("PHOTO_NOT_FOUND","사진이 없습니다.")); String token=MemberTokenResolver.resolve(authorization); var member=members.findByRoomIdAndMemberToken(photo.getRoomId(),token).orElseThrow(()->new BusinessException("MEMBER_FORBIDDEN","참여자만 삭제할 수 있습니다.")); if(!member.getId().equals(photo.getMemberId()))throw new BusinessException("FORBIDDEN","본인 사진만 삭제할 수 있습니다."); roomStates.require(photo.getRoomId(),com.dandimate.durooduroo.room.domain.RoomAction.DELETE_CONTENT); entryService.deleteForPhoto(photoId); photos.delete(photo); storage.delete(photo.getFileUrl()); return ResponseEntity.noContent().build();}
+}
