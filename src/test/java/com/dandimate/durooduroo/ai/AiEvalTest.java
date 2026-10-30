@@ -129,6 +129,7 @@ class AiEvalTest {
                 assertThat(citation.memberId()).isEqualTo(entry.memberId());
                 assertThat(citation.exactQuote()).isNotBlank();
                 assertThat(entry.transcript()).contains(citation.exactQuote());
+                assertAttributed(p.body(), citation.exactQuote(), entry.nickname());
             }
         });
     }
@@ -150,6 +151,25 @@ class AiEvalTest {
         assertThat(woven.citations()).extracting(Citation::entryId).contains("e1", "e2", "r1");
         assertThat(woven.citations()).filteredOn(cit -> cit.entryId().equals("r1")).allSatisfy(cit -> assertThat(transcript).contains(cit.exactQuote()));
         assertThat(woven.body().length()).isLessThanOrEqualTo((int) (base.length() * 1.5));
+        woven.citations().stream().filter(cit -> cit.entryId().equals("r1")).forEach(cit -> assertAttributed(woven.body(), cit.exactQuote(), "민호"));
+    }
+
+    private static final String OPEN_QUOTES = "‘'“\"";
+    private static final String CLOSE_QUOTES = "’'”\"";
+
+    /** 인용은 따옴표 안에 있고, 같은 문장에서 따옴표 앞에 말한 사람 닉네임이 나온다 (누가 한 말인지 없는 인용을 잡는다). */
+    private static void assertAttributed(String body, String quote, String nickname) {
+        int at = body.indexOf(quote);
+        assertThat(at).as("본문에 인용 '%s'가 그대로 없다", quote).isGreaterThanOrEqualTo(0);
+        int open = -1;
+        for (int i = at - 1; i >= 0 && i >= at - 120; i--) {
+            char ch = body.charAt(i);
+            if (OPEN_QUOTES.indexOf(ch) >= 0) { open = i; break; }
+            if (CLOSE_QUOTES.indexOf(ch) >= 0 && OPEN_QUOTES.indexOf(ch) < 0) break;
+        }
+        assertThat(open).as("인용 '%s'가 따옴표 안에 없다: %s", quote, body).isGreaterThanOrEqualTo(0);
+        String before = body.substring(Math.max(0, open - 40), open);
+        assertThat(before).as("인용 '%s' 앞에 말한 사람(%s)이 없다: %s", quote, nickname, body).contains(nickname);
     }
 
     private static Stream<Named<JsonNode>> fixture(String name) {

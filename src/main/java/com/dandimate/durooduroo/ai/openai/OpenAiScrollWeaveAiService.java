@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty(name = "app.ai.provider", havingValue = "openai")
 public class OpenAiScrollWeaveAiService implements ScrollWeaveAiService {
 
-    static final String PROMPT_VERSION = "weave-v1";
+    static final String PROMPT_VERSION = "weave-v2";
     static final Map<String, Object> PARAGRAPH = object(ordered("photoId", string(), "body", string(), "citations", array(citation()), "safety", safety()));
     private static final Map<String, Object> SCHEMA = object(ordered("paragraphs", array(PARAGRAPH)));
 
