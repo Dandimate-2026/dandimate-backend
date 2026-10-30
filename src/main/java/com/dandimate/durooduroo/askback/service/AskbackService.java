@@ -26,7 +26,7 @@ import com.dandimate.durooduroo.notification.repository.NotificationRepository;
 import com.dandimate.durooduroo.photo.domain.Photo;
 import com.dandimate.durooduroo.photo.dto.PhotoView;
 import com.dandimate.durooduroo.photo.repository.PhotoRepository;
-import com.dandimate.durooduroo.photo.service.PhotoUrls;
+import com.dandimate.durooduroo.storage.MediaUrls;
 import com.dandimate.durooduroo.room.domain.Room;
 import com.dandimate.durooduroo.room.domain.RoomAction;
 import com.dandimate.durooduroo.room.repository.RoomRepository;
@@ -55,11 +55,13 @@ public class AskbackService {
     private final AskbackRuleService rules;
     private final AiJobRepository jobs;
     private final NotificationRepository notifications;
-    private final PhotoUrls photoUrls;
+    private final MediaUrls mediaUrls;
+    private final com.dandimate.durooduroo.memory.service.TranscriptionService transcriptions;
 
     public AskbackService(AskbackRepository askbacks, MemberRepository members, PhotoRepository photos, MemoryEntryRepository entries,
                           RoomRepository rooms, RoomStateService roomStates, AskbackRuleService rules, AiJobRepository jobs,
-                          NotificationRepository notifications, PhotoUrls photoUrls) {
+                          NotificationRepository notifications, MediaUrls mediaUrls,
+                          com.dandimate.durooduroo.memory.service.TranscriptionService transcriptions) {
         this.askbacks = askbacks;
         this.members = members;
         this.photos = photos;
@@ -69,7 +71,8 @@ public class AskbackService {
         this.rules = rules;
         this.jobs = jobs;
         this.notifications = notifications;
-        this.photoUrls = photoUrls;
+        this.mediaUrls = mediaUrls;
+        this.transcriptions = transcriptions;
     }
 
     /** 내가 받은 질문. 미룬 적 없는 질문을 먼저, 그 안에서는 오래된 순서. */
@@ -100,11 +103,13 @@ public class AskbackService {
         if (!EntryKind.ASKBACK_ANSWER.acceptsLength(transcript)) throw new BusinessException(ErrorCode.VALIDATION_ERROR, "답변은 1~200자여야 해요.");
         if (photos.findById(askback.getPhotoId()).isEmpty()) throw new BusinessException(ErrorCode.ASKBACK_CLOSED, "질문한 사진이 삭제됐어요.");
 
+        String audioLocation = "VOICE".equals(request.inputMode())
+                ? transcriptions.consume(request.transcriptionId(), askback.getTargetMemberId(), "ASKBACK", askback.getId()).getAudioLocation() : null;
         MemoryEntry entry = entries.save(MemoryEntry.confirm(askback.getRoomId(), askback.getPhotoId(), askback.getTargetMemberId(),
-                EntryKind.ASKBACK_ANSWER, request.inputMode(), request.transcriptionId(), transcript));
+                EntryKind.ASKBACK_ANSWER, request.inputMode(), request.transcriptionId(), audioLocation, transcript));
         askback.answer(entry.getId());
         Member me = members.findById(askback.getTargetMemberId()).orElseThrow();
-        return Map.of("askback", Map.of("id", askback.getId(), "status", askback.getStatus()), "entry", EntryView.of(entry, me));
+        return Map.of("askback", Map.of("id", askback.getId(), "status", askback.getStatus()), "entry", EntryView.of(entry, me, mediaUrls.audioUrl(entry)));
     }
 
     @Transactional
@@ -166,8 +171,8 @@ public class AskbackService {
                 .map(e -> roomMembers.get(e.getMemberId()).getNickname())
                 .distinct().toList();
         EntryView first = photoEntries.stream().filter(e -> e.getKind() == EntryKind.FIRST).findFirst()
-                .map(e -> EntryView.of(e, roomMembers.get(e.getMemberId()))).orElse(null);
-        return new AskbackView(askback.getId(), PhotoView.of(photo, roomMembers.get(photo.getMemberId()), photoUrls.imageUrl(photo)),
+                .map(e -> EntryView.of(e, roomMembers.get(e.getMemberId()), mediaUrls.audioUrl(e))).orElse(null);
+        return new AskbackView(askback.getId(), PhotoView.of(photo, roomMembers.get(photo.getMemberId()), mediaUrls.imageUrl(photo)),
                 askback.getGapType(), askback.getQuestion(), evidenceNicknames, askback.getStatus(), first,
                 askback.getCreatedAt(), askback.getExpiresAt());
     }

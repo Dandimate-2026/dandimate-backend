@@ -35,16 +35,21 @@ public class EntryService {
     private final PhotoPassRepository passes;
     private final RoomStateService roomStates;
     private final com.dandimate.durooduroo.askback.repository.AskbackRepository askbacks;
+    private final TranscriptionService transcriptions;
+    private final com.dandimate.durooduroo.storage.MediaUrls mediaUrls;
 
     public EntryService(PhotoRepository photos, MemberRepository members, MemoryEntryRepository entries,
                         PhotoPassRepository passes, RoomStateService roomStates,
-                        com.dandimate.durooduroo.askback.repository.AskbackRepository askbacks) {
+                        com.dandimate.durooduroo.askback.repository.AskbackRepository askbacks, TranscriptionService transcriptions,
+                        com.dandimate.durooduroo.storage.MediaUrls mediaUrls) {
         this.photos = photos;
         this.members = members;
         this.entries = entries;
         this.passes = passes;
         this.roomStates = roomStates;
         this.askbacks = askbacks;
+        this.transcriptions = transcriptions;
+        this.mediaUrls = mediaUrls;
     }
 
     @Transactional
@@ -78,15 +83,17 @@ public class EntryService {
             case ASKBACK_ANSWER -> throw new BusinessException(ErrorCode.VALIDATION_ERROR, "되묻기 답변은 되묻기 답변 API를 사용해 주세요.");
         }
 
+        String audioLocation = "VOICE".equals(request.inputMode())
+                ? transcriptions.consume(request.transcriptionId(), me.getId(), "PHOTO", photoId).getAudioLocation() : null;
         MemoryEntry entry = entries.save(MemoryEntry.confirm(photo.getRoomId(), photoId, me.getId(), request.kind(),
-                request.inputMode(), request.transcriptionId(), transcript));
+                request.inputMode(), request.transcriptionId(), audioLocation, transcript));
         if (request.kind() == EntryKind.FIRST) {
             photo.publish();
             roomStates.onFirstEntryConfirmed(photo.getRoomId());
         } else {
             passes.findByPhotoIdAndMemberId(photoId, me.getId()).ifPresent(passes::delete);
         }
-        return EntryView.of(entry, me);
+        return EntryView.of(entry, me, mediaUrls.audioUrl(entry));
     }
 
     @Transactional
@@ -96,7 +103,7 @@ public class EntryService {
         if (transcript == null || transcript.isBlank()) throw new BusinessException(ErrorCode.VALIDATION_ERROR, "내용은 필수입니다.");
         requireLength(entry.getKind(), transcript.strip());
         entry.edit(transcript.strip());
-        return EntryView.of(entry, members.findById(entry.getMemberId()).orElseThrow());
+        return EntryView.of(entry, members.findById(entry.getMemberId()).orElseThrow(), mediaUrls.audioUrl(entry));
     }
 
     @Transactional

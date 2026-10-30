@@ -18,7 +18,7 @@ import com.dandimate.durooduroo.member.repository.MemberRepository;
 import com.dandimate.durooduroo.photo.domain.Photo;
 import com.dandimate.durooduroo.photo.dto.PhotoView;
 import com.dandimate.durooduroo.photo.repository.PhotoRepository;
-import com.dandimate.durooduroo.photo.service.PhotoUrls;
+import com.dandimate.durooduroo.storage.MediaUrls;
 import com.dandimate.durooduroo.room.domain.Room;
 import com.dandimate.durooduroo.room.domain.RoomStatus;
 import com.dandimate.durooduroo.room.repository.RoomRepository;
@@ -50,11 +50,11 @@ public class ScrollService {
     private final ReplyRepository replies;
     private final PhotoRepository photos;
     private final AiJobRepository jobs;
-    private final PhotoUrls photoUrls;
+    private final MediaUrls mediaUrls;
 
     public ScrollService(RoomRepository rooms, MemberRepository members, ScrollRepository scrolls, ParagraphRepository paragraphs,
                          ParagraphSourceRepository sources, ReplyRepository replies, PhotoRepository photos, AiJobRepository jobs,
-                         PhotoUrls photoUrls) {
+                         MediaUrls mediaUrls) {
         this.rooms = rooms;
         this.members = members;
         this.scrolls = scrolls;
@@ -63,7 +63,7 @@ public class ScrollService {
         this.replies = replies;
         this.photos = photos;
         this.jobs = jobs;
-        this.photoUrls = photoUrls;
+        this.mediaUrls = mediaUrls;
     }
 
     @Transactional(readOnly = true)
@@ -96,7 +96,7 @@ public class ScrollService {
                     List<ScrollView.SourceView> paragraphSources = sourcesByParagraph.getOrDefault(p.getId(), List.of()).stream()
                             .map(s -> new ScrollView.SourceView(s.getEntryId(), MemberView.from(roomMembers.get(s.getMemberId())), s.getQuote()))
                             .toList();
-                    return new ScrollView.ParagraphView(p.getId(), PhotoView.of(photo, roomMembers.get(photo.getMemberId()), photoUrls.imageUrl(photo)),
+                    return new ScrollView.ParagraphView(p.getId(), PhotoView.of(photo, roomMembers.get(photo.getMemberId()), mediaUrls.imageUrl(photo)),
                             p.getBody(), p.getVersion(), paragraphSources, replies.countByParagraphId(p.getId()), p.getAhMatdaCount(), true);
                 })
                 .toList();

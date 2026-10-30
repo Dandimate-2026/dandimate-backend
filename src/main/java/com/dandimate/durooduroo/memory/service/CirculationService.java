@@ -21,7 +21,7 @@ import com.dandimate.durooduroo.memory.repository.PhotoPassRepository;
 import com.dandimate.durooduroo.photo.domain.Photo;
 import com.dandimate.durooduroo.photo.dto.PhotoView;
 import com.dandimate.durooduroo.photo.repository.PhotoRepository;
-import com.dandimate.durooduroo.photo.service.PhotoUrls;
+import com.dandimate.durooduroo.storage.MediaUrls;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -41,14 +41,14 @@ public class CirculationService {
     private final PhotoRepository photos;
     private final MemoryEntryRepository entries;
     private final PhotoPassRepository passes;
-    private final PhotoUrls photoUrls;
+    private final MediaUrls mediaUrls;
 
-    public CirculationService(MemberRepository members, PhotoRepository photos, MemoryEntryRepository entries, PhotoPassRepository passes, PhotoUrls photoUrls) {
+    public CirculationService(MemberRepository members, PhotoRepository photos, MemoryEntryRepository entries, PhotoPassRepository passes, MediaUrls mediaUrls) {
         this.members = members;
         this.photos = photos;
         this.entries = entries;
         this.passes = passes;
-        this.photoUrls = photoUrls;
+        this.mediaUrls = mediaUrls;
     }
 
     public record Card(PhotoView photo, EntryView firstEntry, MyResponse myResponse, boolean locked, String lockReason, List<EntryView> otherEntries) {
@@ -88,14 +88,14 @@ public class CirculationService {
 
     private Card card(Photo photo, Member me, Map<String, Member> roomMembers, List<MemoryEntry> photoEntries, Set<String> passedPhotoIds) {
         EntryView first = photoEntries.stream().filter(e -> e.getKind() == EntryKind.FIRST).findFirst()
-                .map(e -> EntryView.of(e, roomMembers.get(e.getMemberId()))).orElse(null);
+                .map(e -> EntryView.of(e, roomMembers.get(e.getMemberId()), mediaUrls.audioUrl(e))).orElse(null);
         String status = responseStatus(photo, me, photoEntries, passedPhotoIds);
         boolean locked = status.equals("NONE");
         List<EntryView> others = locked ? List.of() : photoEntries.stream()
                 .filter(e -> e.getKind() != EntryKind.FIRST)
-                .map(e -> EntryView.of(e, roomMembers.get(e.getMemberId())))
+                .map(e -> EntryView.of(e, roomMembers.get(e.getMemberId()), mediaUrls.audioUrl(e)))
                 .toList();
-        return new Card(PhotoView.of(photo, roomMembers.get(photo.getMemberId()), photoUrls.imageUrl(photo)), first, new MyResponse(status),
+        return new Card(PhotoView.of(photo, roomMembers.get(photo.getMemberId()), mediaUrls.imageUrl(photo)), first, new MyResponse(status),
                 locked, locked ? "RESPOND_FIRST" : null, others);
     }
 

@@ -4,10 +4,10 @@
  * - 로컬: PUT /api/v1/photos/{id}/upload, GET /api/v1/photos/{id}/image 에 expires·signature (HMAC-SHA256, 용도별로 다른 서명)
  * 서명 키(app.media.signing-secret)가 비어 있으면 시작할 때 무작위로 만들며, 그러면 재시작 후 이전 URL은 무효가 된다.
  */
-package com.dandimate.durooduroo.photo.service;
+package com.dandimate.durooduroo.storage;
 
+import com.dandimate.durooduroo.memory.domain.MemoryEntry;
 import com.dandimate.durooduroo.photo.domain.Photo;
-import com.dandimate.durooduroo.storage.ObjectStorage;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 @Component
-public class PhotoUrls {
+public class MediaUrls {
 
     public static final Duration UPLOAD_TTL = Duration.ofMinutes(10);
 
@@ -29,7 +29,7 @@ public class PhotoUrls {
     private final byte[] secret;
     private final Duration ttl;
 
-    public PhotoUrls(ObjectStorage storage, @Value("${app.media.signing-secret:}") String secret,
+    public MediaUrls(ObjectStorage storage, @Value("${app.media.signing-secret:}") String secret,
                      @Value("${app.media.url-ttl-seconds:3600}") long ttlSeconds) {
         this.storage = storage;
         this.secret = secret.isBlank() ? randomSecret() : secret.getBytes(StandardCharsets.UTF_8);
@@ -38,13 +38,24 @@ public class PhotoUrls {
 
     public String uploadUrl(Photo photo) {
         return storage.presignedPutUrl(photo.getStorageKey(), photo.getContentType(), UPLOAD_TTL)
-                .orElseGet(() -> signedAppUrl("upload", photo.getId(), UPLOAD_TTL));
+                .orElseGet(() -> signedAppUrl("/api/v1/photos/{id}/upload", "upload", photo.getId(), UPLOAD_TTL));
     }
 
     /** 업로드가 끝나지 않은 사진은 null. */
     public String imageUrl(Photo photo) {
         if (!photo.isReady()) return null;
-        return storage.presignedGetUrl(photo.getFileUrl(), ttl).orElseGet(() -> signedAppUrl("image", photo.getId(), ttl));
+        return storage.presignedGetUrl(photo.getFileUrl(), ttl).orElseGet(() -> signedAppUrl("/api/v1/photos/{id}/image", "image", photo.getId(), ttl));
+    }
+
+    /** 음성 입력 원문의 audioUrl. 글 입력이면 null. */
+    public String audioUrl(MemoryEntry entry) {
+        if (entry.getAudioLocation() == null) return null;
+        return storage.presignedGetUrl(entry.getAudioLocation(), ttl)
+                .orElseGet(() -> signedAppUrl("/api/v1/entries/{id}/audio", "audio", entry.getId(), ttl));
+    }
+
+    public boolean verifyAudio(String entryId, long expires, String signature) {
+        return verify("audio", entryId, expires, signature);
     }
 
     public boolean verifyUpload(String photoId, long expires, String signature) {
@@ -60,11 +71,11 @@ public class PhotoUrls {
         return MessageDigest.isEqual(sign(purpose, photoId, expires).getBytes(StandardCharsets.UTF_8), signature.getBytes(StandardCharsets.UTF_8));
     }
 
-    private String signedAppUrl(String purpose, String photoId, Duration validFor) {
+    private String signedAppUrl(String pathTemplate, String purpose, String id, Duration validFor) {
         long expires = Instant.now().plus(validFor).getEpochSecond();
-        return ServletUriComponentsBuilder.fromCurrentContextPath().path("/api/v1/photos/{photoId}/" + purpose)
-                .queryParam("expires", expires).queryParam("signature", sign(purpose, photoId, expires))
-                .buildAndExpand(photoId).toUriString();
+        return ServletUriComponentsBuilder.fromCurrentContextPath().path(pathTemplate)
+                .queryParam("expires", expires).queryParam("signature", sign(purpose, id, expires))
+                .buildAndExpand(id).toUriString();
     }
 
     private String sign(String purpose, String photoId, long expires) {

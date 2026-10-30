@@ -36,3 +36,9 @@ app:
     # 로컬 저장소 사진 URL 서명 키. 비우면 시작할 때마다 새로 만든다 (운영은 MEDIA_SIGNING_SECRET로 고정).
     signing-secret: ${MEDIA_SIGNING_SECRET:}
     url-ttl-seconds: 3600
+  stt:
+    # openai(기본, OPENAI_API_KEY 필요) 또는 fake(키 없이 개발·데모할 때 고정 문장을 돌려준다)
+    provider: ${STT_PROVIDER:openai}
+  audio:
+    # 음성 길이 측정용. 없으면 MP4/M4A/WAV만 직접 잰다 (webm은 운영 서버에 ffprobe 설치 권장)
+    ffprobe-path: ${FFPROBE_PATH:ffprobe}

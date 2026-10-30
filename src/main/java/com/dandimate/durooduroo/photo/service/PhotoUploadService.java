@@ -18,6 +18,7 @@ import com.dandimate.durooduroo.photo.dto.UploadResponse;
 import com.dandimate.durooduroo.photo.repository.PhotoRepository;
 import com.dandimate.durooduroo.room.domain.RoomAction;
 import com.dandimate.durooduroo.room.service.RoomStateService;
+import com.dandimate.durooduroo.storage.MediaUrls;
 import com.dandimate.durooduroo.storage.ObjectStorage;
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,14 +43,14 @@ public class PhotoUploadService {
     private final MemberRepository members;
     private final RoomStateService roomStates;
     private final ObjectStorage storage;
-    private final PhotoUrls photoUrls;
+    private final MediaUrls mediaUrls;
 
-    public PhotoUploadService(PhotoRepository photos, MemberRepository members, RoomStateService roomStates, ObjectStorage storage, PhotoUrls photoUrls) {
+    public PhotoUploadService(PhotoRepository photos, MemberRepository members, RoomStateService roomStates, ObjectStorage storage, MediaUrls mediaUrls) {
         this.photos = photos;
         this.members = members;
         this.roomStates = roomStates;
         this.storage = storage;
-        this.photoUrls = photoUrls;
+        this.mediaUrls = mediaUrls;
     }
 
     @Transactional
@@ -64,8 +65,8 @@ public class PhotoUploadService {
             String photoId = UUID.randomUUID().toString();
             String key = roomId + "/photos/" + photoId + EXTENSIONS.get(file.contentType());
             Photo photo = photos.save(Photo.pending(photoId, roomId, me.getId(), key, storage.locationFor(key), file.contentType(), file.displayOrder()));
-            return new UploadResponse.Upload(file.clientFileId(), photoId, photoUrls.uploadUrl(photo),
-                    LocalDateTime.now().plus(PhotoUrls.UPLOAD_TTL), Map.of("Content-Type", file.contentType()));
+            return new UploadResponse.Upload(file.clientFileId(), photoId, mediaUrls.uploadUrl(photo),
+                    LocalDateTime.now().plus(MediaUrls.UPLOAD_TTL), Map.of("Content-Type", file.contentType()));
         }).toList();
         return new UploadResponse(uploads);
     }
@@ -73,7 +74,7 @@ public class PhotoUploadService {
     /** 로컬 저장소용 업로드 API. S3에서는 presigned PUT으로 저장소에 바로 올리므로 쓰이지 않는다. */
     @Transactional(readOnly = true)
     public void receiveLocalUpload(String photoId, long expires, String signature, String contentType, InputStream body) throws IOException {
-        if (!photoUrls.verifyUpload(photoId, expires, signature)) throw new BusinessException(ErrorCode.FORBIDDEN, "업로드 주소가 만료됐어요.");
+        if (!mediaUrls.verifyUpload(photoId, expires, signature)) throw new BusinessException(ErrorCode.FORBIDDEN, "업로드 주소가 만료됐어요.");
         Photo photo = photos.findById(photoId).orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "사진이 없습니다."));
         if (!Photo.UPLOADING.equals(photo.getStatus())) throw new BusinessException(ErrorCode.INVALID_ROOM_STATE, "이미 업로드가 끝난 사진이에요.");
         if (contentType == null || !contentType.split(";")[0].trim().equalsIgnoreCase(photo.getContentType())) {

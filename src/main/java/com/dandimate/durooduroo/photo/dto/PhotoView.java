@@ -1,4 +1,4 @@
-/** OpenAPI Photo 스키마입니다. imageUrl은 PhotoUrls가 만든 서명 URL이다. */
+/** OpenAPI Photo 스키마입니다. imageUrl은 MediaUrls가 만든 서명 URL이다. */
 package com.dandimate.durooduroo.photo.dto;
 
 import com.dandimate.durooduroo.member.domain.Member;
