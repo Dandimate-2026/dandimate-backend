@@ -20,3 +20,15 @@ server:
   port: 8080
   # nginx 뒤에서 eventsUrl 같은 절대 URL이 https·실제 호스트로 만들어지도록 X-Forwarded-* 헤더를 따른다.
   forward-headers-strategy: framework
+
+app:
+  jobs:
+    # Worker가 QUEUED 작업을 찾는 주기
+    poll-interval-ms: 1000
+    # 실패 시 즉시 1회, 이 시간 뒤 1회 재시도한다 (FR-E7)
+    retry-delay-ms: 5000
+    # 이 시간 동안 갱신 없는 RUNNING 작업은 QUEUED로 되돌린다
+    stale-after-ms: 300000
+    stale-check-interval-ms: 60000
+    # 마감 시각이 지난 방을 찾는 주기
+    deadline-check-interval-ms: 60000

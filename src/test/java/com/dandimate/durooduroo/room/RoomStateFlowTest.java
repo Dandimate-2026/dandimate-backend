@@ -7,7 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
+import static org.awaitility.Awaitility.await;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,7 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
-@SpringBootTest(properties = "storage.local-root=build/test-uploads")
+@SpringBootTest(properties = {"storage.local-root=build/test-uploads", "app.jobs.poll-interval-ms=50"})
 @AutoConfigureMockMvc
 class RoomStateFlowTest {
 
@@ -66,9 +68,9 @@ class RoomStateFlowTest {
                 .andExpect(status().isForbidden());
         String closed = body(perform(post("/api/v1/rooms/" + roomId + "/close").header("Authorization", "Bearer " + host), "{\"mode\":\"DEMO\"}")
                 .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.data.job.type").value("WEAVE_SCROLL"))
-                .andExpect(jsonPath("$.data.job.status").value("SUCCEEDED")));
+                .andExpect(jsonPath("$.data.job.type").value("WEAVE_SCROLL")));
         String jobId = JsonPath.read(closed, "$.data.job.id");
+        awaitJob(jobId, member, "SUCCEEDED");
         mockMvc.perform(get("/api/v1/rooms/" + roomId).header("Authorization", "Bearer " + host))
                 .andExpect(jsonPath("$.data.room.status").value("GROWING"));
 
@@ -95,13 +97,19 @@ class RoomStateFlowTest {
         mockMvc.perform(post("/api/v1/rooms/" + roomId + "/weave-jobs").header("Authorization", "Bearer " + member))
                 .andExpect(status().isForbidden());
         for (int i = 0; i < 10; i++) {
-            mockMvc.perform(post("/api/v1/rooms/" + roomId + "/weave-jobs").header("Authorization", "Bearer " + host))
-                    .andExpect(status().isAccepted())
-                    .andExpect(jsonPath("$.data.job.status").value("SUCCEEDED"));
+            String reweave = body(mockMvc.perform(post("/api/v1/rooms/" + roomId + "/weave-jobs").header("Authorization", "Bearer " + host))
+                    .andExpect(status().isAccepted()));
+            awaitJob(JsonPath.read(reweave, "$.data.job.id"), host, "SUCCEEDED");
         }
         mockMvc.perform(post("/api/v1/rooms/" + roomId + "/weave-jobs").header("Authorization", "Bearer " + host))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error.code").value("LIMIT_REACHED"));
+    }
+
+    private void awaitJob(String jobId, String token, String expected) {
+        await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                mockMvc.perform(get("/api/v1/jobs/" + jobId).header("Authorization", "Bearer " + token))
+                        .andExpect(jsonPath("$.data.status").value(expected)));
     }
 
     private String uploadPhoto(String roomId, String token) throws Exception {

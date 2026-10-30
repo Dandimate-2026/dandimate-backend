@@ -32,6 +32,7 @@ public class Room implements Persistable<String> {
     public static final int CAPACITY = 8;
     public static final int REGENERATION_LIMIT = 10;
     private static final int DEFAULT_DEADLINE_HOURS = 48;
+    private static final int AUTO_EXTENSION_HOURS = 24;
 
     @Id
     @Column(length = 36, nullable = false, updatable = false)
@@ -59,6 +60,10 @@ public class Room implements Persistable<String> {
 
     @Column(nullable = false)
     private int regenerationCount;
+
+    /** 원문 없이 마감 시각이 지나 자동 연장한 적이 있는지. 방당 1회만 연장한다. */
+    @Column(nullable = false)
+    private boolean deadlineExtended;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -122,6 +127,26 @@ public class Room implements Persistable<String> {
     /** 생성 성공: WEAVING → GROWING. GROWING에서 다시 엮은 경우는 그대로 둔다. */
     public void completeWeaving() {
         if (status == RoomStatus.WEAVING) this.status = RoomStatus.GROWING;
+    }
+
+    /** COLLECTING에서 마감 시각이 지났는데 공개 원문이 없으면 한 번만 24시간 연장한다. 이미 연장했으면 false. */
+    public boolean extendDeadlineOnce() {
+        if (status != RoomStatus.COLLECTING || deadlineExtended) return false;
+        deadlineExtended = true;
+        deadlineAt = deadlineAt.plusHours(AUTO_EXTENSION_HOURS);
+        return true;
+    }
+
+    /** 연장 후에도 원문이 없으면 AI 작업 없이 빈 두루마리 안내 상태(GROWING)로 끝낸다. */
+    public void completeWithoutScroll() {
+        if (status != RoomStatus.COLLECTING) {
+            throw new BusinessException(ErrorCode.INVALID_ROOM_STATE, "모으는 중인 방만 빈 상태로 마감할 수 있어요.");
+        }
+        status = RoomStatus.GROWING;
+    }
+
+    public boolean isDeadlineExtended() {
+        return deadlineExtended;
     }
 
     /** 수동 다시 엮기·답가 재엮기 한도(방당 10회)를 사용한다. */

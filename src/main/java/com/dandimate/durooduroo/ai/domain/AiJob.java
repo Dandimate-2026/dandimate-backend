@@ -1,19 +1,31 @@
-/** MVP에서 AI 작업(문단 생성·되묻기 분석)의 상태를 저장합니다. */
+/**
+ * AI 작업(문단 생성·되묻기 분석)의 상태입니다. Worker가 QUEUED → RUNNING으로 선점해 실행하고,
+ * 실패하면 attempts를 보고 다시 QUEUED(nextRunAt 이후 실행)로 돌리거나 FAILED로 끝낸다.
+ */
 package com.dandimate.durooduroo.ai.domain;
 
 import jakarta.persistence.*;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-@Entity @Table(name="ai_jobs")
+@Entity @Table(name="ai_jobs", indexes=@Index(name="idx_ai_jobs_runnable", columnList="status,nextRunAt"))
 public class AiJob {
     public static final String WEAVE_SCROLL="WEAVE_SCROLL"; public static final String ASKBACK_ANALYZE="ASKBACK_ANALYZE";
     public static final List<String> ACTIVE_STATUSES=List.of("QUEUED","RUNNING");
-    @Id private String id; @Column(nullable=false) private String roomId; @Column(nullable=false) private String type; @Column(nullable=false) private String status; private String errorCode; @Column(nullable=false) private LocalDateTime createdAt; @Column(nullable=false) private LocalDateTime updatedAt;
+    @Id private String id; @Column(nullable=false) private String roomId; @Column(nullable=false) private String type; @Column(nullable=false) private String status; private String errorCode;
+    @Column(nullable=false) private int attempts; @Column(nullable=false) private LocalDateTime nextRunAt; @Column(nullable=false) private LocalDateTime createdAt; @Column(nullable=false) private LocalDateTime updatedAt;
     protected AiJob() {}
-    private AiJob(String roomId,String type) { id=UUID.randomUUID().toString(); this.roomId=roomId; this.type=type; status="QUEUED"; createdAt=LocalDateTime.now(); updatedAt=createdAt; }
+    private AiJob(String roomId,String type) { id=UUID.randomUUID().toString(); this.roomId=roomId; this.type=type; status="QUEUED"; createdAt=LocalDateTime.now(); updatedAt=createdAt; nextRunAt=createdAt; }
     public static AiJob queued(String roomId,String type){return new AiJob(roomId,type);}
-    public void start(){status="RUNNING";updatedAt=LocalDateTime.now();} public void succeed(){status="SUCCEEDED";errorCode=null;updatedAt=LocalDateTime.now();} public void fail(String errorCode){status="FAILED";this.errorCode=errorCode;updatedAt=LocalDateTime.now();}
-    public String getId(){return id;} public String getRoomId(){return roomId;} public String getType(){return type;} public String getStatus(){return status;} public String getErrorCode(){return errorCode;} public LocalDateTime getCreatedAt(){return createdAt;} public LocalDateTime getUpdatedAt(){return updatedAt;}
+    /** Worker가 실행을 시작한다. */
+    public void claim(){status="RUNNING";attempts++;updatedAt=LocalDateTime.now();}
+    public void succeed(){status="SUCCEEDED";errorCode=null;updatedAt=LocalDateTime.now();}
+    /** 재시도: delay 뒤에 다시 실행되도록 QUEUED로 돌린다. */
+    public void retryAfter(Duration delay,String errorCode){status="QUEUED";this.errorCode=errorCode;updatedAt=LocalDateTime.now();nextRunAt=updatedAt.plus(delay);}
+    public void fail(String errorCode){status="FAILED";this.errorCode=errorCode;updatedAt=LocalDateTime.now();}
+    /** Worker가 죽어 RUNNING으로 남은 작업을 다시 실행 대기로 돌린다. */
+    public void requeue(){status="QUEUED";updatedAt=LocalDateTime.now();nextRunAt=updatedAt;}
+    public String getId(){return id;} public String getRoomId(){return roomId;} public String getType(){return type;} public String getStatus(){return status;} public String getErrorCode(){return errorCode;} public int getAttempts(){return attempts;} public LocalDateTime getNextRunAt(){return nextRunAt;} public LocalDateTime getCreatedAt(){return createdAt;} public LocalDateTime getUpdatedAt(){return updatedAt;}
 }

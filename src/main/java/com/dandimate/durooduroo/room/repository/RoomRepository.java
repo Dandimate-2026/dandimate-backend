@@ -4,6 +4,10 @@ package com.dandimate.durooduroo.room.repository;
 import com.dandimate.durooduroo.common.auth.Tokens;
 import com.dandimate.durooduroo.room.domain.Room;
 import jakarta.persistence.LockModeType;
+import com.dandimate.durooduroo.room.domain.RoomStatus;
+import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -13,6 +17,8 @@ import org.springframework.data.repository.query.Param;
 public interface RoomRepository extends JpaRepository<Room, String> {
 
     Optional<Room> findByInviteTokenHash(String inviteTokenHash);
+
+    List<Room> findAllByStatusInAndDeadlineAtLessThanEqual(Collection<RoomStatus> statuses, LocalDateTime now);
 
     /** 초대 토큰 원문으로 방을 찾는다. 재발급 전 토큰은 해시가 달라 찾지 못한다. */
     default Optional<Room> findByInviteToken(String rawInviteToken) {
