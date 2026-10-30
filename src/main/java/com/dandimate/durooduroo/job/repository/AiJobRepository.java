@@ -32,4 +32,6 @@ public interface AiJobRepository extends JpaRepository<AiJob, String> {
     List<AiJob> findAllByStatusAndUpdatedAtBefore(String status, LocalDateTime updatedBefore);
 
     Optional<AiJob> findFirstByTypeAndTargetIdAndStatus(String type, String targetId, String status);
+
+    Optional<AiJob> findFirstByTypeAndTargetIdOrderByCreatedAtDesc(String type, String targetId);
 }

@@ -26,9 +26,11 @@ import com.dandimate.durooduroo.room.domain.Room;
 import com.dandimate.durooduroo.room.repository.RoomRepository;
 import com.dandimate.durooduroo.scroll.domain.Paragraph;
 import com.dandimate.durooduroo.scroll.domain.ParagraphSource;
+import com.dandimate.durooduroo.scroll.domain.ParagraphVersion;
 import com.dandimate.durooduroo.scroll.domain.Scroll;
 import com.dandimate.durooduroo.scroll.repository.ParagraphRepository;
 import com.dandimate.durooduroo.scroll.repository.ParagraphSourceRepository;
+import com.dandimate.durooduroo.scroll.repository.ParagraphVersionRepository;
 import com.dandimate.durooduroo.scroll.repository.ScrollRepository;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -59,10 +61,11 @@ public class ScrollGenerationService {
     private final MemberRepository members;
     private final SceneCardAiService sceneCards;
     private final ScrollWeaveAiService weaver;
+    private final ParagraphVersionRepository versions;
 
     public ScrollGenerationService(RoomRepository rooms, MemoryEntryRepository entries, ScrollRepository scrolls, ParagraphRepository paragraphs,
                                    ParagraphSourceRepository sources, PhotoRepository photos, MemberRepository members,
-                                   SceneCardAiService sceneCards, ScrollWeaveAiService weaver) {
+                                   SceneCardAiService sceneCards, ScrollWeaveAiService weaver, ParagraphVersionRepository versions) {
         this.rooms = rooms;
         this.entries = entries;
         this.scrolls = scrolls;
@@ -72,6 +75,7 @@ public class ScrollGenerationService {
         this.members = members;
         this.sceneCards = sceneCards;
         this.weaver = weaver;
+        this.versions = versions;
     }
 
     public record Plan(String roomId, String roomName, List<PhotoPlan> photos, Map<String, Member> members) {}
@@ -98,27 +102,36 @@ public class ScrollGenerationService {
 
     /** AI를 호출한다. AiFailure는 그대로 던져 Job 재시도로 넘긴다. */
     public Map<String, Woven> weave(Plan plan) {
-        List<PhotoPlan> withEntries = plan.photos().stream().filter(p -> !p.entries().isEmpty()).toList();
+        return weavePhotos(plan.roomId(), plan.roomName(), plan.photos(), plan.members());
+    }
+
+    /** 사진 한 장의 문단만 다시 만든다 (답가 삭제·원문 삭제 후 복구). */
+    public Woven weavePhoto(String roomId, String roomName, PhotoPlan photo, Map<String, Member> roomMembers) {
+        return weavePhotos(roomId, roomName, List.of(photo), roomMembers).get(photo.photo().getId());
+    }
+
+    private Map<String, Woven> weavePhotos(String roomId, String roomName, List<PhotoPlan> photoPlans, Map<String, Member> roomMembers) {
+        List<PhotoPlan> withEntries = photoPlans.stream().filter(p -> !p.entries().isEmpty()).toList();
         Map<String, ScrollWeaveCommand.SourceEntry> sourceEntries = new HashMap<>();
         Map<String, ScrollWeaveCommand.OrderedSceneCard> cards = new LinkedHashMap<>();
         for (PhotoPlan photo : withEntries) {
             List<EntryInput> inputs = photo.entries().stream().map(e -> new EntryInput(e.getId(), e.getMemberId(),
-                    plan.members().get(e.getMemberId()).getNickname(), e.getKind().name(), e.getTranscript())).toList();
+                    roomMembers.get(e.getMemberId()).getNickname(), e.getKind().name(), e.getTranscript())).toList();
             photo.entries().forEach(e -> sourceEntries.put(e.getId(), new ScrollWeaveCommand.SourceEntry(photo.photo().getId(), e.getMemberId(),
-                    plan.members().get(e.getMemberId()).getNickname(), e.getTranscript())));
+                    roomMembers.get(e.getMemberId()).getNickname(), e.getTranscript())));
             var card = sceneCards.extract(new SceneCardCommand(new PhotoInput(photo.photo().getId(), photo.photo().getMemberId(), null), inputs));
             cards.put(photo.photo().getId(), new ScrollWeaveCommand.OrderedSceneCard(photo.displayOrder(), card));
         }
-        ScrollWeaveCommand.RoomInput room = new ScrollWeaveCommand.RoomInput(plan.roomId(), plan.roomName());
+        ScrollWeaveCommand.RoomInput room = new ScrollWeaveCommand.RoomInput(roomId, roomName);
         Map<String, WovenParagraph> woven = withEntries.isEmpty() ? Map.of()
                 : weaver.weave(new ScrollWeaveCommand(room, List.copyOf(cards.values()), sourceEntries)).paragraphs().stream()
                         .collect(Collectors.toMap(WovenParagraph::photoId, Function.identity(), (first, duplicate) -> first));
 
         Map<String, Woven> result = new LinkedHashMap<>();
-        for (PhotoPlan photo : plan.photos()) {
+        for (PhotoPlan photo : photoPlans) {
             String photoId = photo.photo().getId();
             if (photo.entries().isEmpty()) {
-                result.put(photoId, new Woven(plan.members().get(photo.photo().getMemberId()).getNickname() + "님이 올린 사진이에요.", List.of(), true));
+                result.put(photoId, new Woven(roomMembers.get(photo.photo().getMemberId()).getNickname() + "님이 올린 사진이에요.", List.of(), true));
                 continue;
             }
             Optional<WovenParagraph> valid = Optional.ofNullable(woven.get(photoId)).filter(p -> isValid(photo, p));
@@ -128,7 +141,7 @@ public class ScrollGenerationService {
             }
             result.put(photoId, valid.map(p -> new Woven(p.body(), p.citations(), true)).orElseGet(() -> {
                 log.warn("Paragraph for photo {} failed citation validation; using fallback", photoId);
-                return fallback(photo, plan.members());
+                return fallback(photo, roomMembers);
             }));
         }
         return result;
@@ -142,12 +155,23 @@ public class ScrollGenerationService {
         for (PhotoPlan photo : plan.photos()) {
             Woven paragraph = woven.get(photo.photo().getId());
             Paragraph saved = paragraphs.save(Paragraph.create(plan.roomId(), scroll.getId(), photo.photo().getId(), photo.displayOrder(), paragraph.body()));
-            for (int order = 0; order < paragraph.citations().size(); order++) {
-                Citation citation = paragraph.citations().get(order);
-                sources.save(ParagraphSource.of(saved.getId(), citation.entryId(), citation.memberId(), citation.exactQuote(), order));
-            }
+            saveSources(saved.getId(), paragraph.citations());
+            versions.save(ParagraphVersion.of(saved.getId(), saved.getVersion(), saved.getBody(), sourcesSummary(paragraph.citations()), "INITIAL"));
         }
         return scroll;
+    }
+
+    /** 문단 인용 출처를 통째로 바꾼다. */
+    public void saveSources(String paragraphId, List<Citation> citations) {
+        sources.deleteAll(sources.findAllByParagraphIdInOrderBySortOrderAsc(List.of(paragraphId)));
+        for (int order = 0; order < citations.size(); order++) {
+            Citation citation = citations.get(order);
+            sources.save(ParagraphSource.of(paragraphId, citation.entryId(), citation.memberId(), citation.exactQuote(), order));
+        }
+    }
+
+    public static String sourcesSummary(List<Citation> citations) {
+        return citations.stream().map(c -> c.entryId() + ":" + c.memberId()).collect(Collectors.joining(","));
     }
 
     /** 명세 8장 결과 검증: 인용 원문이 실제로 있고, 같은 사진이고, 작성자가 맞고, 인용이 원문의 부분 문자열인가. */

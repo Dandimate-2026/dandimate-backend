@@ -97,7 +97,7 @@ public class ScrollService {
                             .map(s -> new ScrollView.SourceView(s.getEntryId(), MemberView.from(roomMembers.get(s.getMemberId())), s.getQuote()))
                             .toList();
                     return new ScrollView.ParagraphView(p.getId(), PhotoView.of(photo, roomMembers.get(photo.getMemberId()), mediaUrls.imageUrl(photo)),
-                            p.getBody(), p.getVersion(), paragraphSources, replies.countByParagraphId(p.getId()), p.getAhMatdaCount(), true);
+                            p.getBody(), p.getVersion(), paragraphSources, replies.countByParagraphIdAndStatusIn(p.getId(), List.of("PENDING", "APPLIED", "REACTION")), p.getAhMatdaCount(), true);
                 })
                 .toList();
         int participantCount = (int) sourcesByParagraph.values().stream().flatMap(List::stream).map(ParagraphSource::getMemberId)

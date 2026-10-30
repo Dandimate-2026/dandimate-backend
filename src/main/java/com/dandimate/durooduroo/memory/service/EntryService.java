@@ -40,12 +40,14 @@ public class EntryService {
     private final com.dandimate.durooduroo.askback.service.AskbackAnalysisService askbackAnalysis;
     private final com.dandimate.durooduroo.event.EventLogger events;
     private final com.dandimate.durooduroo.room.service.RoomHomeService roomHome;
+    private final com.dandimate.durooduroo.scroll.service.ReplyService replyService;
 
     public EntryService(PhotoRepository photos, MemberRepository members, MemoryEntryRepository entries,
                         PhotoPassRepository passes, RoomStateService roomStates,
                         com.dandimate.durooduroo.askback.repository.AskbackRepository askbacks, TranscriptionService transcriptions,
                         com.dandimate.durooduroo.storage.MediaUrls mediaUrls, com.dandimate.durooduroo.askback.service.AskbackAnalysisService askbackAnalysis,
-                        com.dandimate.durooduroo.event.EventLogger events, com.dandimate.durooduroo.room.service.RoomHomeService roomHome) {
+                        com.dandimate.durooduroo.event.EventLogger events, com.dandimate.durooduroo.room.service.RoomHomeService roomHome,
+                        com.dandimate.durooduroo.scroll.service.ReplyService replyService) {
         this.photos = photos;
         this.members = members;
         this.entries = entries;
@@ -57,6 +59,7 @@ public class EntryService {
         this.askbackAnalysis = askbackAnalysis;
         this.events = events;
         this.roomHome = roomHome;
+        this.replyService = replyService;
     }
 
     /** askbackJobId는 이 확정으로 만들어진(또는 이미 대기 중인) 되묻기 분석 작업. 질문을 만들 수 없는 상태면 null. */
@@ -124,9 +127,10 @@ public class EntryService {
     @Transactional
     public void delete(String entryId, String authorization) {
         MemoryEntry entry = findOwnEntry(entryId, authorization);
-        roomStates.require(entry.getRoomId(), RoomAction.DELETE_CONTENT);
+        var room = roomStates.require(entry.getRoomId(), RoomAction.DELETE_CONTENT);
         entries.delete(entry);
         sourceChanged(entry.getPhotoId());
+        if (room.getStatus() == com.dandimate.durooduroo.room.domain.RoomStatus.GROWING) replyService.rebuildForPhoto(entry.getRoomId(), entry.getPhotoId());
     }
 
     /**

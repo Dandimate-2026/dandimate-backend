@@ -34,7 +34,7 @@ class ScrollGenerationServiceTest {
         ScrollWeaveAiService inventing = mock(ScrollWeaveAiService.class);
         when(inventing.weave(any())).thenReturn(new ScrollWeaveResult("1.0", List.of(new ScrollWeaveResult.WovenParagraph(photo.getId(),
                 "서연은 '택시를 탔다'고 했다.", List.of(new Citation(entry.getId(), host.getId(), "택시를 탔다")), Safety.allow())), "m", "p", null));
-        var service = new ScrollGenerationService(null, null, null, null, null, null, null, new QuoteSceneCardAiService(), inventing);
+        var service = new ScrollGenerationService(null, null, null, null, null, null, null, new QuoteSceneCardAiService(), inventing, null);
 
         var woven = service.weave(plan).get(photo.getId());
 
@@ -46,7 +46,7 @@ class ScrollGenerationServiceTest {
 
     @Test
     void 정확한_인용은_그대로_쓴다() {
-        var service = new ScrollGenerationService(null, null, null, null, null, null, null, new QuoteSceneCardAiService(), new QuoteScrollWeaveAiService());
+        var service = new ScrollGenerationService(null, null, null, null, null, null, null, new QuoteSceneCardAiService(), new QuoteScrollWeaveAiService(), null);
 
         var woven = service.weave(plan).get(photo.getId());
 

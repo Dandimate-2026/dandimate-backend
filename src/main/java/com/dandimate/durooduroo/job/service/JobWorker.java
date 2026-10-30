@@ -26,23 +26,26 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class JobWorker {
 
     static final int MAX_ATTEMPTS = 3;
-    private static final List<String> HANDLED_TYPES = List.of(AiJob.WEAVE_SCROLL, AiJob.ASKBACK_ANALYZE);
+    private static final List<String> HANDLED_TYPES = List.of(AiJob.WEAVE_SCROLL, AiJob.ASKBACK_ANALYZE, AiJob.REPLY_REWEAVE);
     private static final Logger log = LoggerFactory.getLogger(JobWorker.class);
 
     private final AiJobRepository jobs;
     private final WeaveJobService weaveJobs;
     private final com.dandimate.durooduroo.askback.service.AskbackAnalysisService askbackAnalysis;
+    private final com.dandimate.durooduroo.scroll.service.ReplyReweaveService replyReweave;
     private final TransactionTemplate tx;
     private final Duration retryDelay;
     private final Duration staleAfter;
 
     public JobWorker(AiJobRepository jobs, WeaveJobService weaveJobs, com.dandimate.durooduroo.askback.service.AskbackAnalysisService askbackAnalysis,
+                     com.dandimate.durooduroo.scroll.service.ReplyReweaveService replyReweave,
                      PlatformTransactionManager transactionManager,
                      @Value("${app.jobs.retry-delay-ms:5000}") long retryDelayMs,
                      @Value("${app.jobs.stale-after-ms:300000}") long staleAfterMs) {
         this.jobs = jobs;
         this.weaveJobs = weaveJobs;
         this.askbackAnalysis = askbackAnalysis;
+        this.replyReweave = replyReweave;
         this.tx = new TransactionTemplate(transactionManager);
         this.retryDelay = Duration.ofMillis(retryDelayMs);
         this.staleAfter = Duration.ofMillis(staleAfterMs);
@@ -65,8 +68,11 @@ public class JobWorker {
         if (claimed == null) return false;
 
         try {
-            if (AiJob.ASKBACK_ANALYZE.equals(claimed.getType())) askbackAnalysis.execute(claimed.getId());
-            else weaveJobs.execute(claimed.getId());
+            switch (claimed.getType()) {
+                case AiJob.ASKBACK_ANALYZE -> askbackAnalysis.execute(claimed.getId());
+                case AiJob.REPLY_REWEAVE -> replyReweave.execute(claimed.getId());
+                default -> weaveJobs.execute(claimed.getId());
+            }
         } catch (RuntimeException e) {
             // 요청·응답 원문은 남기지 않고 작업 ID와 예외 종류만 기록한다.
             log.warn("Job {} ({}) attempt {} failed: {}", claimed.getId(), claimed.getType(), claimed.getAttempts(), e.getClass().getSimpleName());
