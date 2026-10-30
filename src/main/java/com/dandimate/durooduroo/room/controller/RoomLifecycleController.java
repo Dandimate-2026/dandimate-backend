@@ -1,8 +1,8 @@
 /** 명세서 기준 방 홈·초대 토큰 재발급·방 마감 API입니다. */
 package com.dandimate.durooduroo.room.controller;
 
-import com.dandimate.durooduroo.ai.dto.JobResponse;
-import com.dandimate.durooduroo.ai.service.WeaveJobService;
+import com.dandimate.durooduroo.job.dto.JobResponse;
+import com.dandimate.durooduroo.job.service.WeaveJobService;
 import com.dandimate.durooduroo.common.api.ApiResponse;
 import com.dandimate.durooduroo.common.auth.MemberTokenResolver;
 import com.dandimate.durooduroo.common.exception.BusinessException;

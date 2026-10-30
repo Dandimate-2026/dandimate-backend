@@ -5,10 +5,10 @@
  *   ASKBACK_ANALYZE는 질문 없이 조용히 끝난다(되묻기는 부가 기능이라 사용자에게 알리지 않는다).
  * - stale-after 동안 갱신이 없는 RUNNING 작업은 Worker가 죽은 것으로 보고 QUEUED로 되돌린다.
  */
-package com.dandimate.durooduroo.ai.service;
+package com.dandimate.durooduroo.job.service;
 
-import com.dandimate.durooduroo.ai.domain.AiJob;
-import com.dandimate.durooduroo.ai.repository.AiJobRepository;
+import com.dandimate.durooduroo.job.domain.AiJob;
+import com.dandimate.durooduroo.job.repository.AiJobRepository;
 import com.dandimate.durooduroo.common.exception.ErrorCode;
 import java.time.Duration;
 import java.time.LocalDateTime;

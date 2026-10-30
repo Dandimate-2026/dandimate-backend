@@ -1,7 +1,7 @@
 /** 마감 시각이 지난 방을 찾아 mode=SCHEDULED 마감을 실행한다. 한 방의 실패가 다른 방 처리를 막지 않는다. */
 package com.dandimate.durooduroo.room.service;
 
-import com.dandimate.durooduroo.ai.service.WeaveJobService;
+import com.dandimate.durooduroo.job.service.WeaveJobService;
 import com.dandimate.durooduroo.room.domain.Room;
 import com.dandimate.durooduroo.room.domain.RoomStatus;
 import com.dandimate.durooduroo.room.repository.RoomRepository;

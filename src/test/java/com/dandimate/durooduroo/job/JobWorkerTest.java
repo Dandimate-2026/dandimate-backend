@@ -1,15 +1,15 @@
-package com.dandimate.durooduroo.ai;
+package com.dandimate.durooduroo.job;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
 
-import com.dandimate.durooduroo.ai.domain.AiJob;
-import com.dandimate.durooduroo.ai.repository.AiJobRepository;
-import com.dandimate.durooduroo.ai.service.AiParagraphService;
-import com.dandimate.durooduroo.ai.service.JobWorker;
-import com.dandimate.durooduroo.ai.service.WeaveJobService;
+import com.dandimate.durooduroo.job.domain.AiJob;
+import com.dandimate.durooduroo.job.repository.AiJobRepository;
+import com.dandimate.durooduroo.scroll.service.ScrollGenerationService;
+import com.dandimate.durooduroo.job.service.JobWorker;
+import com.dandimate.durooduroo.job.service.WeaveJobService;
 import com.dandimate.durooduroo.askback.domain.Askback;
 import com.dandimate.durooduroo.askback.repository.AskbackRepository;
 import com.dandimate.durooduroo.room.domain.Room;
@@ -44,7 +44,7 @@ class JobWorkerTest {
     @Autowired private RoomRepository rooms;
     @Autowired private AskbackRepository askbacks;
     @Autowired private JdbcTemplate jdbc;
-    @MockitoSpyBean private AiParagraphService paragraphs;
+    @MockitoSpyBean private ScrollGenerationService paragraphs;
 
     /** 같은 H2를 쓰는 다른 테스트가 남긴 대기 작업을 Worker가 먼저 잡지 않도록 비운다. */
     @BeforeEach
@@ -58,7 +58,7 @@ class JobWorkerTest {
         AiJob queued = weaveJobs.close(roomId);
         assertThat(queued.getStatus()).isEqualTo("QUEUED");
         doThrow(new IllegalStateException("ai down")).doThrow(new IllegalStateException("ai down")).doCallRealMethod()
-                .when(paragraphs).generate(anyString());
+                .when(paragraphs).weave(any());
 
         assertThat(worker.runNext()).isTrue();               // 1회차 실패 → 즉시 재시도 대기
         assertThat(job(queued).getStatus()).isEqualTo("QUEUED");
@@ -78,7 +78,7 @@ class JobWorkerTest {
     void 최종_실패하면_WEAVING에_남고_방장이_다시_엮을_수_있다() {
         String roomId = circulatingRoom();
         AiJob queued = weaveJobs.close(roomId);
-        doThrow(new IllegalStateException("ai down")).when(paragraphs).generate(anyString());
+        doThrow(new IllegalStateException("ai down")).when(paragraphs).weave(any());
 
         worker.runNext();
         worker.runNext();
@@ -91,7 +91,7 @@ class JobWorkerTest {
         assertThat(failed.getErrorCode()).isEqualTo("AI_TEMPORARILY_UNAVAILABLE");
         assertThat(rooms.findById(roomId).orElseThrow().getStatus()).isEqualTo(RoomStatus.WEAVING);
 
-        doCallRealMethod().when(paragraphs).generate(anyString());
+        doCallRealMethod().when(paragraphs).weave(any());
         AiJob retry = weaveJobs.reweave(roomId);
         worker.runNext();
         assertThat(job(retry).getStatus()).isEqualTo("SUCCEEDED");

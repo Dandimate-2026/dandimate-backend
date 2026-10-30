@@ -1,7 +1,7 @@
 /** 명세서 기준 되묻기 목록·상세·답변·기억 안 나요·나중에·데모 실행 API입니다. */
 package com.dandimate.durooduroo.askback.controller;
 
-import com.dandimate.durooduroo.ai.dto.JobResponse;
+import com.dandimate.durooduroo.job.dto.JobResponse;
 import com.dandimate.durooduroo.askback.dto.AskbackAnswerRequest;
 import com.dandimate.durooduroo.askback.service.AskbackService;
 import com.dandimate.durooduroo.common.api.ApiResponse;

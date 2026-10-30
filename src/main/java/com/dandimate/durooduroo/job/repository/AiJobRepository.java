@@ -1,7 +1,7 @@
 /** AI 작업 상태를 저장하는 저장소입니다. */
-package com.dandimate.durooduroo.ai.repository;
+package com.dandimate.durooduroo.job.repository;
 
-import com.dandimate.durooduroo.ai.domain.AiJob;
+import com.dandimate.durooduroo.job.domain.AiJob;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import java.time.LocalDateTime;

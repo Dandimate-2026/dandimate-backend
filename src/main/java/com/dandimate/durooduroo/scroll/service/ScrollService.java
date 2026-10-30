@@ -6,9 +6,9 @@
  */
 package com.dandimate.durooduroo.scroll.service;
 
-import com.dandimate.durooduroo.ai.domain.AiJob;
-import com.dandimate.durooduroo.ai.dto.JobResponse;
-import com.dandimate.durooduroo.ai.repository.AiJobRepository;
+import com.dandimate.durooduroo.job.domain.AiJob;
+import com.dandimate.durooduroo.job.dto.JobResponse;
+import com.dandimate.durooduroo.job.repository.AiJobRepository;
 import com.dandimate.durooduroo.common.auth.MemberTokenResolver;
 import com.dandimate.durooduroo.common.exception.BusinessException;
 import com.dandimate.durooduroo.common.exception.ErrorCode;

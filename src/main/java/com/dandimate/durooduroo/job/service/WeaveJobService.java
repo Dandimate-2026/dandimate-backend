@@ -1,13 +1,13 @@
 /**
  * 마감(조기·데모·마감 시각)과 다시 엮기에서 WEAVE_SCROLL 작업을 만들고, Worker가 넘긴 작업을 실행한다.
  * - 방 상태 변경과 작업(QUEUED) 생성은 한 트랜잭션이다.
- * - 생성 결과 저장, SUCCEEDED, GROWING 전환, SCROLL_READY 알림도 한 트랜잭션이다.
+ * - AI 호출(장면 카드·엮기)은 트랜잭션 밖에서 하고, 생성 결과 저장·SUCCEEDED·GROWING 전환·SCROLL_READY 알림은 한 트랜잭션이다.
  * - WEAVING에 들어가면 미응답 되묻기는 EXPIRED가 된다.
  */
-package com.dandimate.durooduroo.ai.service;
+package com.dandimate.durooduroo.job.service;
 
-import com.dandimate.durooduroo.ai.domain.AiJob;
-import com.dandimate.durooduroo.ai.repository.AiJobRepository;
+import com.dandimate.durooduroo.job.domain.AiJob;
+import com.dandimate.durooduroo.job.repository.AiJobRepository;
 import com.dandimate.durooduroo.askback.domain.Askback;
 import com.dandimate.durooduroo.askback.repository.AskbackRepository;
 import com.dandimate.durooduroo.common.exception.BusinessException;
@@ -18,12 +18,15 @@ import com.dandimate.durooduroo.notification.repository.NotificationRepository;
 import com.dandimate.durooduroo.room.domain.Room;
 import com.dandimate.durooduroo.room.domain.RoomStatus;
 import com.dandimate.durooduroo.room.repository.RoomRepository;
+import com.dandimate.durooduroo.scroll.service.ScrollGenerationService;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class WeaveJobService {
@@ -32,15 +35,16 @@ public class WeaveJobService {
 
     private final RoomRepository rooms;
     private final AiJobRepository jobs;
-    private final AiParagraphService paragraphs;
+    private final ScrollGenerationService paragraphs;
     private final AskbackRepository askbacks;
     private final MemberRepository members;
     private final NotificationRepository notifications;
     private final com.dandimate.durooduroo.event.EventLogger events;
+    private final TransactionTemplate tx;
 
-    public WeaveJobService(RoomRepository rooms, AiJobRepository jobs, AiParagraphService paragraphs,
+    public WeaveJobService(RoomRepository rooms, AiJobRepository jobs, ScrollGenerationService paragraphs,
                            AskbackRepository askbacks, MemberRepository members, NotificationRepository notifications,
-                           com.dandimate.durooduroo.event.EventLogger events) {
+                           com.dandimate.durooduroo.event.EventLogger events, PlatformTransactionManager transactionManager) {
         this.rooms = rooms;
         this.jobs = jobs;
         this.paragraphs = paragraphs;
@@ -48,6 +52,7 @@ public class WeaveJobService {
         this.members = members;
         this.notifications = notifications;
         this.events = events;
+        this.tx = new TransactionTemplate(transactionManager);
     }
 
     /** 조기·데모 마감: CIRCULATING → WEAVING + 작업 생성. 이미 엮는 중이면 진행 중인 작업을 돌려준다. */
@@ -92,16 +97,21 @@ public class WeaveJobService {
         }
     }
 
-    /** Worker가 선점(RUNNING)한 작업을 실행한다. 예외가 나면 이 트랜잭션은 롤백되고 Worker가 재시도를 결정한다. */
-    @Transactional
+    /** Worker가 선점(RUNNING)한 작업을 실행한다. 예외가 나면 저장 트랜잭션은 롤백되고 Worker가 재시도를 결정한다. */
     public void execute(String jobId) {
-        AiJob job = jobs.findById(jobId).orElseThrow();
-        if (!"RUNNING".equals(job.getStatus())) return;
-        var scroll = paragraphs.generate(job.getRoomId());
-        job.succeed();
-        lockRoom(job.getRoomId()).completeWeaving();
-        members.findAllByRoomId(job.getRoomId()).forEach(member ->
-                notifications.save(Notification.create(member.getId(), "SCROLL_READY", "SCROLL", scroll.getId())));
+        String roomId = tx.execute(status -> jobs.findById(jobId).filter(job -> "RUNNING".equals(job.getStatus())).map(AiJob::getRoomId).orElse(null));
+        if (roomId == null) return;
+        var plan = paragraphs.prepare(roomId);
+        var woven = paragraphs.weave(plan);
+        tx.executeWithoutResult(status -> {
+            AiJob job = jobs.findById(jobId).orElseThrow();
+            if (!"RUNNING".equals(job.getStatus())) return;
+            var scroll = paragraphs.save(plan, woven);
+            job.succeed();
+            lockRoom(roomId).completeWeaving();
+            members.findAllByRoomId(roomId).forEach(member ->
+                    notifications.save(Notification.create(member.getId(), "SCROLL_READY", "SCROLL", scroll.getId())));
+        });
     }
 
     private AiJob startWeaving(Room room) {

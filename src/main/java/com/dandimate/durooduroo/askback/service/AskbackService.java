@@ -5,8 +5,8 @@
  */
 package com.dandimate.durooduroo.askback.service;
 
-import com.dandimate.durooduroo.ai.domain.AiJob;
-import com.dandimate.durooduroo.ai.repository.AiJobRepository;
+import com.dandimate.durooduroo.job.domain.AiJob;
+import com.dandimate.durooduroo.job.repository.AiJobRepository;
 import com.dandimate.durooduroo.askback.domain.Askback;
 import com.dandimate.durooduroo.askback.dto.AskbackAnswerRequest;
 import com.dandimate.durooduroo.askback.dto.AskbackView;

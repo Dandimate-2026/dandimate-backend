@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.dandimate.durooduroo.ai.askback.AskbackAiService;
-import com.dandimate.durooduroo.ai.service.JobWorker;
+import com.dandimate.durooduroo.job.service.JobWorker;
 import com.dandimate.durooduroo.askback.domain.Askback;
 import com.dandimate.durooduroo.askback.repository.AskbackRepository;
 import com.dandimate.durooduroo.event.EventLogRepository;

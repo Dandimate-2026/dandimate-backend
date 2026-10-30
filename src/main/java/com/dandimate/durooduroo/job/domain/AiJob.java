@@ -2,7 +2,7 @@
  * AI 작업(문단 생성·되묻기 분석)의 상태입니다. Worker가 QUEUED → RUNNING으로 선점해 실행하고,
  * 실패하면 attempts를 보고 다시 QUEUED(nextRunAt 이후 실행)로 돌리거나 FAILED로 끝낸다.
  */
-package com.dandimate.durooduroo.ai.domain;
+package com.dandimate.durooduroo.job.domain;
 
 import jakarta.persistence.*;
 import java.time.Duration;
