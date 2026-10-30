@@ -11,7 +11,8 @@ public class ParagraphVersion {
     @Id private String id;
     @Column(nullable = false) private String paragraphId;
     @Column(nullable = false) private int version;
-    @Lob @Column(nullable = false) private String body;
+    /** MySQL에서 @Lob String은 TINYTEXT(255바이트)가 되므로 길이를 지정해 MEDIUMTEXT로 만든다. */
+    @Column(nullable = false, length = 1_000_000) private String body;
     @Column(length = 4000) private String sources;
     @Column(nullable = false, length = 20) private String reason;
     @Column(nullable = false) private LocalDateTime createdAt;

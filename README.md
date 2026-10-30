@@ -69,7 +69,7 @@ GET http://localhost:8080/api/v1/health
 MySQL 프로필:
 
 ```bash
-export MYSQL_URL='jdbc:mysql://localhost:3306/durooduroo?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=utf8mb4'
+export MYSQL_URL='jdbc:mysql://localhost:3306/durooduroo?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8'
 export MYSQL_USERNAME='root'
 export MYSQL_PASSWORD='비밀번호'
 export OPENAI_API_KEY='sk-...'
