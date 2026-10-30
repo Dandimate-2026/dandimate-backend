@@ -44,21 +44,20 @@ class RoomStateFlowTest {
 
         String photoId = uploadPhoto(roomId, host);
 
-        // COLLECTING: 덧붙임은 아직 불가
-        perform(post("/api/v1/photos/" + photoId + "/entries").header("Authorization", "Bearer " + member), "{\"transcript\":\"나도 기억나\"}")
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("INVALID_ROOM_STATE"));
+        // 노출 전 사진에는 덧붙일 수 없다 (존재를 알리지 않음)
+        perform(post("/api/v1/photos/" + photoId + "/entries").header("Authorization", "Bearer " + member), "{\"kind\":\"ADDON\",\"inputMode\":\"TEXT\",\"transcript\":\"나도 기억나\"}")
+                .andExpect(status().isNotFound());
         // 마감도 CIRCULATING 전에는 불가
         perform(post("/api/v1/rooms/" + roomId + "/close").header("Authorization", "Bearer " + host), "{\"mode\":\"DEMO\"}")
                 .andExpect(status().isConflict());
 
         // 업로더의 첫 한마디 확정 → CIRCULATING
-        perform(post("/api/v1/photos/" + photoId + "/entries").header("Authorization", "Bearer " + host), "{\"transcript\":\"막차 놓쳐서 뛰었잖아\"}")
-                .andExpect(status().isOk());
+        perform(post("/api/v1/photos/" + photoId + "/entries").header("Authorization", "Bearer " + host), "{\"kind\":\"FIRST\",\"inputMode\":\"TEXT\",\"transcript\":\"막차 놓쳐서 뛰었잖아\"}")
+                .andExpect(status().isCreated());
         mockMvc.perform(get("/api/v1/rooms/" + roomId).header("Authorization", "Bearer " + host))
                 .andExpect(jsonPath("$.data.room.status").value("CIRCULATING"));
-        perform(post("/api/v1/photos/" + photoId + "/entries").header("Authorization", "Bearer " + member), "{\"transcript\":\"다리가 풀리는 줄 알았어\"}")
-                .andExpect(status().isOk());
+        perform(post("/api/v1/photos/" + photoId + "/entries").header("Authorization", "Bearer " + member), "{\"kind\":\"ADDON\",\"inputMode\":\"TEXT\",\"transcript\":\"다리가 풀리는 줄 알았어\"}")
+                .andExpect(status().isCreated());
 
         // mode는 필수, 참여자는 마감 불가, 방장 마감 → 엮기 성공 → GROWING
         perform(post("/api/v1/rooms/" + roomId + "/close").header("Authorization", "Bearer " + host), "{}")
@@ -80,7 +79,7 @@ class RoomStateFlowTest {
                 .andExpect(status().isUnauthorized());
 
         // GROWING: 덧붙임·업로드 불가, 입장은 가능 (FR-A5), 재마감 불가
-        perform(post("/api/v1/photos/" + photoId + "/entries").header("Authorization", "Bearer " + member), "{\"transcript\":\"하나 더\"}")
+        perform(post("/api/v1/photos/" + photoId + "/entries").header("Authorization", "Bearer " + member), "{\"kind\":\"ADDON\",\"inputMode\":\"TEXT\",\"transcript\":\"하나 더\"}")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("INVALID_ROOM_STATE"));
         perform(post("/api/v1/invites/" + invite + "/join"), "{\"nickname\":\"늦은친구\"," + CONSENT + "}")
@@ -108,7 +107,7 @@ class RoomStateFlowTest {
     private String uploadPhoto(String roomId, String token) throws Exception {
         String requested = body(perform(post("/api/v1/rooms/" + roomId + "/photos/upload-requests").header("Authorization", "Bearer " + token),
                 "{\"files\":[{\"clientFileId\":\"c1\",\"fileName\":\"a.png\",\"contentType\":\"image/png\",\"sizeBytes\":10,\"displayOrder\":1}]}")
-                .andExpect(status().isOk()));
+                .andExpect(status().isCreated()));
         String photoId = JsonPath.read(requested, "$.data.uploads[0].photoId");
         mockMvc.perform(multipart("/api/v1/photos/" + photoId + "/complete")
                         .file(new MockMultipartFile("file", "a.png", "image/png", new byte[]{1, 2, 3}))

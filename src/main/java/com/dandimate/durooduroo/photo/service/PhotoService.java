@@ -22,7 +22,7 @@ public class PhotoService {
         String hash=sha256(file.getBytes()); var duplicate=photos.findByRoomIdAndFileHash(roomId,hash);
         if(duplicate.isPresent()) return PhotoResponse.from(duplicate.get(),true);
         Path dir=Paths.get("uploads",roomId); Files.createDirectories(dir); Path path=dir.resolve(UUID.randomUUID()+extension(file.getOriginalFilename())); Files.write(path,file.getBytes());
-        return PhotoResponse.from(photos.save(Photo.create(roomId,member.getId(),path.toString(),hash)),false);
+        return PhotoResponse.from(photos.save(Photo.create(roomId,member.getId(),path.toString(),hash,(int)photos.countByRoomIdAndMemberId(roomId,member.getId())+1)),false);
     }
     private String extension(String name) { return name!=null && name.matches(".*\\.[A-Za-z0-9]{1,5}") ? name.substring(name.lastIndexOf('.')).toLowerCase() : ""; }
     private String sha256(byte[] bytes) throws Exception { var md=MessageDigest.getInstance("SHA-256"); var b=md.digest(bytes); var s=new StringBuilder(); for(byte x:b)s.append(String.format("%02x",x)); return s.toString(); }

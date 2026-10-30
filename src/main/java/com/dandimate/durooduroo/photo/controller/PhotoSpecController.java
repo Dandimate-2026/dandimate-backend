@@ -23,16 +23,16 @@ public class PhotoSpecController {
     public PhotoSpecController(RoomRepository rooms, MemberRepository members, PhotoRepository photos, com.dandimate.durooduroo.room.service.RoomStateService roomStates) { this.rooms=rooms; this.members=members; this.photos=photos; this.roomStates=roomStates; }
 
     @PostMapping("/upload-requests")
-    public ApiResponse<UploadResponse> request(@PathVariable String roomId, @RequestHeader(required=false) String authorization, @Valid @RequestBody UploadRequest request) {
+    public org.springframework.http.ResponseEntity<ApiResponse<UploadResponse>> request(@PathVariable String roomId, @RequestHeader(required=false) String authorization, @Valid @RequestBody UploadRequest request) {
         String token = MemberTokenResolver.resolve(authorization);
         var member = members.findByRoomIdAndMemberToken(roomId, token).orElseThrow(() -> new BusinessException("MEMBER_FORBIDDEN", "방 참여자만 업로드할 수 있습니다."));
         roomStates.require(roomId, com.dandimate.durooduroo.room.domain.RoomAction.UPLOAD_OR_FIRST_ENTRY);
         if (photos.countByRoomIdAndMemberId(roomId, member.getId()) + request.files().size() > 3) throw new BusinessException("LIMIT_REACHED", "사진은 최대 3장까지 업로드할 수 있습니다.");
         var uploads = request.files().stream().map(file -> {
             String photoId = java.util.UUID.randomUUID().toString();
-            photos.save(Photo.createWithId(photoId, roomId, member.getId(), "pending://" + photoId, "pending-" + file.clientFileId()));
+            photos.save(Photo.pending(photoId, roomId, member.getId(), "pending://" + photoId, "pending-" + file.clientFileId(), file.displayOrder()));
             return new UploadResponse.Upload(file.clientFileId(), photoId, "/api/v1/photos/" + photoId + "/complete", LocalDateTime.now().plusMinutes(10), java.util.Map.of("Content-Type", file.contentType()));
         }).toList();
-        return ApiResponse.success(new UploadResponse(uploads));
+        return org.springframework.http.ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(ApiResponse.success(new UploadResponse(uploads)));
     }
 }

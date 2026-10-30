@@ -19,6 +19,7 @@ public class TranscriptionController {
     public TranscriptionController(PhotoRepository photos, MemberRepository members, OpenAiTranscriptionService stt, com.dandimate.durooduroo.room.service.RoomStateService roomStates) { this.photos=photos; this.members=members; this.stt=stt; this.roomStates=roomStates; }
 
     @PostMapping(consumes="multipart/form-data")
+    @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     public ApiResponse<?> transcribe(@PathVariable String photoId, @RequestHeader(required=false) String authorization, @RequestParam String kind,
                                      @RequestPart MultipartFile file) {
         var photo=photos.findById(photoId).orElseThrow(()->new BusinessException("PHOTO_NOT_FOUND","사진이 없습니다."));

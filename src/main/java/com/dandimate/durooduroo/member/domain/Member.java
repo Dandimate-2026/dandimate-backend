@@ -19,10 +19,10 @@ import org.springframework.data.domain.Persistable;
 @Entity
 @Table(
         name = "members",
-        uniqueConstraints = @UniqueConstraint(
-                name = "uk_members_room_nickname",
-                columnNames = {"room_id", "nickname"}
-        )
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_members_room_nickname", columnNames = {"room_id", "nickname"}),
+                @UniqueConstraint(name = "uk_members_room_flower", columnNames = {"room_id", "flower_code"})
+        }
 )
 public class Member implements Persistable<String> {
 
@@ -48,6 +48,10 @@ public class Member implements Persistable<String> {
     @Column(nullable = false, length = 20)
     private MemberRole role;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "flower_code", nullable = false, length = 20, updatable = false)
+    private FlowerCode flowerCode;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -69,22 +73,23 @@ public class Member implements Persistable<String> {
         return newEntity;
     }
 
-    private Member(String roomId, String nickname, MemberRole role) {
+    private Member(String roomId, String nickname, MemberRole role, FlowerCode flowerCode) {
         this.id = UUID.randomUUID().toString();
         this.roomId = roomId;
         this.nickname = nickname;
         this.issuedAccessToken = Tokens.generate();
         this.accessTokenHash = Tokens.hash(issuedAccessToken);
         this.role = role;
+        this.flowerCode = flowerCode;
         this.createdAt = LocalDateTime.now();
     }
 
-    public static Member join(String roomId, String nickname) {
-        return new Member(roomId, nickname, MemberRole.MEMBER);
+    public static Member join(String roomId, String nickname, FlowerCode flowerCode) {
+        return new Member(roomId, nickname, MemberRole.MEMBER, flowerCode);
     }
 
     public static Member host(String roomId, String nickname) {
-        return new Member(roomId, nickname, MemberRole.HOST);
+        return new Member(roomId, nickname, MemberRole.HOST, FlowerCode.AZALEA);
     }
 
     @Override
@@ -106,6 +111,10 @@ public class Member implements Persistable<String> {
 
     public MemberRole getRole() {
         return role;
+    }
+
+    public FlowerCode getFlowerCode() {
+        return flowerCode;
     }
 
     public LocalDateTime getCreatedAt() {

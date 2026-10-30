@@ -2,6 +2,7 @@
 package com.dandimate.durooduroo.member.service;
 
 import com.dandimate.durooduroo.common.exception.BusinessException;
+import com.dandimate.durooduroo.member.domain.FlowerCode;
 import com.dandimate.durooduroo.member.domain.Member;
 import com.dandimate.durooduroo.member.dto.JoinRoomRequest;
 import com.dandimate.durooduroo.member.dto.JoinRoomResponse;
@@ -40,7 +41,7 @@ public class MemberService {
             throw new BusinessException("DUPLICATE_NICKNAME", "같은 방에서 이미 사용 중인 닉네임입니다.");
         }
 
-        Member member = memberRepository.save(Member.join(roomId, nickname));
+        Member member = memberRepository.save(Member.join(roomId, nickname, nextFlower(roomId)));
         return JoinRoomResponse.from(member);
     }
 
@@ -55,6 +56,14 @@ public class MemberService {
         if (memberRepository.existsByRoomIdAndNickname(room.getId(), nickname)) {
             throw new BusinessException("DUPLICATE_NICKNAME", "같은 방에서 이미 사용 중인 닉네임입니다.");
         }
-        return SpecJoinRoomResponse.from(room, memberRepository.save(Member.join(room.getId(), nickname)));
+        return SpecJoinRoomResponse.from(room, memberRepository.save(Member.join(room.getId(), nickname, nextFlower(room.getId()))));
+    }
+
+    /** 동시에 입장하면 같은 꽃이 골라질 수 있지만 uk_members_room_flower가 한 명만 통과시킨다. */
+    private FlowerCode nextFlower(String roomId) {
+        var used = memberRepository.findAllByRoomId(roomId).stream().map(Member::getFlowerCode).toList();
+        FlowerCode flower = FlowerCode.firstAvailable(used);
+        if (flower == null) throw new BusinessException("ROOM_FULL", "방 정원이 가득 찼습니다.");
+        return flower;
     }
 }

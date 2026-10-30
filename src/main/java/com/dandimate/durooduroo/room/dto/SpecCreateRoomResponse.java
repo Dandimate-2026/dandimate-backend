@@ -12,7 +12,7 @@ public record SpecCreateRoomResponse(RoomInfo room, MemberInfo member, String in
     public static SpecCreateRoomResponse from(Room room, Member member) {
         return new SpecCreateRoomResponse(
                 new RoomInfo(room.getId(), room.getTitle(), room.getStatus().name(), room.getDeadlineAt()),
-                new MemberInfo(member.getId(), member.getNickname(), member.getRole().name(), "AZALEA"),
+                new MemberInfo(member.getId(), member.getNickname(), member.getRole().name(), member.getFlowerCode().name()),
                 room.getIssuedInviteToken(), member.getIssuedAccessToken());
     }
 }
