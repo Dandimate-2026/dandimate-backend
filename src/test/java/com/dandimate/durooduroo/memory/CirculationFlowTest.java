@@ -57,6 +57,9 @@ class CirculationFlowTest {
                 .andExpect(jsonPath("$.data.askbackJobId").doesNotExist());
         entry(photoA, a, "FIRST", "TEXT", "두 번째 첫 한마디").andExpect(status().isUnprocessableEntity());
         entry(photoA, a, "ADDON", "TEXT", "내 사진에 덧붙임").andExpect(status().isForbidden());
+        // 첫 한마디 "나중에"는 사진을 올린 사람만
+        mockMvc.perform(post("/api/v1/photos/" + photoB + "/first-entry/skip").header("Authorization", "Bearer " + a))
+                .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/v1/photos/" + photoB + "/first-entry/skip").header("Authorization", "Bearer " + b))
                 .andExpect(status().isOk());
 

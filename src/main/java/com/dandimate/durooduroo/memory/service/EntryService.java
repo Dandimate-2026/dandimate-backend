@@ -104,13 +104,14 @@ public class EntryService {
     }
 
     /**
-     * 첫 한마디 없이 사진을 돌려보기에 노출한다("한마디 없음"). 방 참여자 누구나 누를 수 있고, 여러 번 눌러도 같다.
+     * 첫 한마디 없이 사진을 돌려보기에 노출한다("한마디 없음", FR-B3). 사진을 올린 사람만 누를 수 있고, 여러 번 눌러도 같다.
      * 노출된 사진에 덧붙임·패스를 할 수 있도록 첫 한마디 확정과 같이 방을 CIRCULATING으로 바꾼다.
      */
     @Transactional
     public Photo skipFirstEntry(String photoId, String authorization) {
         Photo photo = findPhoto(photoId);
-        requireMember(photo, authorization);
+        Member me = requireMember(photo, authorization);
+        if (!me.getId().equals(photo.getMemberId())) throw new BusinessException(ErrorCode.FORBIDDEN, "첫 한마디는 사진을 올린 사람만 미룰 수 있어요.");
         roomStates.require(photo.getRoomId(), RoomAction.UPLOAD_OR_FIRST_ENTRY);
         if (!photo.isReady()) throw new BusinessException(ErrorCode.INVALID_ROOM_STATE, "사진 업로드가 끝나지 않았어요.");
         photo.publish();
