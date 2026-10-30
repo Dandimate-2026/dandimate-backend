@@ -9,6 +9,8 @@ public interface ObjectStorage {
     String locationFor(String key);
     void putBytes(String key, byte[] bytes, String contentType);
     void delete(String location);
+    /** key가 prefix로 시작하는 객체를 모두 지운다 (방 삭제 시 roomId/). */
+    void deletePrefix(String keyPrefix);
     /** 클라이언트가 직접 올릴 수 있는 presigned PUT URL. 지원하지 않으면 비어 있고 앱의 서명된 업로드 API를 쓴다. */
     Optional<String> presignedPutUrl(String key, String contentType, Duration ttl);
     /** 업로드 완료 검증용 메타데이터(HEAD). 객체가 없으면 비어 있다. */

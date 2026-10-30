@@ -59,6 +59,17 @@ public class S3ObjectStorage implements ObjectStorage {
     }
 
     @Override
+    public void deletePrefix(String keyPrefix) {
+        String token = null;
+        do {
+            var page = client.listObjectsV2(software.amazon.awssdk.services.s3.model.ListObjectsV2Request.builder()
+                    .bucket(bucket).prefix(keyPrefix).continuationToken(token).build());
+            page.contents().forEach(object -> client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(object.key()).build()));
+            token = page.isTruncated() ? page.nextContinuationToken() : null;
+        } while (token != null);
+    }
+
+    @Override
     public Optional<String> presignedPutUrl(String key, String contentType, Duration ttl) {
         var request = PutObjectPresignRequest.builder().signatureDuration(ttl)
                 .putObjectRequest(PutObjectRequest.builder().bucket(bucket).key(key).contentType(contentType).build()).build();

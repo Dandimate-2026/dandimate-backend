@@ -55,6 +55,23 @@ public class LocalObjectStorage implements ObjectStorage {
     }
 
     @Override
+    public void deletePrefix(String keyPrefix) {
+        Path dir = resolveKey(keyPrefix);
+        if (!Files.exists(dir)) return;
+        try (var paths = Files.walk(dir)) {
+            paths.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override
     public Optional<String> presignedPutUrl(String key, String contentType, Duration ttl) {
         return Optional.empty();
     }

@@ -26,7 +26,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class JobWorker {
 
     static final int MAX_ATTEMPTS = 3;
-    private static final List<String> HANDLED_TYPES = List.of(AiJob.WEAVE_SCROLL, AiJob.ASKBACK_ANALYZE, AiJob.REPLY_REWEAVE);
+    private static final List<String> HANDLED_TYPES = List.of(AiJob.WEAVE_SCROLL, AiJob.ASKBACK_ANALYZE, AiJob.REPLY_REWEAVE, AiJob.MEDIA_DELETE);
     private static final Logger log = LoggerFactory.getLogger(JobWorker.class);
 
     private final AiJobRepository jobs;
@@ -34,13 +34,14 @@ public class JobWorker {
     private final com.dandimate.durooduroo.askback.service.AskbackAnalysisService askbackAnalysis;
     private final com.dandimate.durooduroo.scroll.service.ReplyReweaveService replyReweave;
     private final TransactionTemplate tx;
+    private final com.dandimate.durooduroo.storage.ObjectStorage storage;
     private final com.dandimate.durooduroo.notification.service.RoomEvents roomEvents;
     private final Duration retryDelay;
     private final Duration staleAfter;
 
     public JobWorker(AiJobRepository jobs, WeaveJobService weaveJobs, com.dandimate.durooduroo.askback.service.AskbackAnalysisService askbackAnalysis,
                      com.dandimate.durooduroo.scroll.service.ReplyReweaveService replyReweave,
-                     PlatformTransactionManager transactionManager, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents,
+                     PlatformTransactionManager transactionManager, com.dandimate.durooduroo.storage.ObjectStorage storage, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents,
                      @Value("${app.jobs.retry-delay-ms:5000}") long retryDelayMs,
                      @Value("${app.jobs.stale-after-ms:300000}") long staleAfterMs) {
         this.jobs = jobs;
@@ -48,6 +49,7 @@ public class JobWorker {
         this.askbackAnalysis = askbackAnalysis;
         this.replyReweave = replyReweave;
         this.tx = new TransactionTemplate(transactionManager);
+        this.storage = storage;
         this.roomEvents = roomEvents;
         this.retryDelay = Duration.ofMillis(retryDelayMs);
         this.staleAfter = Duration.ofMillis(staleAfterMs);
@@ -74,6 +76,7 @@ public class JobWorker {
             switch (claimed.getType()) {
                 case AiJob.ASKBACK_ANALYZE -> askbackAnalysis.execute(claimed.getId());
                 case AiJob.REPLY_REWEAVE -> replyReweave.execute(claimed.getId());
+                case AiJob.MEDIA_DELETE -> deleteMedia(claimed);
                 default -> weaveJobs.execute(claimed.getId());
             }
         } catch (RuntimeException e) {
@@ -88,6 +91,12 @@ public class JobWorker {
         }
         publishJob(claimed.getId());
         return true;
+    }
+
+    /** 방 삭제 후 저장소의 사진·음성(roomId/ 아래)을 지운다. */
+    private void deleteMedia(AiJob job) {
+        storage.deletePrefix(job.getTargetId());
+        tx.executeWithoutResult(status -> jobs.findById(job.getId()).orElseThrow().succeed());
     }
 
     /** 공개 작업(되묻기 분석 제외)의 상태 변화를 방 전체에 알린다. */

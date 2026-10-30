@@ -65,6 +65,10 @@ public class Room implements Persistable<String> {
     @Column(nullable = false)
     private boolean deadlineExtended;
 
+    /** 방장이 마감 시각을 바꾼 적이 있는지. WEAVING 전에 한 번만 바꿀 수 있다 (FR-G4). */
+    @Column(nullable = false)
+    private boolean deadlineChangedByHost;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -127,6 +131,27 @@ public class Room implements Persistable<String> {
     /** 생성 성공: WEAVING → GROWING. GROWING에서 다시 엮은 경우는 그대로 둔다. */
     public void completeWeaving() {
         if (status == RoomStatus.WEAVING) this.status = RoomStatus.GROWING;
+    }
+
+    public void rename(String title) {
+        this.title = title;
+    }
+
+    public void changeMeetingDate(LocalDate meetingDate) {
+        this.meetingDate = meetingDate;
+    }
+
+    /** 방장 마감 변경: WEAVING 전, 한 번만, 생성 시각 기준 24~72시간 사이의 미래 시각. */
+    public void changeDeadline(LocalDateTime newDeadline, LocalDateTime now) {
+        if (status == RoomStatus.WEAVING) throw new BusinessException(ErrorCode.ROOM_WEAVING, "엮는 중에는 마감을 바꿀 수 없어요.");
+        if (status == RoomStatus.GROWING) throw new BusinessException(ErrorCode.INVALID_ROOM_STATE, "이미 마감된 방이에요.");
+        if (deadlineChangedByHost) throw new BusinessException(ErrorCode.INVALID_ROOM_STATE, "마감 시각은 한 번만 바꿀 수 있어요.");
+        if (newDeadline.isBefore(createdAt.plusHours(24)) || newDeadline.isAfter(createdAt.plusHours(72))) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "마감 시각은 방을 만든 뒤 24~72시간 사이여야 해요.");
+        }
+        if (!newDeadline.isAfter(now)) throw new BusinessException(ErrorCode.VALIDATION_ERROR, "마감 시각은 지금보다 뒤여야 해요.");
+        this.deadlineAt = newDeadline;
+        this.deadlineChangedByHost = true;
     }
 
     /** COLLECTING에서 마감 시각이 지났는데 공개 원문이 없으면 한 번만 24시간 연장한다. 이미 연장했으면 false. */

@@ -12,7 +12,7 @@ import java.util.UUID;
 
 @Entity @Table(name="ai_jobs", indexes=@Index(name="idx_ai_jobs_runnable", columnList="status,nextRunAt"))
 public class AiJob {
-    public static final String WEAVE_SCROLL="WEAVE_SCROLL"; public static final String ASKBACK_ANALYZE="ASKBACK_ANALYZE"; public static final String REPLY_REWEAVE="REPLY_REWEAVE";
+    public static final String WEAVE_SCROLL="WEAVE_SCROLL"; public static final String ASKBACK_ANALYZE="ASKBACK_ANALYZE"; public static final String REPLY_REWEAVE="REPLY_REWEAVE"; public static final String MEDIA_DELETE="MEDIA_DELETE";
     public static final List<String> ACTIVE_STATUSES=List.of("QUEUED","RUNNING");
     @Id private String id; @Column(nullable=false) private String roomId; @Column(nullable=false) private String type; /** 작업 대상(ASKBACK_ANALYZE는 사진 ID, REPLY_REWEAVE는 답가 ID 또는 복구할 문단 ID). */ private String targetId; /** 작업 부가 정보(문단 복구 사유 등). */ private String detail; @Column(nullable=false) private String status; private String errorCode;
     @Column(nullable=false) private int attempts; @Column(nullable=false) private LocalDateTime nextRunAt; @Column(nullable=false) private LocalDateTime createdAt; @Column(nullable=false) private LocalDateTime updatedAt;
