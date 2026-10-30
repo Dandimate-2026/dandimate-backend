@@ -98,6 +98,17 @@ public class S3ObjectStorage implements ObjectStorage {
     }
 
     @Override
+    public Optional<byte[]> read(String location) {
+        return keyOf(location).flatMap(key -> {
+            try {
+                return Optional.of(client.getObjectAsBytes(GetObjectRequest.builder().bucket(bucket).key(key).build()).asByteArray());
+            } catch (NoSuchKeyException e) {
+                return Optional.empty();
+            }
+        });
+    }
+
+    @Override
     public Optional<Resource> open(String location) {
         return Optional.empty();
     }

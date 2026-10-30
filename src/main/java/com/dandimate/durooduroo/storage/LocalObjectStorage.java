@@ -94,6 +94,17 @@ public class LocalObjectStorage implements ObjectStorage {
     }
 
     @Override
+    public Optional<byte[]> read(String location) {
+        return resolveLocation(location).filter(Files::isRegularFile).map(path -> {
+            try {
+                return Files.readAllBytes(path);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+    }
+
+    @Override
     public Optional<Resource> open(String location) {
         return resolveLocation(location).filter(Files::isRegularFile).map(FileSystemResource::new);
     }

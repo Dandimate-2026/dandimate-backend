@@ -17,6 +17,8 @@ public interface ObjectStorage {
     Optional<StoredObject> head(String location);
     /** 브라우저가 직접 받을 수 있는 서명 URL. 저장소가 지원하지 않으면 비어 있고, 앱이 서명한 URL로 대신 내려준다. */
     Optional<String> presignedGetUrl(String location, Duration ttl);
+    /** 서버가 직접 처리할 때(HEIC 변환 등) 객체 바이트를 읽는다. 없으면 비어 있다. */
+    Optional<byte[]> read(String location);
     /** 앱이 직접 내려줄 파일. 저장소 밖 위치거나 없으면 비어 있다. */
     Optional<Resource> open(String location);
 

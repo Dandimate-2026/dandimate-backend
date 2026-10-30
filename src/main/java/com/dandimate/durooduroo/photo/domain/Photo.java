@@ -12,13 +12,17 @@ import java.util.UUID;
 @Table(name = "photos")
 public class Photo {
     public static final String UPLOADING = "UPLOADING";
+    public static final String PROCESSING = "PROCESSING";
     public static final String READY = "READY";
+    public static final String FAILED = "FAILED";
 
     @Id @Column(length = 36) private String id;
     @Column(nullable = false) private String roomId;
     @Column(nullable = false) private String memberId;
     @Column(nullable = false) private String fileUrl;
     @Column(nullable = false, length = 300) private String storageKey;
+    /** HEIC 원본에서 만든 JPEG 파생본(EXIF 제거) 위치. 화면에는 파생본을 보여 주고 원본은 지우지 않는다. */
+    @Column(length = 300) private String derivedUrl;
     @Column(nullable = false, length = 50) private String contentType;
     @Column(length = 128) private String fileHash;
     @Column(nullable = false) private int displayOrder;
@@ -35,8 +39,15 @@ public class Photo {
         photo.contentType = contentType; photo.displayOrder = displayOrder; photo.status = UPLOADING; photo.createdAt = LocalDateTime.now();
         return photo;
     }
-    /** 저장소 검증을 통과하면 READY. */
-    public void complete(String fileHash) { this.fileHash = fileHash; this.status = READY; }
+    /** 저장소 검증을 통과하면 READY. HEIC·HEIF는 파생본을 만드는 동안 PROCESSING. */
+    public void complete(String fileHash) { this.fileHash = fileHash; this.status = needsDerivative() ? PROCESSING : READY; }
+    public boolean needsDerivative() { return "image/heic".equals(contentType) || "image/heif".equals(contentType); }
+    /** 변환 실패 후 다시 시도할 때. */
+    public void retryProcessing() { if (FAILED.equals(status)) status = PROCESSING; }
+    public void derived(String derivedUrl) { this.derivedUrl = derivedUrl; this.status = READY; }
+    public void failProcessing() { if (PROCESSING.equals(status)) status = FAILED; }
+    /** 화면에 보여 줄 위치: 파생본이 있으면 파생본. */
+    public String getDisplayLocation() { return derivedUrl != null ? derivedUrl : fileUrl; }
     public void publish() { if (publishedAt == null) publishedAt = LocalDateTime.now(); }
     public void bumpSourceRevision() { sourceRevision++; }
     public boolean isReady() { return READY.equals(status); }

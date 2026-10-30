@@ -34,7 +34,7 @@ public class PhotoImageController {
         }
         var photo = photos.findById(photoId).filter(p -> p.isReady())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "사진이 없습니다."));
-        Resource file = storage.open(photo.getFileUrl())
+        Resource file = storage.open(photo.getDisplayLocation())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "사진이 없습니다."));
         MediaType type = MediaTypeFactory.getMediaType(file).orElse(MediaType.APPLICATION_OCTET_STREAM);
         return ResponseEntity.ok().contentType(type).cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate()).body(file);

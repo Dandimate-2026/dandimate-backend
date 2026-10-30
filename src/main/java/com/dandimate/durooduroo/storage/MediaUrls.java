@@ -44,7 +44,7 @@ public class MediaUrls {
     /** 업로드가 끝나지 않은 사진은 null. */
     public String imageUrl(Photo photo) {
         if (!photo.isReady()) return null;
-        return storage.presignedGetUrl(photo.getFileUrl(), ttl).orElseGet(() -> signedAppUrl("/api/v1/photos/{id}/image", "image", photo.getId(), ttl));
+        return storage.presignedGetUrl(photo.getDisplayLocation(), ttl).orElseGet(() -> signedAppUrl("/api/v1/photos/{id}/image", "image", photo.getId(), ttl));
     }
 
     /** 음성 입력 원문의 audioUrl. 글 입력이면 null. */

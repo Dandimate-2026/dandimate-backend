@@ -10,6 +10,7 @@ package com.dandimate.durooduroo.photo.service;
 import com.dandimate.durooduroo.common.auth.MemberTokenResolver;
 import com.dandimate.durooduroo.common.exception.BusinessException;
 import com.dandimate.durooduroo.common.exception.ErrorCode;
+import com.dandimate.durooduroo.job.domain.AiJob;
 import com.dandimate.durooduroo.member.domain.Member;
 import com.dandimate.durooduroo.member.repository.MemberRepository;
 import com.dandimate.durooduroo.photo.domain.Photo;
@@ -44,14 +45,17 @@ public class PhotoUploadService {
     private final RoomStateService roomStates;
     private final ObjectStorage storage;
     private final MediaUrls mediaUrls;
+    private final com.dandimate.durooduroo.job.repository.AiJobRepository jobs;
     private final com.dandimate.durooduroo.notification.service.RoomEvents roomEvents;
 
-    public PhotoUploadService(PhotoRepository photos, MemberRepository members, RoomStateService roomStates, ObjectStorage storage, MediaUrls mediaUrls, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents) {
+    public PhotoUploadService(PhotoRepository photos, MemberRepository members, RoomStateService roomStates, ObjectStorage storage, MediaUrls mediaUrls, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents,
+                              com.dandimate.durooduroo.job.repository.AiJobRepository jobs) {
         this.photos = photos;
         this.members = members;
         this.roomStates = roomStates;
         this.storage = storage;
         this.mediaUrls = mediaUrls;
+        this.jobs = jobs;
         this.roomEvents = roomEvents;
     }
 
@@ -87,15 +91,23 @@ public class PhotoUploadService {
         storage.putBytes(photo.getStorageKey(), bytes, photo.getContentType());
     }
 
-    /** 업로드 완료 확인. 이미 READY면 그대로 돌려준다. */
+    /**
+     * 업로드 완료 확인. 이미 READY·PROCESSING이면 그대로 돌려준다.
+     * HEIC·HEIF는 PROCESSING으로 두고 PHOTO_DERIVE 작업을 만든다. 변환이 실패해 FAILED가 된 사진은 다시 부르면 재시도한다.
+     */
     @Transactional
     public Photo complete(String photoId, String authorization) {
         Photo photo = photos.findById(photoId).orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "사진이 없습니다."));
         Member me = members.findByRoomIdAndMemberToken(photo.getRoomId(), MemberTokenResolver.resolve(authorization))
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "방 참여자만 사용할 수 있습니다."));
         if (!me.getId().equals(photo.getMemberId())) throw new BusinessException(ErrorCode.FORBIDDEN, "본인 사진만 완료할 수 있습니다.");
-        if (photo.isReady()) return photo;
+        if (photo.isReady() || Photo.PROCESSING.equals(photo.getStatus())) return photo;
         roomStates.require(photo.getRoomId(), RoomAction.UPLOAD_OR_FIRST_ENTRY);
+        if (Photo.FAILED.equals(photo.getStatus())) {
+            photo.retryProcessing();
+            jobs.save(AiJob.queued(photo.getRoomId(), AiJob.PHOTO_DERIVE, photo.getId()));
+            return photo;
+        }
 
         var stored = storage.head(photo.getFileUrl())
                 .orElseThrow(() -> new BusinessException(ErrorCode.UPLOAD_VERIFICATION_FAILED, "업로드된 파일을 찾을 수 없어요."));
@@ -107,6 +119,10 @@ public class PhotoUploadService {
             throw new BusinessException(ErrorCode.UPLOAD_VERIFICATION_FAILED, "업로드 요청과 파일 형식이 달라요.");
         }
         photo.complete(hashOf(photo));
+        if (Photo.PROCESSING.equals(photo.getStatus())) {
+            jobs.save(AiJob.queued(photo.getRoomId(), AiJob.PHOTO_DERIVE, photo.getId()));
+            return photo;
+        }
         roomEvents.toMember(photo.getRoomId(), photo.getMemberId(), "photo.uploaded", Map.of("photoId", photo.getId(), "roomId", photo.getRoomId(), "status", photo.getStatus()));
         return photo;
     }
