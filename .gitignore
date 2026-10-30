@@ -6,3 +6,5 @@ uploads/
 *.log
 .idea/
 *.iml
+!gradle/wrapper/gradle-wrapper.jar
+out/
