@@ -1,6 +1,6 @@
 /**
  * mysql 프로필(운영·스테이징)로 띄웠을 때 위험한 설정을 시작 로그에 경고한다. 서버는 막지 않는다.
- * 데모 기능 켜짐, 로컬 파일 저장소, 서명 키 미설정(재시작하면 사진·음성 URL 무효), 가짜 STT, 스키마 자동 변경.
+ * 데모 기능 켜짐, 로컬 파일 저장소, 서명 키 미설정(재시작하면 사진·음성 URL 무효), 가짜 STT, 스키마 자동 변경, 다른 서버 DB에 TLS 없이 연결.
  */
 package com.dandimate.durooduroo.common.config;
 
@@ -54,7 +54,12 @@ public class ProductionSafetyCheck {
         if ("fake".equals(sttProvider)) warnings.add("STT_PROVIDER=fake: 음성 받아쓰기가 고정 문장을 돌려줍니다.");
         if ("rule".equals(aiProvider)) warnings.add("AI_PROVIDER=rule: 되묻기·두루마리가 규칙 기반 임시 구현으로 동작합니다.");
         if ("update".equals(ddlAuto) || "create".equals(ddlAuto)) warnings.add("JPA_DDL_AUTO=" + ddlAuto + ": 운영에서는 validate와 마이그레이션 도구를 권장합니다.");
-        if (datasourceUrl.contains("useSSL=false")) warnings.add("DB 연결이 TLS 없이(useSSL=false) 이뤄집니다.");
+        if (datasourceUrl.contains("useSSL=false") && !sameMachine(datasourceUrl)) warnings.add("DB 연결이 TLS 없이(useSSL=false) 이뤄집니다.");
         return warnings;
+    }
+
+    /** 같은 서버의 DB(EC2 compose의 mysql 컨테이너, localhost)는 네트워크 밖으로 나가지 않으므로 TLS 경고를 하지 않는다. */
+    private static boolean sameMachine(String url) {
+        return url.matches("jdbc:mysql://(mysql|localhost|127\\.0\\.0\\.1)(:\\d+)?/.*");
     }
 }

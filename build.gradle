@@ -21,12 +21,15 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    // mysql 프로필의 테이블 변경 이력 (src/main/resources/db/migration). local(H2)은 엔티티로 테이블을 만든다.
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-mysql'
     implementation 'software.amazon.awssdk:s3:2.29.52'
     // 계약서(static/openapi/public-api.yaml)를 /swagger-ui.html에서 보여 준다. 코드에서 문서를 생성하지는 않는다.
     implementation 'org.webjars:swagger-ui:5.17.14'
 
     runtimeOnly 'com.mysql:mysql-connector-j'
-runtimeOnly 'com.h2database:h2'
+    runtimeOnly 'com.h2database:h2'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     // 응답을 계약서 JSON Schema(2020-12)로 검증한다.
