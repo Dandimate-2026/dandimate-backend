@@ -35,7 +35,7 @@ public class SpecRoomController {
             throw new BusinessException("CONSENT_REQUIRED", e.getMessage());
         }
         Room room = rooms.save(Room.create(request.name().trim(), request.meetingDate()));
-        Member host = members.save(Member.host(room.getId(), request.hostNickname().trim()));
+        Member host = members.save(Member.host(room.getId(), request.hostNickname().trim(), com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull()));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(SpecCreateRoomResponse.from(room, host)));
     }
 }

@@ -5,6 +5,7 @@ import com.dandimate.durooduroo.member.domain.Member;
 import com.dandimate.durooduroo.room.domain.Room;
 import java.time.LocalDateTime;
 
+@com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
 public record SpecCreateRoomResponse(RoomInfo room, MemberInfo member, String inviteToken, String memberAccessToken) {
     public record RoomInfo(String id, String name, String status, LocalDateTime deadlineAt) {}
     public record MemberInfo(String id, String nickname, String role, String flowerCode) {}

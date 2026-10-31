@@ -17,6 +17,13 @@ spring:
         format_sql: true
 
 server:
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        http-only: true
+        secure: ${SESSION_COOKIE_SECURE:true}
+        same-site: lax
   port: 8080
   # nginx 뒤에서 eventsUrl 같은 절대 URL이 https·실제 호스트로 만들어지도록 X-Forwarded-* 헤더를 따른다.
   forward-headers-strategy: framework

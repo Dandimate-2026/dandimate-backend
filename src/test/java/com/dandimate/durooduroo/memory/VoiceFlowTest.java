@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 /** 가짜 STT(local 프로필 기본값)로 음성 입력 흐름 전체를 확인한다. */
+@org.springframework.context.annotation.Import(com.dandimate.durooduroo.support.LegacyWorkflowSecurity.class)
 @SpringBootTest(properties = "storage.local-root=build/test-uploads")
 @AutoConfigureMockMvc
 class VoiceFlowTest {

@@ -25,6 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 /** HEIC 업로드: PROCESSING → (파생본 생성) → READY, 변환 실패 → FAILED → complete로 재시도. Worker는 직접 돌린다. */
+@org.springframework.context.annotation.Import(com.dandimate.durooduroo.support.LegacyWorkflowSecurity.class)
 @SpringBootTest(properties = {"storage.local-root=build/test-uploads", "app.jobs.retry-delay-ms=0",
         "app.jobs.poll-interval-ms=3600000", "app.jobs.deadline-check-interval-ms=3600000", "app.jobs.stale-check-interval-ms=3600000"})
 @AutoConfigureMockMvc
@@ -50,14 +51,19 @@ class HeicFlowTest {
         complete(photo, host).andExpect(jsonPath("$.data.photo.status").value("PROCESSING"));
         json(post("/api/v1/photos/" + photo + "/entries"), host, "{\"kind\":\"FIRST\",\"inputMode\":\"TEXT\",\"transcript\":\"변환 전 첫 한마디\"}")
                 .andExpect(status().isConflict());
-        drain();
-        assertThat(photos.findById(photo).orElseThrow().getStatus()).isEqualTo("FAILED");
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() -> {
+            drain();
+            assertThat(photos.findById(photo).orElseThrow().getStatus()).isEqualTo("FAILED");
+        });
         assertThat(photos.findById(photo).orElseThrow().getFileUrl()).isNotNull();
         complete(photo, host).andExpect(jsonPath("$.data.photo.status").value("PROCESSING"));
 
         // 2) 재시도에서 성공 → READY, 파생본에는 EXIF가 없다
         doReturn(JpegSamples.withExif()).when(converter).toJpeg(any());
-        drain();
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() -> {
+            drain();
+            assertThat(photos.findById(photo).orElseThrow().getStatus()).isEqualTo("READY");
+        });
         String cards = body(json(post("/api/v1/photos/" + photo + "/entries"), host,
                 "{\"kind\":\"FIRST\",\"inputMode\":\"TEXT\",\"transcript\":\"변환 뒤 첫 한마디\"}").andExpect(status().isCreated()));
         assertThat(cards).contains("FIRST");
