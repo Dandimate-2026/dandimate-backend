@@ -29,6 +29,11 @@ public class MemberService {
     public SpecJoinRoomResponse joinByInvite(String inviteToken, SpecJoinRoomRequest request) {
         Room room = roomRepository.findByInviteToken(inviteToken)
                 .orElseThrow(() -> new BusinessException("INVITE_NOT_FOUND", "유효하지 않은 초대 토큰입니다."));
+        String userId = com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull();
+        if (userId != null) {
+            var existing = memberRepository.findByRoomIdAndUserId(room.getId(), userId);
+            if (existing.isPresent()) return SpecJoinRoomResponse.from(room, existing.get());
+        }
         if (memberRepository.countByRoomId(room.getId()) >= Room.CAPACITY) {
             throw new BusinessException("ROOM_FULL", "방 정원이 가득 찼습니다.");
         }
@@ -36,7 +41,7 @@ public class MemberService {
         if (memberRepository.existsByRoomIdAndNickname(room.getId(), nickname)) {
             throw new BusinessException("DUPLICATE_NICKNAME", "같은 방에서 이미 사용 중인 닉네임입니다.");
         }
-        return SpecJoinRoomResponse.from(room, memberRepository.save(Member.join(room.getId(), nickname, nextFlower(room.getId()))));
+        return SpecJoinRoomResponse.from(room, memberRepository.save(Member.join(room.getId(), nickname, nextFlower(room.getId()), userId)));
     }
 
     /** 동시에 입장하면 같은 꽃이 골라질 수 있지만 uk_members_room_flower가 한 명만 통과시킨다. */

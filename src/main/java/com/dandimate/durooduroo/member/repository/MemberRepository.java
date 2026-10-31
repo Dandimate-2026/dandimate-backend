@@ -10,6 +10,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface MemberRepository extends JpaRepository<Member, String> {
 
+    Optional<Member> findByRoomIdAndUserId(String roomId, String userId);
+    java.util.List<Member> findAllByUserId(String userId);
+
     boolean existsByRoomIdAndNickname(String roomId, String nickname);
 
     long countByRoomId(String roomId);
@@ -24,10 +27,12 @@ public interface MemberRepository extends JpaRepository<Member, String> {
     }
 
     /**
-     * 토큰이 이 방의 참여자 것인지 확인한다. 토큰 자체가 무효면 401을 던지고,
-     * 다른 방 참여자의 토큰이면 빈 값을 돌려줘 호출부가 403으로 거절하게 한다.
+     * 세션의 계정 ID와 방 ID로 참가자를 찾는다. 다른 방이면 빈 값을 반환해 호출부가 403으로 거절한다.
+     * 세션이 없는 내부 회귀 테스트만 기존 토큰 조회를 사용한다. HTTP 요청은 보안 필터에서 먼저 차단된다.
      */
     default Optional<Member> findByRoomIdAndMemberToken(String roomId, String rawToken) {
+        String userId = com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull();
+        if (userId != null) return findByRoomIdAndUserId(roomId, userId);
         Member member = authenticate(rawToken);
         return member.getRoomId().equals(roomId) ? Optional.of(member) : Optional.empty();
     }

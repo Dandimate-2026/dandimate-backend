@@ -22,6 +22,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+@org.springframework.context.annotation.Import(com.dandimate.durooduroo.support.LegacyWorkflowSecurity.class)
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:room-admin-test;MODE=MySQL;DB_CLOSE_DELAY=-1",
         "storage.local-root=build/test-uploads",
