@@ -89,9 +89,12 @@ class ReplyFlowTest {
 
         // GROWING에서 원문을 지우면 문단을 다시 만든다
         mockMvc.perform(delete("/api/v1/entries/" + addon).header("Authorization", "Bearer " + member)).andExpect(status().isNoContent());
-        drain();
-        String rebuilt = scroll(roomId, host);
-        assertThat(JsonPath.<String>read(rebuilt, "$.data.paragraphs[0].body")).doesNotContain("다리가 풀리는 줄 알았어").contains("막차 놓쳐서 뛰었잖아");
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() -> {
+            drain();
+            String rebuilt = scroll(roomId, host);
+            assertThat(JsonPath.<String>read(rebuilt, "$.data.paragraphs[0].body"))
+                    .doesNotContain("다리가 풀리는 줄 알았어").contains("막차 놓쳐서 뛰었잖아");
+        });
         assertThat(versions.findAllByParagraphIdOrderByVersionAsc(paragraphId)).extracting(ParagraphVersion::getReason)
                 .containsExactly("INITIAL", "REPLY_ADDED", "REPLY_DELETED", "ENTRY_DELETED");
     }
