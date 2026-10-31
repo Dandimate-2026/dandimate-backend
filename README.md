@@ -110,3 +110,56 @@ SSE 허브는 서버 한 대 기준입니다. 여러 대로 늘리면 Redis pub/
 4. 프롬프트는 `src/main/resources/prompts/{askback,scene-card,weave,reply-classify,reweave}-v1.md`. 바꿀 때는 새 버전 파일을 만들고 평가 결과를 PR에 첨부한다.
 5. 장면 카드에 사진도 보내려면 OpenAI가 열 수 있는 S3 서명 URL을 `PhotoInput.imageUrl`에 넣고 `input_image`를 추가한다(현재는 원문 텍스트만 보낸다).
 6. 대표 음성 30건 회귀 평가(명세 5장)는 실제 녹음 샘플이 필요해 아직 없다.
+
+
+## 카카오 로그인과 사용자별 방 관리
+
+### 변경 구조
+
+- `users`: 서비스 전체 계정. `(provider, provider_user_id)`를 고유하게 저장해 같은 카카오 계정의 재로그인 시 기존 계정을 사용한다. 이메일·카카오 닉네임은 계정 식별에 사용하지 않는다.
+- `members.user_id → users.id`: 계정과 방별 참가자 연결. `(room_id, user_id)` 중복을 막는다. `members.id`와 사진·원문의 작성자 연결, 방별 닉네임·역할은 유지한다.
+- `inviteToken`은 초대 링크용으로 유지한다. `memberAccessToken`은 로그인한 사용자의 방 생성·입장 응답에서 제거한다. 외부 API는 기존 Bearer 토큰을 로그인 수단으로 받지 않는다.
+- 인증된 사용자 ID로 해당 방의 참가자를 찾아 기존 방장·작성자 권한을 검사한다. 같은 계정이 같은 초대로 재입장하면 기존 참가 정보를 반환한다.
+- 방 생성 등 멱등성 응답도 계정별로 분리한다. 서로 다른 사용자가 같은 요청과 키를 보내도 다른 사용자의 방·응답을 재사용하지 않는다.
+- 최초 카카오 인증 시 최소 계정을 자동 생성한다. 방 생성·입장 시 기존 서비스 이용·미디어·외부 AI 처리 동의 검사는 그대로 유지한다. 별도 가입 완료 화면이나 계정 연결/탈퇴 기능은 이번 범위에 포함하지 않는다.
+
+### 인증 경로와 클라이언트 연동
+
+| 경로 | 동작 |
+|---|---|
+| `GET /oauth2/authorization/kakao` | 브라우저를 카카오 로그인으로 이동 |
+| `GET /login/oauth2/code/kakao` | 인가 코드·state 검증, 계정 조회/생성, 세션 발급 후 프론트로 이동 |
+| `GET /api/v1/auth/csrf` | 쓰기 요청에 필요한 `headerName`, `token` 반환 |
+| `GET /api/v1/users/me` | 내 계정 ID·가입 시각 |
+| `GET /api/v1/users/me/rooms` | 참여 방과 각 방의 참가자 ID·닉네임·역할 |
+| `POST /api/v1/auth/logout` | 현재 서비스 세션 종료 (카카오 전체 로그아웃/연결 해제 아님) |
+
+1. 프론트에서 로그인 시작 주소로 **페이지 이동**한다. OAuth 경로는 `/api/v1` 밖이므로 프록시도 `/oauth2/`, `/login/`을 백엔드로 전달해야 한다.
+2. 로그인 후 브라우저가 `JSESSIONID`를 관리한다. API 요청은 `credentials: 'include'`를 사용한다. 서비스 토큰을 URL이나 로컬 스토리지로 전달하지 않는다.
+3. `/api/v1/auth/csrf` 응답의 `token`을 POST/PUT/PATCH/DELETE 요청의 `X-CSRF-TOKEN`에 넣는다. 로그인·로그아웃 후에는 토큰을 다시 조회한다. 기존 `Idempotency-Key` 요구도 유지한다.
+4. 초대 링크 미리보기는 공개지만 방 생성·초대 입장은 로그인 후 진행한다. 초대 링크 정보를 프론트가 보관하고 로그인 완료 후 입장 요청을 보내면 된다.
+5. 서명된 사진/음성 조회 URL, 일회용 SSE URL은 기존 서명/토큰 검증을 사용한다. 서명된 로컬 사진 업로드 PUT만 CSRF 검사를 제외한다.
+
+### 서버 설정
+
+실제 키는 코드/커밋에 넣지 않고 AWS 서버 환경변수 또는 Secrets Manager에서 주입한다. `.env.example`에는 이름과 예시만 둔다. Spring Boot가 `.env` 파일을 자동으로 읽는 것은 아니므로 실행 환경에서 주입해야 한다.
+
+| 변수 | 내용 |
+|---|---|
+| `KAKAO_CLIENT_ID` | 카카오 REST API 키 |
+| `KAKAO_CLIENT_SECRET` | 카카오 Client Secret |
+| `KAKAO_REDIRECT_URI` | 등록한 백엔드 주소 + `/login/oauth2/code/kakao` (완전히 일치해야 함) |
+| `APP_FRONTEND_URL` | 로그인 완료 후 이동할 프론트 **origin**, 경로·끝 슬래시 제외. CORS 허용 출처에도 사용 |
+| `SESSION_COOKIE_SECURE` | 기본 `true`. HTTPS 사용. 개인 HTTP 개발 환경에서만 `false` |
+
+카카오 로그인 활성화와 Redirect URI 등록 후 서버 설정을 적용한다. 카카오 설정이 빠졌을 때 로그인 시작/콜백은 `503 OAUTH_NOT_CONFIGURED`를 반환하며 보호 API는 계속 인증을 요구한다. 서버 설정 값이나 실제 키를 응답에 노출하지 않는다.
+
+현재 세션은 서버 메모리에 보관하며 비활동 30분 후 만료한다. 단일 백엔드 인스턴스 기준이고, 재시작하면 재로그인이 필요하다. 다중 인스턴스 배포 전에는 공유 세션 저장소를 추가해야 한다. 프론트와 API는 같은 사이트의 HTTPS 도메인(예: `app.example.com`, `api.example.com`)을 사용한다. 서로 다른 사이트를 사용할 경우 쿠키·CSRF 정책 재설계가 필요하다.
+
+### 기존 DB와 검증 범위
+
+- 기존 MySQL에는 `docs/sql/20261031_kakao_accounts.sql` 변경을 **검토 후 1회** 적용하고 `JPA_DDL_AUTO=validate`로 검증한다. 이 파일은 자동 실행되지 않는다. 로컬 H2는 JPA가 새 구조를 만든다.
+- 기존 익명 참가자의 `user_id`는 NULL로 남긴다. 닉네임만으로 계정을 자동 연결하지 않는다. 기존 데이터가 필요한 운영 환경은 소유권 확인을 포함한 별도 이전 작업이 필요하다. 이번 변경은 기존 행을 삭제하지 않는다.
+- 기존 업무 회귀 테스트는 테스트 전용 `LegacyWorkflowSecurity`로 이전 참가자 토큰 시나리오를 유지한다. 이 설정은 운영 빌드에 포함되지 않는다.
+- `AccountSecurityTest`는 실제 보안 필터를 사용해 세션/CSRF, 비참여자·방장 권한, 중복 입장, 계정별 멱등성, 사진·음성·두루마리 흐름을 검증한다.
+- `OAuthCallbackTest`는 카카오 토큰/사용자 정보 응답을 모의해 콜백부터 계정 생성·세션 교체·내 정보 조회를 검증한다. 실제 카카오 계정으로의 브라우저 로그인 및 AWS 배포 검증은 서버 설정 후 별도 수행해야 한다.
