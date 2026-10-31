@@ -20,6 +20,7 @@ import org.springframework.data.domain.Persistable;
 @Table(
         name = "members",
         uniqueConstraints = {
+                @UniqueConstraint(name = "uk_members_room_user", columnNames = {"room_id", "user_id"}),
                 @UniqueConstraint(name = "uk_members_room_nickname", columnNames = {"room_id", "nickname"}),
                 @UniqueConstraint(name = "uk_members_room_flower", columnNames = {"room_id", "flower_code"})
         }
@@ -32,6 +33,14 @@ public class Member implements Persistable<String> {
 
     @Column(name = "room_id", nullable = false, length = 36, updatable = false)
     private String roomId;
+
+    @Column(name = "user_id", length = 36, updatable = false)
+    private String userId;
+
+    @jakarta.persistence.ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
+    @jakarta.persistence.JoinColumn(name = "user_id", insertable = false, updatable = false,
+            foreignKey = @jakarta.persistence.ForeignKey(name = "fk_members_user"))
+    private com.dandimate.durooduroo.user.domain.UserAccount userAccount;
 
     @Column(nullable = false, length = 30)
     private String nickname;
@@ -76,6 +85,7 @@ public class Member implements Persistable<String> {
     private Member(String roomId, String nickname, MemberRole role, FlowerCode flowerCode) {
         this.id = UUID.randomUUID().toString();
         this.roomId = roomId;
+
         this.nickname = nickname;
         this.issuedAccessToken = Tokens.generate();
         this.accessTokenHash = Tokens.hash(issuedAccessToken);
@@ -97,6 +107,15 @@ public class Member implements Persistable<String> {
         return id;
     }
 
+    public static Member host(String roomId, String nickname, String userId) {
+        Member member = host(roomId, nickname); member.userId = userId; return member;
+    }
+    public static Member join(String roomId, String nickname, FlowerCode flower, String userId) {
+        Member member = join(roomId, nickname, flower); member.userId = userId; return member;
+    }
+
+    public String getUserId() { return userId; }
+
     public String getRoomId() {
         return roomId;
     }
@@ -106,7 +125,7 @@ public class Member implements Persistable<String> {
     }
 
     public String getIssuedAccessToken() {
-        return issuedAccessToken;
+        return userId == null ? issuedAccessToken : null;
     }
 
     public MemberRole getRole() {
