@@ -27,7 +27,7 @@ class PhotoUploadTest {
     @Test
     void 업로드_URL로_올리고_complete가_저장소를_검증한다() throws Exception {
         String created = mockMvc.perform(post("/api/v1/rooms").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"hostNickname\":\"서연\"," + CONSENT + "}"))
+                        .content("{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"서연\"," + CONSENT + "}"))
                 .andReturn().getResponse().getContentAsString();
         String roomId = JsonPath.read(created, "$.data.room.id");
         String host = JsonPath.read(created, "$.data.memberAccessToken");

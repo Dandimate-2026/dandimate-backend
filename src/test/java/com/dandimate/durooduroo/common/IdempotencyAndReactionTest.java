@@ -137,7 +137,7 @@ class IdempotencyAndReactionTest {
     }
 
     private String roomBody(String name) {
-        return "{\"name\":\"" + name + "\",\"meetingDate\":\"2026-10-24\",\"hostNickname\":\"서연\"," + CONSENT + "}";
+        return "{\"name\":\"" + name + "\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"서연\"," + CONSENT + "}";
     }
 
     private ResultActions json(MockHttpServletRequestBuilder request, String token, String content) throws Exception {

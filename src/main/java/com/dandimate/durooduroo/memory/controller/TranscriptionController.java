@@ -20,21 +20,21 @@ public class TranscriptionController {
     @PostMapping(value = "/photos/{photoId}/transcriptions", consumes = "multipart/form-data")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<TranscriptionService.DraftView> photo(@PathVariable String photoId, @RequestHeader(required = false) String authorization,
-                                                            @RequestParam String kind, @RequestPart MultipartFile file) {
-        return ApiResponse.success(transcriptions.forPhoto(photoId, authorization, kind, file));
+                                                            @RequestParam String kind, @RequestPart MultipartFile file, @RequestHeader("Idempotency-Key") String requestKey) {
+        return ApiResponse.success(transcriptions.forPhoto(photoId, authorization, kind, file, requestKey));
     }
 
     @PostMapping(value = "/askbacks/{askbackId}/transcriptions", consumes = "multipart/form-data")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<TranscriptionService.DraftView> askback(@PathVariable String askbackId, @RequestHeader(required = false) String authorization,
-                                                              @RequestPart MultipartFile file) {
-        return ApiResponse.success(transcriptions.forAskback(askbackId, authorization, file));
+                                                              @RequestPart MultipartFile file, @RequestHeader("Idempotency-Key") String requestKey) {
+        return ApiResponse.success(transcriptions.forAskback(askbackId, authorization, file, requestKey));
     }
 
     @PostMapping(value = "/paragraphs/{paragraphId}/transcriptions", consumes = "multipart/form-data")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<TranscriptionService.DraftView> paragraph(@PathVariable String paragraphId, @RequestHeader(required = false) String authorization,
-                                                                @RequestPart MultipartFile file) {
-        return ApiResponse.success(transcriptions.forParagraph(paragraphId, authorization, file));
+                                                                @RequestPart MultipartFile file, @RequestHeader("Idempotency-Key") String requestKey) {
+        return ApiResponse.success(transcriptions.forParagraph(paragraphId, authorization, file, requestKey));
     }
 }

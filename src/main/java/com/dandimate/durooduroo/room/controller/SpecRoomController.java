@@ -34,7 +34,12 @@ public class SpecRoomController {
         } catch (IllegalArgumentException e) {
             throw new BusinessException("CONSENT_REQUIRED", e.getMessage());
         }
-        Room room = rooms.save(Room.create(request.name().trim(), request.meetingDate()));
+        // 유료 플랜은 결제 검증이 연결되기 전까지 생성하지 않는다. FREE로 대체하지 않는다.
+        if (request.planType() != com.dandimate.durooduroo.room.domain.RoomPlan.FREE) {
+            throw new BusinessException(com.dandimate.durooduroo.common.exception.ErrorCode.PAYMENT_NOT_CONFIGURED,
+                    "유료 플랜 결제 기능이 아직 연결되지 않았습니다.");
+        }
+        Room room = rooms.save(Room.create(request.name().trim(), request.meetingDate(), request.selectedCapacity(), request.planType()));
         Member host = members.save(Member.host(room.getId(), request.hostNickname().trim(), com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull()));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(SpecCreateRoomResponse.from(room, host)));
     }

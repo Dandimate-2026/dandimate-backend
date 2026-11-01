@@ -39,7 +39,7 @@ class AccountSecurityTest {
     private String account() { return accounts.findOrCreate(UUID.randomUUID().toString()); }
     private String create(MockHttpSession s, String key) throws Exception {
         return mvc.perform(post("/api/v1/rooms").session(s).with(csrf()).header("Idempotency-Key",key)
-            .contentType("application/json").content("{\"name\":\"여행\",\"meetingDate\":\"2026-10-31\",\"hostNickname\":\"서연\","+CONSENT+"}"))
+            .contentType("application/json").content("{\"name\":\"여행\",\"meetingDate\":\"2026-10-31\",\"planType\":\"FREE\",\"hostNickname\":\"서연\","+CONSENT+"}"))
             .andExpect(status().isCreated()).andExpect(jsonPath("$.data.memberAccessToken").doesNotExist())
             .andReturn().getResponse().getContentAsString();
     }
@@ -117,7 +117,7 @@ class AccountSecurityTest {
             byte[] wav=com.dandimate.durooduroo.memory.audio.VoiceSamples.wav(6);
             String draft=mvc.perform(multipart("/api/v1/photos/"+photo+"/transcriptions")
                 .file(new org.springframework.mock.web.MockMultipartFile("file","voice.wav","audio/wav",wav))
-                .param("kind",kind).session(author).with(csrf())).andExpect(status().isCreated())
+                .param("kind",kind).header("Idempotency-Key",UUID.randomUUID().toString()).session(author).with(csrf())).andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
             String draftId=JsonPath.read(draft,"$.data.transcriptionId");
             String entry=postJson("/api/v1/photos/"+photo+"/entries",author,
@@ -142,7 +142,7 @@ class AccountSecurityTest {
         String token=JsonPath.read(csrfBody,"$.data.token");
         mvc.perform(post("/api/v1/rooms").session(s).header("X-CSRF-TOKEN",token)
             .header("Idempotency-Key",UUID.randomUUID().toString()).contentType("application/json")
-            .content("{\"name\":\"여행\",\"meetingDate\":\"2026-10-31\",\"hostNickname\":\"서연\","+CONSENT+"}"))
+            .content("{\"name\":\"여행\",\"meetingDate\":\"2026-10-31\",\"planType\":\"FREE\",\"hostNickname\":\"서연\","+CONSENT+"}"))
             .andExpect(status().isCreated());
         mvc.perform(options("/api/v1/rooms").header("Origin","http://localhost:3000")
             .header("Access-Control-Request-Method","POST").header("Access-Control-Request-Headers","X-CSRF-TOKEN,Content-Type"))

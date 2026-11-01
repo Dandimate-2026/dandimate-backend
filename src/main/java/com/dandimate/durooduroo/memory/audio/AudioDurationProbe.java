@@ -2,7 +2,7 @@
  * 음성 길이를 서버가 직접 잰다 (명세 2장: 클라이언트가 보낸 길이는 믿지 않는다).
  * 1) ffprobe가 있으면 ffprobe로 잰다 (webm 포함 모든 형식). 운영 서버에는 ffprobe 설치를 권장한다.
  * 2) 없으면 MP4/M4A(mvhd)와 WAV 헤더를 직접 읽는다.
- * 둘 다 안 되면 비어 있고, 호출하는 쪽이 길이 검사를 건너뛴다.
+ * 둘 다 안 되면 비어 있고, 호출하는 쪽이 업로드를 거절한다.
  */
 package com.dandimate.durooduroo.memory.audio;
 

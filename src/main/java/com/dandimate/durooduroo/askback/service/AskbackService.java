@@ -102,7 +102,7 @@ public class AskbackService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "음성 입력은 transcriptionId가 필요합니다.");
         }
         String transcript = request.transcript().strip();
-        if (!EntryKind.ASKBACK_ANSWER.acceptsLength(transcript)) throw new BusinessException(ErrorCode.VALIDATION_ERROR, "답변은 1~200자여야 해요.");
+        if (!EntryKind.ASKBACK_ANSWER.acceptsLength(transcript, request.inputMode())) throw new BusinessException(ErrorCode.VALIDATION_ERROR, "답변은 1~" + EntryKind.ASKBACK_ANSWER.maxLength(request.inputMode()) + "자여야 해요.");
         if (photos.findById(askback.getPhotoId()).isEmpty()) throw new BusinessException(ErrorCode.ASKBACK_CLOSED, "질문한 사진이 삭제됐어요.");
 
         String audioLocation = "VOICE".equals(request.inputMode())

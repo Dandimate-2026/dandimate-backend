@@ -27,14 +27,14 @@ public class MemberService {
 
     @Transactional
     public SpecJoinRoomResponse joinByInvite(String inviteToken, SpecJoinRoomRequest request) {
-        Room room = roomRepository.findByInviteToken(inviteToken)
+        Room room = roomRepository.findByInviteTokenHashForUpdate(com.dandimate.durooduroo.common.auth.Tokens.hash(inviteToken))
                 .orElseThrow(() -> new BusinessException("INVITE_NOT_FOUND", "유효하지 않은 초대 토큰입니다."));
         String userId = com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull();
         if (userId != null) {
             var existing = memberRepository.findByRoomIdAndUserId(room.getId(), userId);
             if (existing.isPresent()) return SpecJoinRoomResponse.from(room, existing.get());
         }
-        if (memberRepository.countByRoomId(room.getId()) >= Room.CAPACITY) {
+        if (memberRepository.countByRoomId(room.getId()) >= room.getCapacity()) {
             throw new BusinessException("ROOM_FULL", "방 정원이 가득 찼습니다.");
         }
         String nickname = request.nickname().trim();
@@ -44,7 +44,7 @@ public class MemberService {
         return SpecJoinRoomResponse.from(room, memberRepository.save(Member.join(room.getId(), nickname, nextFlower(room.getId()), userId)));
     }
 
-    /** 동시에 입장하면 같은 꽃이 골라질 수 있지만 uk_members_room_flower가 한 명만 통과시킨다. */
+    /** 방 행 잠금 안에서 정원 검사와 꽃 배정을 함께 처리한다. */
     private FlowerCode nextFlower(String roomId) {
         var used = memberRepository.findAllByRoomId(roomId).stream().map(Member::getFlowerCode).toList();
         FlowerCode flower = FlowerCode.firstAvailable(used);

@@ -112,7 +112,7 @@ class TokenAuthTest {
 
     private String createRoom(String hostNickname) throws Exception {
         return mockMvc.perform(post("/api/v1/rooms").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"hostNickname\":\"" + hostNickname + "\"," + CONSENT + "}"))
+                        .content("{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"" + hostNickname + "\"," + CONSENT + "}"))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
     }

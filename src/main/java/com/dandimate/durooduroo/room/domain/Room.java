@@ -20,6 +20,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Persistable;
 
 @Entity
+@org.hibernate.annotations.DynamicUpdate
 @Table(
         name = "rooms",
         uniqueConstraints = @UniqueConstraint(
@@ -30,7 +31,53 @@ import org.springframework.data.domain.Persistable;
 public class Room implements Persistable<String> {
 
     public static final int CAPACITY = 8;
-    public static final int REGENERATION_LIMIT = 10;
+    @Column(nullable = false)
+    @org.hibernate.annotations.ColumnDefault("8")
+    private int capacity = CAPACITY;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10, columnDefinition = "varchar(10)")
+    @org.hibernate.annotations.ColumnDefault("'FREE'")
+    private RoomPlan planType = RoomPlan.FREE;
+    @Column(nullable = false)
+    @org.hibernate.annotations.ColumnDefault("0")
+    private long voiceUsedMs;
+    @Column(nullable = false)
+    @org.hibernate.annotations.ColumnDefault("0")
+    private long voiceReservedMs;
+
+    public int getCapacity() { return capacity; }
+    public RoomPlan getPlanType() { return planType; }
+    public long getVoiceUsedMs() { return voiceUsedMs; }
+    public long getVoiceReservedMs() { return voiceReservedMs; }
+    public long getVoiceRemainingMs() { return Math.max(0, planType.voiceLimitMs() - voiceUsedMs - voiceReservedMs); }
+
+    public static Room create(String title, LocalDate meetingDate, int capacity) {
+        return create(title, meetingDate, capacity, RoomPlan.FREE);
+    }
+
+    /** 유료 플랜을 전달하는 호출부는 먼저 결제를 검증해야 한다. */
+    public static Room create(String title, LocalDate meetingDate, int capacity, RoomPlan planType) {
+        java.util.Objects.requireNonNull(planType, "planType");
+        if (capacity < 1 || capacity > CAPACITY)
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "정원은 방장 포함 1~8명이어야 합니다.");
+        Room room = new Room(title, meetingDate);
+        room.capacity = capacity;
+        room.planType = planType;
+        return room;
+    }
+
+    public void reserveVoice(long durationMs) {
+        if (durationMs <= 0) throw new IllegalArgumentException("durationMs must be positive");
+        if (durationMs > getVoiceRemainingMs())
+            throw new BusinessException(ErrorCode.LIMIT_REACHED, "방의 남은 음성 시간을 초과했습니다.");
+        voiceReservedMs += durationMs;
+    }
+
+    public void settleVoice(long durationMs, boolean success) {
+        if (durationMs <= 0 || durationMs > voiceReservedMs) throw new IllegalStateException("Invalid voice reservation");
+        voiceReservedMs -= durationMs;
+        if (success) voiceUsedMs += durationMs;
+    }
     private static final int DEFAULT_DEADLINE_HOURS = 48;
     private static final int AUTO_EXTENSION_HOURS = 24;
 
@@ -174,12 +221,12 @@ public class Room implements Persistable<String> {
         return deadlineExtended;
     }
 
-    /** 수동 다시 엮기·답가 재엮기 한도(방당 10회)를 사용한다. */
+    /** 수동 다시 엮기·답가 재엮기 플랜별 한도를 사용한다. */
     public void useRegeneration() {
         if (status != RoomStatus.WEAVING && status != RoomStatus.GROWING) {
             throw new BusinessException(ErrorCode.INVALID_ROOM_STATE, "마감 후에만 다시 엮을 수 있어요.");
         }
-        if (regenerationCount >= REGENERATION_LIMIT) {
+        if (regenerationCount >= planType.regenerations()) {
             throw new BusinessException(ErrorCode.LIMIT_REACHED, "다시 엮기 한도를 모두 사용했어요.");
         }
         regenerationCount++;

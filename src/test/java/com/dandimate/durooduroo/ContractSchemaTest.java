@@ -46,7 +46,7 @@ class ContractSchemaTest {
     @Test
     void 주요_API_응답이_계약서_스키마를_따른다() throws Exception {
         String created = matches("CreateRoomResponse", json(post("/api/v1/rooms"), null,
-                "{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"hostNickname\":\"서연\"," + CONSENT + "}"));
+                "{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"서연\"," + CONSENT + "}"));
         String roomId = JsonPath.read(created, "$.data.room.id");
         String host = JsonPath.read(created, "$.data.memberAccessToken");
         String invite = JsonPath.read(created, "$.data.inviteToken");

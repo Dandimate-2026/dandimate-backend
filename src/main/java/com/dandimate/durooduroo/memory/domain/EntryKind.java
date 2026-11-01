@@ -20,6 +20,13 @@ public enum EntryKind {
         return length >= minLength && length <= maxLength;
     }
 
+    public int maxLength(String inputMode) { return "VOICE".equals(inputMode) ? 3000 : maxLength; }
+
+    public boolean acceptsLength(String transcript, String inputMode) {
+        int length = transcript.strip().length();
+        return length >= minLength && length <= maxLength(inputMode);
+    }
+
     public int minLength() {
         return minLength;
     }

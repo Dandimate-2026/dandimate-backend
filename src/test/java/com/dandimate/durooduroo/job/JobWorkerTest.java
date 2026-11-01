@@ -94,8 +94,11 @@ class JobWorkerTest {
 
         doCallRealMethod().when(paragraphs).weave(any());
         AiJob retry = weaveJobs.reweave(roomId);
-        worker.runNext();
-        assertThat(job(retry).getStatus()).isEqualTo("SUCCEEDED");
+        // 실패 알림 등 먼저 생성된 작업이 있을 수 있으므로 대상 작업의 완료까지 처리한다.
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() -> {
+            worker.runNext();
+            assertThat(job(retry).getStatus()).isEqualTo("SUCCEEDED");
+        });
         Room room = rooms.findById(roomId).orElseThrow();
         assertThat(room.getStatus()).isEqualTo(RoomStatus.GROWING);
         assertThat(room.getRegenerationCount()).isEqualTo(1);

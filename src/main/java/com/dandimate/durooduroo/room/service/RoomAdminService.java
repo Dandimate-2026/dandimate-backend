@@ -26,7 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RoomAdminService {
 
     /** roomId 컬럼으로 지우는 엔티티. */
-    private static final List<String> ROOM_SCOPED = List.of("MemoryEntry", "PhotoPass", "TranscriptionDraft", "Askback", "Reply",
+    private static final List<String> ROOM_SCOPED = List.of("VoiceUsage", "MemoryEntry", "PhotoPass", "TranscriptionDraft", "Askback", "Reply",
             "Paragraph", "Scroll", "Photo", "AiJob", "EventLog");
     /** 문단에 딸린 엔티티 (paragraphId로 지운다, Paragraph보다 먼저). */
     private static final List<String> PARAGRAPH_SCOPED = List.of("ParagraphSource", "ParagraphVersion", "ParagraphReaction", "ParagraphRating");

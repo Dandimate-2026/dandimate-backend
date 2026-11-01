@@ -38,8 +38,8 @@ public class InviteController {
         data.put("status", room.getStatus().name());
         data.put("memberCount", count);
         data.put("flowers", roomMembers.stream().map(m -> m.getFlowerCode()).sorted().map(Enum::name).toList());
-        data.put("capacity", com.dandimate.durooduroo.room.domain.Room.CAPACITY);
-        data.put("canJoin", count < com.dandimate.durooduroo.room.domain.Room.CAPACITY);
+        data.put("capacity", room.getCapacity());
+        data.put("canJoin", count < room.getCapacity());
         return ApiResponse.success(data);
     }
 

@@ -105,7 +105,7 @@ class AskbackAnalysisTest {
 
     private Room room() throws Exception {
         String created = body(mockMvc.perform(post("/api/v1/rooms").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"hostNickname\":\"서연\"," + CONSENT + "}")));
+                .content("{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"서연\"," + CONSENT + "}")));
         String invite = JsonPath.read(created, "$.data.inviteToken");
         String joined = body(mockMvc.perform(post("/api/v1/invites/" + invite + "/join").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"nickname\":\"지수\"," + CONSENT + "}")));

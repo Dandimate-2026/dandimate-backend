@@ -9,4 +9,8 @@ import java.time.LocalDate;
 
 public record SpecCreateRoomRequest(@NotBlank @Size(max = 20) String name, @NotNull LocalDate meetingDate,
                                     @NotBlank @Size(max = 10) String hostNickname,
-                                    @NotNull @Valid ConsentRequest consent) {}
+                                    @NotNull @Valid ConsentRequest consent,
+                                    @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(8) Integer capacity,
+                                    @NotNull com.dandimate.durooduroo.room.domain.RoomPlan planType) {
+    public int selectedCapacity() { return capacity == null ? 8 : capacity; }
+}

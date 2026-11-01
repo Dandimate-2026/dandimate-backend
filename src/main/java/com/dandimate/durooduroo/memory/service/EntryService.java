@@ -75,7 +75,7 @@ public class EntryService {
         if ("VOICE".equals(request.inputMode()) && (request.transcriptionId() == null || request.transcriptionId().isBlank())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "음성 입력은 transcriptionId가 필요합니다.");
         }
-        requireLength(request.kind(), transcript);
+        requireLength(request.kind(), transcript, request.inputMode());
         boolean own = me.getId().equals(photo.getMemberId());
 
         switch (request.kind()) {
@@ -120,7 +120,7 @@ public class EntryService {
         MemoryEntry entry = findOwnEntry(entryId, authorization);
         roomStates.require(entry.getRoomId(), RoomAction.EDIT_ENTRY);
         if (transcript == null || transcript.isBlank()) throw new BusinessException(ErrorCode.VALIDATION_ERROR, "내용은 필수입니다.");
-        requireLength(entry.getKind(), transcript.strip());
+        requireLength(entry.getKind(), transcript.strip(), entry.getInputMode());
         entry.edit(transcript.strip());
         sourceChanged(entry.getPhotoId());
         return EntryView.of(entry, members.findById(entry.getMemberId()).orElseThrow(), mediaUrls.audioUrl(entry));
@@ -226,10 +226,10 @@ public class EntryService {
         return entry;
     }
 
-    private void requireLength(EntryKind kind, String transcript) {
-        if (!kind.acceptsLength(transcript)) {
+    private void requireLength(EntryKind kind, String transcript, String inputMode) {
+        if (!kind.acceptsLength(transcript, inputMode)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                    "%s은(는) %d~%d자여야 해요.".formatted(kind == EntryKind.FIRST ? "첫 한마디" : "덧붙임", kind.minLength(), kind.maxLength()));
+                    "%s은(는) %d~%d자여야 해요.".formatted(kind == EntryKind.FIRST ? "첫 한마디" : "덧붙임", kind.minLength(), kind.maxLength(inputMode)));
         }
     }
 }

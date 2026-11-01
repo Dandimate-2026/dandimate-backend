@@ -9,6 +9,6 @@ import jakarta.validation.constraints.Size;
 public record AskbackAnswerRequest(
         @NotNull @Pattern(regexp = "VOICE|TEXT", message = "inputMode는 VOICE 또는 TEXT여야 합니다.") String inputMode,
         String transcriptionId,
-        @NotBlank @Size(max = 200) String transcript
+        @NotBlank @Size(max = 3000) String transcript
 ) {
 }

@@ -25,7 +25,7 @@ public class Reply {
     @Column(nullable = false, length = 10) private String inputMode;
     private String transcriptionId;
     @Column(length = 300) private String audioLocation;
-    @Column(nullable = false, length = 1000) private String transcript;
+    @Column(nullable = false, length = 3000) private String transcript;
     @Column(nullable = false, length = 20) private String status;
     @Column(length = 20) private String classification;
     @Column(nullable = false) private LocalDateTime createdAt;
