@@ -102,6 +102,6 @@ SSE 허브는 서버 한 대 기준입니다. 여러 대로 늘리면 Redis pub/
 2. `AI_PROVIDER=openai`, `STT_PROVIDER=openai`로 바꾼다. 둘은 따로 켤 수 있다.
 3. 평가셋을 OpenAI 구현으로 돌린다: `AI_PROVIDER=openai OPENAI_API_KEY=... OPENAI_TEXT_MODEL=... ./gradlew test --tests '*AiEvalTest'`
    (`src/test/resources/ai-eval/*.jsonl` 35건. 인용 정확도·없는 ID·60자·기존 인용 유지 등 자동 판정)
-4. 프롬프트는 `src/main/resources/prompts/{askback,scene-card,reply-classify}-v1.md`, `{weave,reweave}-v2.md`. 바꿀 때는 새 버전 파일을 만들고 평가 결과를 PR에 첨부한다.
-5. 장면 카드에 사진도 보내려면 OpenAI가 열 수 있는 S3 서명 URL을 `PhotoInput.imageUrl`에 넣고 `input_image`를 추가한다(현재는 원문 텍스트만 보낸다).
+4. 프롬프트는 `src/main/resources/prompts/{askback,reply-classify}-v1.md`, `{scene-card,weave,reweave}-v2.md`. 바꿀 때는 새 버전 파일을 만들고 평가 결과를 PR에 첨부한다.
+5. 장면 카드에는 사진도 함께 보낸다(`AI_SEND_PHOTOS=true` 기본, 저장소에서 읽어 data URL·`detail=low`로 전송, HEIC는 JPEG 파생본). 사진에서는 보이는 장면만 쓰고 이름·이유는 원문에서만 가져온다. 끄면 원문만 보낸다.
 6. 대표 음성 30건 회귀 평가(명세 5장)는 실제 녹음 샘플이 필요해 아직 없다.

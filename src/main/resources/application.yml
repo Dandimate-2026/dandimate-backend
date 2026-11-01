@@ -45,6 +45,8 @@ app:
   ai:
     # rule(기본, 규칙 기반 임시 구현) 또는 openai(OPENAI_API_KEY와 OPENAI_TEXT_MODEL 필요)
     provider: ${AI_PROVIDER:rule}
+    # openai일 때 장면 카드에 사진(JPEG·PNG, HEIC는 파생본)을 함께 보낸다. 끄면 원문만 보낸다.
+    send-photos: ${AI_SEND_PHOTOS:true}
   stt:
     # openai(기본, OPENAI_API_KEY 필요) 또는 fake(키 없이 개발·데모할 때 고정 문장을 돌려준다)
     provider: ${STT_PROVIDER:openai}

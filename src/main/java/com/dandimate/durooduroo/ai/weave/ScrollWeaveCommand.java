@@ -7,7 +7,13 @@ import java.util.Map;
 
 public record ScrollWeaveCommand(RoomInput room, List<OrderedSceneCard> sceneCards, Map<String, SourceEntry> sourceEntries) {
 
-    public record RoomInput(String id, String name) {}
+    /** meetingDate는 모임 날짜(yyyy-MM-dd, 없으면 null). 두루마리 여는 문장에 쓴다. */
+    public record RoomInput(String id, String name, String meetingDate) {
+
+        public RoomInput(String id, String name) {
+            this(id, name, null);
+        }
+    }
 
     public record OrderedSceneCard(int displayOrder, SceneCardResult card) {}
 

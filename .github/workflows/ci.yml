@@ -1,10 +1,10 @@
-# 백엔드 CI: PR과 main 푸시마다 전체 테스트(H2 메모리 DB, 가짜 STT, 규칙 기반 AI)와 MySQL 8.4 스키마 검사를 돌린다.
+# 백엔드 CI: PR과 main·develop 푸시마다 전체 테스트(H2 메모리 DB, 가짜 STT, 규칙 기반 AI)와 MySQL 8.4 스키마 검사를 돌린다.
 name: Backend CI
 
 on:
   pull_request:
   push:
-    branches: ["main"]
+    branches: ["main", "develop"]
 
 jobs:
   test:

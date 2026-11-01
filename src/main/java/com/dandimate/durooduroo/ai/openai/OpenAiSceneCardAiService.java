@@ -1,6 +1,6 @@
 /**
- * OpenAI 장면 카드 구현 (app.ai.provider=openai). 지금은 원문 텍스트만 보낸다.
- * 사진을 함께 보내려면 OpenAI가 받을 수 있는 서명 URL(S3 presigned)을 PhotoInput.imageUrl에 넣고 input_image로 추가한다.
+ * OpenAI 장면 카드 구현 (app.ai.provider=openai). 원문 텍스트와 함께, 사진이 있으면 이미지(data URL)도 보낸다.
+ * 사진에서는 눈에 보이는 장면만 읽고, 사실·이유·이름은 원문에서만 가져온다 (scene-card-v2).
  */
 package com.dandimate.durooduroo.ai.openai;
 
@@ -21,7 +21,7 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty(name = "app.ai.provider", havingValue = "openai")
 public class OpenAiSceneCardAiService implements SceneCardAiService {
 
-    static final String PROMPT_VERSION = "scene-card-v1";
+    static final String PROMPT_VERSION = "scene-card-v2";
     private static final Map<String, Object> CLAIM = object(ordered("entryId", string(), "memberId", string(), "claim", string()));
     private static final Map<String, Object> SCHEMA = object(ordered(
             "what", nullableString(),
@@ -41,7 +41,8 @@ public class OpenAiSceneCardAiService implements SceneCardAiService {
 
     @Override
     public SceneCardResult extract(SceneCardCommand command) {
-        var result = client.call(PROMPT_VERSION, "scene_card", SCHEMA, command);
+        var result = client.call(PROMPT_VERSION, "scene_card", SCHEMA, command,
+                command.image() == null ? List.of() : List.of(command.image().dataUrl()));
         JsonNode out = result.output();
         List<SceneCardResult.Voice> voices = new ArrayList<>();
         out.path("voices").forEach(v -> voices.add(new SceneCardResult.Voice(v.path("entryId").asText(), v.path("memberId").asText(),
