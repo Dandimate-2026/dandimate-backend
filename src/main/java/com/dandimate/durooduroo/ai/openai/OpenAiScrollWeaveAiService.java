@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty(name = "app.ai.provider", havingValue = "openai")
 public class OpenAiScrollWeaveAiService implements ScrollWeaveAiService {
 
-    static final String PROMPT_VERSION = "weave-v2";
+    static final String PROMPT_VERSION = "weave-v3";
     static final Map<String, Object> PARAGRAPH = object(ordered("photoId", string(), "body", string(), "citations", array(citation()), "safety", safety()));
     private static final Map<String, Object> SCHEMA = object(ordered("paragraphs", array(PARAGRAPH)));
 
@@ -37,7 +37,7 @@ public class OpenAiScrollWeaveAiService implements ScrollWeaveAiService {
     }
 
     static ScrollWeaveResult.WovenParagraph paragraph(JsonNode p) {
-        String body = p.path("body").asText();
+        String body = com.dandimate.durooduroo.ai.common.Josa.fixQuoteParticles(p.path("body").asText());
         List<Citation> citations = new ArrayList<>();
         p.path("citations").forEach(c -> citations.add(new Citation(c.path("entryId").asText(), c.path("memberId").asText(),
                 matchBody(body, c.path("exactQuote").asText()))));

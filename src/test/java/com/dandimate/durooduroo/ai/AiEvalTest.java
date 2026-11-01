@@ -172,7 +172,7 @@ class AiEvalTest {
         assertThat(before).as("인용 '%s' 앞에 말한 사람(%s)이 없다: %s", quote, nickname, body).contains(nickname);
     }
 
-    private static Stream<Named<JsonNode>> fixture(String name) {
+    static Stream<Named<JsonNode>> fixture(String name) {
         try (var in = AiEvalTest.class.getResourceAsStream("/ai-eval/" + name);
              var reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             List<Named<JsonNode>> cases = new ArrayList<>();
@@ -187,23 +187,23 @@ class AiEvalTest {
         }
     }
 
-    private static Map<String, String> names(JsonNode members) {
+    static Map<String, String> names(JsonNode members) {
         Map<String, String> names = new HashMap<>();
         members.forEach(m -> names.put(m.get(0).asText(), m.get(1).asText()));
         return names;
     }
 
-    private static List<MemberInput> members(JsonNode members) {
+    static List<MemberInput> members(JsonNode members) {
         return StreamSupport.stream(members.spliterator(), false).map(m -> new MemberInput(m.get(0).asText(), m.get(1).asText(), List.of())).toList();
     }
 
-    private static List<EntryInput> entries(JsonNode entries, Map<String, String> names) {
+    static List<EntryInput> entries(JsonNode entries, Map<String, String> names) {
         return StreamSupport.stream(entries.spliterator(), false)
                 .map(e -> new EntryInput(e.get(0).asText(), e.get(1).asText(), names.getOrDefault(e.get(1).asText(), e.get(1).asText()), e.get(2).asText(), e.get(3).asText()))
                 .toList();
     }
 
-    private static List<String> strings(JsonNode array) {
+    static List<String> strings(JsonNode array) {
         return StreamSupport.stream(array.spliterator(), false).map(JsonNode::asText).toList();
     }
 }

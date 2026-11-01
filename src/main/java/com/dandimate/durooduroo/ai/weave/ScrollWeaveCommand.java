@@ -15,7 +15,13 @@ public record ScrollWeaveCommand(RoomInput room, List<OrderedSceneCard> sceneCar
         }
     }
 
-    public record OrderedSceneCard(int displayOrder, SceneCardResult card) {}
+    /** photoScene은 사진을 실제로 보고 만든 장면 카드일 때만 card.what을 담는다(사진이 없으면 null). 문단 첫머리 장면 묘사에만 쓴다. */
+    public record OrderedSceneCard(int displayOrder, SceneCardResult card, String photoScene) {
+
+        public OrderedSceneCard(int displayOrder, SceneCardResult card) {
+            this(displayOrder, card, null);
+        }
+    }
 
     public record SourceEntry(String photoId, String memberId, String nickname, String transcript) {}
 }

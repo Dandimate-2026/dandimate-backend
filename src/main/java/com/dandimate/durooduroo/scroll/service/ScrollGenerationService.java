@@ -10,7 +10,6 @@ package com.dandimate.durooduroo.scroll.service;
 
 import com.dandimate.durooduroo.ai.common.AiInputs.Citation;
 import com.dandimate.durooduroo.ai.common.AiInputs.EntryInput;
-import com.dandimate.durooduroo.ai.common.AiInputs.ImageInput;
 import com.dandimate.durooduroo.ai.common.AiInputs.PhotoInput;
 import com.dandimate.durooduroo.ai.scene.SceneCardAiService;
 import com.dandimate.durooduroo.ai.scene.SceneCardCommand;
@@ -24,6 +23,7 @@ import com.dandimate.durooduroo.memory.domain.MemoryEntry;
 import com.dandimate.durooduroo.memory.repository.MemoryEntryRepository;
 import com.dandimate.durooduroo.photo.domain.Photo;
 import com.dandimate.durooduroo.photo.repository.PhotoRepository;
+import com.dandimate.durooduroo.photo.service.PhotoImageLoader;
 import com.dandimate.durooduroo.room.domain.Room;
 import com.dandimate.durooduroo.room.repository.RoomRepository;
 import com.dandimate.durooduroo.scroll.domain.Paragraph;
@@ -34,7 +34,6 @@ import com.dandimate.durooduroo.scroll.repository.ParagraphRepository;
 import com.dandimate.durooduroo.scroll.repository.ParagraphSourceRepository;
 import com.dandimate.durooduroo.scroll.repository.ParagraphVersionRepository;
 import com.dandimate.durooduroo.scroll.repository.ScrollRepository;
-import com.dandimate.durooduroo.storage.ObjectStorage;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -50,7 +49,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,13 +70,12 @@ public class ScrollGenerationService {
     private final SceneCardAiService sceneCards;
     private final ScrollWeaveAiService weaver;
     private final ParagraphVersionRepository versions;
-    private final ObjectStorage storage;
-    private final boolean sendPhotos;
+    private final PhotoImageLoader images;
 
     public ScrollGenerationService(RoomRepository rooms, MemoryEntryRepository entries, ScrollRepository scrolls, ParagraphRepository paragraphs,
                                    ParagraphSourceRepository sources, PhotoRepository photos, MemberRepository members,
                                    SceneCardAiService sceneCards, ScrollWeaveAiService weaver, ParagraphVersionRepository versions,
-                                   ObjectStorage storage, @Value("${app.ai.send-photos:true}") boolean sendPhotos) {
+                                   PhotoImageLoader images) {
         this.rooms = rooms;
         this.entries = entries;
         this.scrolls = scrolls;
@@ -89,8 +86,7 @@ public class ScrollGenerationService {
         this.sceneCards = sceneCards;
         this.weaver = weaver;
         this.versions = versions;
-        this.storage = storage;
-        this.sendPhotos = sendPhotos;
+        this.images = images;
     }
 
     public record Plan(String roomId, String roomName, String meetingDate, List<PhotoPlan> photos, Map<String, Member> members) {
@@ -139,12 +135,14 @@ public class ScrollGenerationService {
                     roomMembers.get(e.getMemberId()).getNickname(), e.getKind().name(), e.getTranscript())).toList();
             photo.entries().forEach(e -> sourceEntries.put(e.getId(), new ScrollWeaveCommand.SourceEntry(photo.photo().getId(), e.getMemberId(),
                     roomMembers.get(e.getMemberId()).getNickname(), e.getTranscript())));
-            commands.put(photo.photo().getId(), new SceneCardCommand(new PhotoInput(photo.photo().getId(), photo.photo().getMemberId(), null), inputs, image(photo.photo())));
+            commands.put(photo.photo().getId(), new SceneCardCommand(new PhotoInput(photo.photo().getId(), photo.photo().getMemberId(), null), inputs, images == null ? null : images.forAi(photo.photo())));
         }
         Map<String, ScrollWeaveCommand.OrderedSceneCard> cards = new LinkedHashMap<>();
         Map<String, SceneCardResult> extracted = extractAll(commands);
         for (PhotoPlan photo : withEntries) {
-            cards.put(photo.photo().getId(), new ScrollWeaveCommand.OrderedSceneCard(photo.displayOrder(), extracted.get(photo.photo().getId())));
+            SceneCardResult card = extracted.get(photo.photo().getId());
+            String photoScene = commands.get(photo.photo().getId()).image() == null ? null : card.what();
+            cards.put(photo.photo().getId(), new ScrollWeaveCommand.OrderedSceneCard(photo.displayOrder(), card, photoScene));
         }
         Map<String, WovenParagraph> woven = withEntries.isEmpty() ? Map.of()
                 : weaver.weave(new ScrollWeaveCommand(room, List.copyOf(cards.values()), sourceEntries)).paragraphs().stream()
@@ -191,19 +189,6 @@ public class ScrollGenerationService {
             throw new IllegalStateException(e);
         } finally {
             pool.shutdownNow();
-        }
-    }
-
-    /** 장면 카드에 함께 보낼 사진(HEIC는 JPEG 파생본). 끄거나 읽지 못하면 null이고 원문만으로 만든다. */
-    private ImageInput image(Photo photo) {
-        if (!sendPhotos || storage == null) return null;
-        String contentType = photo.getDisplayLocation().equals(photo.getFileUrl()) ? photo.getContentType() : "image/jpeg";
-        if (!contentType.equals("image/jpeg") && !contentType.equals("image/png")) return null;
-        try {
-            return storage.read(photo.getDisplayLocation()).map(bytes -> new ImageInput(contentType, bytes)).orElse(null);
-        } catch (RuntimeException e) {
-            log.warn("Could not read photo {} for scene card; continuing without image", photo.getId());
-            return null;
         }
     }
 
