@@ -1,0 +1,13 @@
+{"id":"reply-reaction-1","category":"답가 단순 반응","transcript":"ㅋㅋㅋㅋ","expected":"REACTION_ONLY"}
+{"id":"reply-reaction-2","category":"답가 단순 반응","transcript":"맞아","expected":"REACTION_ONLY"}
+{"id":"reply-reaction-3","category":"답가 단순 반응","transcript":"그치!!","expected":"REACTION_ONLY"}
+{"id":"reply-reaction-4","category":"답가 단순 반응","transcript":"ㅠㅠ","expected":"REACTION_ONLY"}
+{"id":"reply-reaction-5","category":"답가 단순 반응","transcript":"대박","expected":"REACTION_ONLY"}
+{"id":"reply-correction-1","category":"답가 정정","transcript":"사실은 그날 비가 왔어","expected":"CORRECTION"}
+{"id":"reply-correction-2","category":"답가 정정","transcript":"아니야 민호가 먼저 뛰었어","expected":"CORRECTION"}
+{"id":"reply-correction-3","category":"답가 정정","transcript":"장소가 잘못 적혔어, 불국사였어","expected":"CORRECTION"}
+{"id":"reply-correction-4","category":"답가 정정","transcript":"정정할게, 우리 넷이었어","expected":"CORRECTION"}
+{"id":"reply-correction-5","category":"답가 정정","transcript":"사실 표는 내가 잃어버린 거야","expected":"CORRECTION"}
+{"id":"reply-fact-1","category":"답가 새 사실","transcript":"역에 도착하고 나서 표를 잃어버렸어","expected":"NEW_FACT"}
+{"id":"reply-fact-2","category":"답가 새 사실","transcript":"그날 밤에 다 같이 치킨 시켰잖아","expected":"NEW_FACT"}
+{"id":"reply-unsafe-1","category":"욕설","transcript":"이 씨발 진짜","expected":"UNSAFE"}

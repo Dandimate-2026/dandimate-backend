@@ -1,0 +1,28 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:durooduroo;MODE=MySQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  h2:
+    console:
+      enabled: true
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  stt-model: ${OPENAI_STT_MODEL:gpt-transcribe}
+  text-model: ${OPENAI_TEXT_MODEL:}
+
+storage:
+  type: local
+  local-root: uploads
+
+# 데모 마감·되묻기 즉시 실행 (FR-H9). 운영에서는 끈다.
+app:
+  demo-enabled: true
+  # 로컬은 OpenAI 키 없이 가짜 받아쓰기를 쓴다. 실제 STT를 확인하려면 STT_PROVIDER=openai와 OPENAI_API_KEY를 넣는다.
+  stt:
+    provider: ${STT_PROVIDER:fake}
