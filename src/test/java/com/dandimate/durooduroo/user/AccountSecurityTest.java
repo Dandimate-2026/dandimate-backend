@@ -52,6 +52,37 @@ class AccountSecurityTest {
         mvc.perform(get("/api/v1/users/me").header("Authorization","Bearer old-token")).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/v1/rooms").with(csrf())).andExpect(status().isUnauthorized());
     }
+    @Test void planCatalogIsPublicButDoesNotAuthenticateOrEnableUnpaidRooms() throws Exception {
+        mvc.perform(get("/api/v1/plans"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()").value(3))
+            .andExpect(jsonPath("$.data[*].planType").value(org.hamcrest.Matchers.contains("FREE", "LITE", "PRO")))
+            .andExpect(jsonPath("$.data[*].price").value(org.hamcrest.Matchers.contains(0, 2900, 5900)))
+            .andExpect(jsonPath("$.data[*].currency").value(org.hamcrest.Matchers.contains("KRW", "KRW", "KRW")))
+            .andExpect(jsonPath("$.data[*].billingUnit").value(org.hamcrest.Matchers.contains("ROOM", "ROOM", "ROOM")))
+            .andExpect(jsonPath("$.data[*].maxCapacity").value(org.hamcrest.Matchers.contains(8, 8, 8)))
+            .andExpect(jsonPath("$.data[*].photosPerMember").value(org.hamcrest.Matchers.contains(3, 6, 10)))
+            .andExpect(jsonPath("$.data[*].photosPerRoom").value(org.hamcrest.Matchers.contains(24, 48, 80)))
+            .andExpect(jsonPath("$.data[*].firstMaxSeconds").value(org.hamcrest.Matchers.contains(30, 60, 120)))
+            .andExpect(jsonPath("$.data[*].otherMaxSeconds").value(org.hamcrest.Matchers.contains(20, 30, 60)))
+            .andExpect(jsonPath("$.data[*].voiceLimitMs").value(org.hamcrest.Matchers.contains(900000, 2400000, 5400000)))
+            .andExpect(jsonPath("$.data[*].regenerationLimit").value(org.hamcrest.Matchers.contains(3, 6, 12)))
+            .andExpect(jsonPath("$.data[0].roomCreationAvailable").value(true))
+            .andExpect(jsonPath("$.data[0].paymentRequired").value(false))
+            .andExpect(jsonPath("$.data[1].roomCreationAvailable").value(false))
+            .andExpect(jsonPath("$.data[2].roomCreationAvailable").value(false))
+            .andExpect(jsonPath("$.data[1].unavailableReason").value("PAYMENT_NOT_CONFIGURED"))
+            .andExpect(jsonPath("$.data[2].paymentRequired").value(true));
+        mvc.perform(get("/api/v1/users/me")).andExpect(status().isUnauthorized());
+        MockHttpSession loggedIn = session(account());
+        for (String plan : java.util.List.of("LITE", "PRO")) {
+            mvc.perform(post("/api/v1/rooms").session(loggedIn).with(csrf())
+                .header("Idempotency-Key", UUID.randomUUID().toString()).contentType("application/json")
+                .content("{\"name\":\"플랜 테스트\",\"meetingDate\":\"2026-11-03\",\"hostNickname\":\"서연\",\"planType\":\""+plan+"\","+CONSENT+"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.error.code").value("PAYMENT_NOT_CONFIGURED"));
+        }
+    }
     @Test void sessionRequiresCsrfAndLogoutInvalidatesIt() throws Exception {
         MockHttpSession s=session(account());
         mvc.perform(get("/api/v1/users/me").session(s)).andExpect(status().isOk());

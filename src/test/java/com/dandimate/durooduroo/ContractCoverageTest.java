@@ -60,6 +60,7 @@ class ContractCoverageTest {
 
     @Test
     void 모든_operation의_상태_코드와_응답_본문이_계약서와_맞는다() throws Exception {
+        check("GET", "/plans", mockMvc.perform(get("/api/v1/plans")), 200);
         // 방·초대
         check("POST", "/rooms", json(post("/api/v1/rooms"), null, "{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"서연\",\"consent\":{\"version\":\"v1\",\"terms\":false,\"mediaProcessing\":true,\"externalAiProcessing\":true}}"), 400);
         String room = check("POST", "/rooms", json(post("/api/v1/rooms"), null, "{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"서연\"," + CONSENT + "}"), 201);

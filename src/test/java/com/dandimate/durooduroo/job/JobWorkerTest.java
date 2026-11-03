@@ -63,7 +63,9 @@ class JobWorkerTest {
 
         assertThat(worker.runNext()).isTrue();               // 1회차 실패 → 즉시 재시도 대기
         assertThat(job(queued).getStatus()).isEqualTo("QUEUED");
-        assertThat(worker.runNext()).isTrue();               // 2회차 실패 → 60초 뒤 재시도
+        // DB timestamp 반올림 때문에 즉시 재시도 시각이 수 µs 앞설 수 있다.
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(2))
+                .pollInterval(java.time.Duration.ofMillis(10)).until(worker::runNext); // 2회차 실패 → 60초 뒤 재시도
         assertThat(job(queued).getNextRunAt()).isAfter(LocalDateTime.now().plusSeconds(50));
         assertThat(worker.runNext()).isFalse();              // 아직 시각이 안 됨
 
