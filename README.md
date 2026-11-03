@@ -51,34 +51,29 @@ src/main/java/com/dandimate/durooduroo/
 
 ```bash
 cp .env.example .env            # 값 채우기
-set -a; source .env; set +a
 docker compose up -d            # MySQL 8.4, MinIO
-./gradlew bootRun --args='--spring.profiles.active=mysql'
+# .env의 MYSQL_URL에 &가 있어 source 대신 env로 넘긴다
+env $(grep -v '^#' .env | grep . | xargs) ./gradlew bootRun --args='--spring.profiles.active=mysql'
 ```
+
+- 테이블은 Flyway가 `src/main/resources/db/migration/V*.sql`로 만들고, Hibernate는 엔티티와 맞는지만 검사합니다(`validate`).
+  엔티티를 바꾸면 `V2__설명.sql`처럼 새 파일을 추가하세요. 예전에 `update`로 만든 DB는 처음 켤 때 V1로 표시(baseline)하고 이어서 진행합니다.
 
 - `STORAGE_TYPE=s3`, `AWS_S3_ENDPOINT=http://localhost:9000`, `AWS_S3_BUCKET=durooduroo`로 두고 MinIO 콘솔(`http://localhost:9001`)에서 버킷을 한 번 만듭니다.
 - 데모 마감을 쓰려면 `DEMO_ENABLED=true`, 키 없이 음성을 쓰려면 `STT_PROVIDER=fake`.
-- 이미 만든 MySQL DB에서 `paragraphs.body`·`scrolls.body`·`paragraph_versions.body`가 `TINYTEXT`면 `MEDIUMTEXT`로 바꾸거나 DB를 다시 만드세요.
+- 이미 만든 MySQL DB에서 `paragraphs.body`·`scrolls.body`·`paragraph_versions.body`가 `TINYTEXT`면 `MEDIUMTEXT`로 바꾸거나 DB를 다시 만드세요(그대로 두면 `validate`가 실패합니다).
 
 ## 운영 배포
 
-이미지: `Dockerfile` (JRE 21 + ffprobe + heif-convert, 비루트 사용자). `.github/workflows/cd.yml`이 main 푸시 시 GHCR에 올리고 EC2에서 컨테이너를 교체합니다.
+**AWS 무료 등급 기준으로 EC2 한 대에 백엔드와 MySQL을 같이 올리고, 사진·음성·DB 백업은 S3에 둡니다.**
+AWS 콘솔 설정 순서, 서버 준비, GitHub Secrets, 백업·복원은 [`deploy/README.md`](deploy/README.md)에 있습니다.
 
-서버의 `.env`(CD는 `/home/ubuntu/durooduroo/.env`를 씁니다)에 둘 값:
+- 이미지: `Dockerfile` (JRE 21 + ffprobe + heif-convert, 비루트 사용자)
+- `.github/workflows/cd.yml`: main 푸시 → 테스트 → GHCR 이미지 → `deploy/` 파일을 EC2에 복사 → `docker compose -f docker-compose.prod.yml up -d`
+- `.github/workflows/ci.yml`: 전체 테스트 + MySQL 8.4에서 Flyway·`validate` 검사
+- 서버 `.env`: [`deploy/.env.production.example`](deploy/.env.production.example) (DB 주소는 compose가 정하므로 넣지 않습니다)
 
-| 변수 | 운영 값 |
-|---|---|
-| `SPRING_PROFILES_ACTIVE` | `mysql` (이미지 기본값) |
-| `MYSQL_URL`·`MYSQL_USERNAME`·`MYSQL_PASSWORD` | TLS 연결 URL (`sslMode=REQUIRED`, `useSSL=false` 금지) |
-| `JPA_DDL_AUTO` | `validate` 권장 (스키마 변경은 마이그레이션으로) |
-| `STORAGE_TYPE`·`AWS_REGION`·`AWS_S3_BUCKET` | `s3`. 자격 증명은 EC2 IAM 역할 또는 `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` |
-| `MEDIA_SIGNING_SECRET` | 로컬 저장소를 쓸 때만 필요(32자 이상 무작위) |
-| `DEMO_ENABLED` | `false` |
-| `SWAGGER_ENABLED` | 공개 여부에 맞게 |
-| `STT_PROVIDER`·`AI_PROVIDER` | `openai` |
-| `OPENAI_API_KEY`·`OPENAI_STT_MODEL`·`OPENAI_TEXT_MODEL` | 서버 비밀값. 프론트·Git에 두지 않는다 |
-
-`mysql` 프로필로 시작하면 위험한 설정(데모 켜짐, 가짜 STT, TLS 없는 DB 등)을 `[운영 설정 점검]` 경고 로그로 알려 줍니다.
+`mysql` 프로필로 시작하면 위험한 설정(데모 켜짐, 가짜 STT, 다른 서버 DB에 TLS 없이 연결 등)을 `[운영 설정 점검]` 경고 로그로 알려 줍니다.
 
 nginx(프론트와 같은 서버)에서 `/api`를 백엔드로 넘길 때:
 
@@ -107,9 +102,12 @@ SSE 허브는 서버 한 대 기준입니다. 여러 대로 늘리면 Redis pub/
 2. `AI_PROVIDER=openai`, `STT_PROVIDER=openai`로 바꾼다. 둘은 따로 켤 수 있다.
 3. 평가셋을 OpenAI 구현으로 돌린다: `AI_PROVIDER=openai OPENAI_API_KEY=... OPENAI_TEXT_MODEL=... ./gradlew test --tests '*AiEvalTest'`
    (`src/test/resources/ai-eval/*.jsonl` 35건. 인용 정확도·없는 ID·60자·기존 인용 유지 등 자동 판정)
-4. 프롬프트는 `src/main/resources/prompts/{askback,scene-card,weave,reply-classify,reweave}-v1.md`. 바꿀 때는 새 버전 파일을 만들고 평가 결과를 PR에 첨부한다.
-5. 장면 카드에 사진도 보내려면 OpenAI가 열 수 있는 S3 서명 URL을 `PhotoInput.imageUrl`에 넣고 `input_image`를 추가한다(현재는 원문 텍스트만 보낸다).
-6. 대표 음성 30건 회귀 평가(명세 5장)는 실제 녹음 샘플이 필요해 아직 없다.
+4. 프롬프트는 `src/main/resources/prompts/reply-classify-v1.md`, `{askback,scene-card,reweave}-v2.md`, `weave-v3.md`. 바꿀 때는 새 버전 파일을 만들고 평가 결과를 PR에 첨부한다.
+5. 장면 카드와 되묻기에는 사진도 함께 보낸다(`AI_SEND_PHOTOS=true` 기본, 저장소에서 읽어 data URL·`detail=low`로 전송, HEIC는 JPEG 파생본). 사진에서는 보이는 장면만 쓰고 이름·이유는 원문에서만 가져온다. 끄면 원문만 보낸다.
+   사진을 보고 만든 장면은 엮기 입력의 `photoScene`으로만 넘어가 문단 첫머리 장면 묘사에 쓰인다.
+6. 품질 채점(LLM judge): `AI_PROVIDER=openai ... ./gradlew test --tests '*AiJudgeEvalTest'` → `build/reports/ai-judge/report.md`.
+   기준은 되묻기 "답할 가치가 있는 질문" 80% 이상, 문단 지어낸 사실 0건·종합 평균 3.5 이상. 기본 CI에서는 건너뛴다.
+7. 대표 음성 30건 회귀 평가(명세 5장)는 실제 녹음 샘플이 필요해 아직 없다.
 
 
 ## 카카오 로그인과 사용자별 방 관리
@@ -158,7 +156,7 @@ SSE 허브는 서버 한 대 기준입니다. 여러 대로 늘리면 Redis pub/
 
 ### 기존 DB와 검증 범위
 
-- 기존 MySQL에는 `docs/sql/20261031_kakao_accounts.sql` 변경을 **검토 후 1회** 적용하고 `JPA_DDL_AUTO=validate`로 검증한다. 이 파일은 자동 실행되지 않는다. 로컬 H2는 JPA가 새 구조를 만든다.
+- 테이블 변경은 Flyway `V2__kakao_accounts.sql`, `V3__room_plans.sql`(`src/main/resources/db/migration`)로 서버가 켜질 때 자동 적용된다. 손으로 SQL을 실행하지 않는다. 로컬 H2는 JPA가 새 구조를 만든다.
 - 기존 익명 참가자의 `user_id`는 NULL로 남긴다. 닉네임만으로 계정을 자동 연결하지 않는다. 기존 데이터가 필요한 운영 환경은 소유권 확인을 포함한 별도 이전 작업이 필요하다. 이번 변경은 기존 행을 삭제하지 않는다.
 - 기존 업무 회귀 테스트는 테스트 전용 `LegacyWorkflowSecurity`로 이전 참가자 토큰 시나리오를 유지한다. 이 설정은 운영 빌드에 포함되지 않는다.
 - `AccountSecurityTest`는 실제 보안 필터를 사용해 세션/CSRF, 비참여자·방장 권한, 중복 입장, 계정별 멱등성, 사진·음성·두루마리 흐름을 검증한다.

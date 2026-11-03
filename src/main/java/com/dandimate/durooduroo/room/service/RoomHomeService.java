@@ -1,7 +1,7 @@
 /**
  * 방 홈 화면 상태를 계산한다 (명세 1장 방 홈, FR-A9·A10·D5).
  * - photoCount: 올린 사진 수, storyCount: 남긴 이야기(FIRST·ADDON) 수
- * - responseRate: 그 참여자가 올린 노출 사진에 다른 참여자가 덧붙임·패스로 응답한 비율
+ * - responseRate: 그 참여자가 다른 참여자의 노출 사진 중 덧붙임·패스로 응답한 비율 (응답할 사진이 없으면 0)
  * - todayFlowers: 오늘(서버 시간 기준) 확정된 이야기 하나당 꽃 하나, 확정 순서대로
  * - myTodo: 첫 한마디가 필요한 내 사진이 있는지, 응답하지 않은 타인 사진 수, 미응답 되묻기 하나(미룬 적 없는 것 먼저)
  * - allCompleted: 노출된 사진이 있고, 모든 참여자가 모든 타인 사진에 덧붙임 또는 패스를 남겼는지 (되묻기 답은 제외)
@@ -67,7 +67,7 @@ public class RoomHomeService {
         List<MemoryEntry> roomEntries = entries.findAllByRoomIdOrderByCreatedAtAsc(roomId);
         Set<String> responded = responded(roomId, roomEntries);
 
-        List<RoomHomeView.MemberStats> stats = roomMembers.stream().map(m -> stats(m, roomMembers, roomPhotos, published, roomEntries, responded)).toList();
+        List<RoomHomeView.MemberStats> stats = roomMembers.stream().map(m -> stats(m, roomPhotos, published, roomEntries, responded)).toList();
         RoomHomeView.MemberStats myStats = stats.stream().filter(s -> s.id().equals(me.getId())).findFirst().orElseThrow();
 
         LocalDate today = LocalDate.now();
@@ -113,16 +113,14 @@ public class RoomHomeService {
                 .allMatch(p -> responded.contains(p.getId() + ":" + m.getId())));
     }
 
-    private RoomHomeView.MemberStats stats(Member member, List<Member> roomMembers, List<Photo> roomPhotos, List<Photo> published,
+    private RoomHomeView.MemberStats stats(Member member, List<Photo> roomPhotos, List<Photo> published,
                                            List<MemoryEntry> roomEntries, Set<String> responded) {
         int photoCount = (int) roomPhotos.stream().filter(p -> p.getMemberId().equals(member.getId())).count();
         int storyCount = (int) roomEntries.stream()
                 .filter(e -> e.getMemberId().equals(member.getId()) && (e.getKind() == EntryKind.FIRST || e.getKind() == EntryKind.ADDON)).count();
-        List<Photo> myPublished = published.stream().filter(p -> p.getMemberId().equals(member.getId())).toList();
-        List<Member> others = roomMembers.stream().filter(m -> !m.getId().equals(member.getId())).toList();
-        int possible = myPublished.size() * others.size();
-        long answered = myPublished.stream().mapToLong(p -> others.stream().filter(o -> responded.contains(p.getId() + ":" + o.getId())).count()).sum();
-        double responseRate = possible == 0 ? 0.0 : (double) answered / possible;
+        List<Photo> othersPublished = published.stream().filter(p -> !p.getMemberId().equals(member.getId())).toList();
+        long answered = othersPublished.stream().filter(p -> responded.contains(p.getId() + ":" + member.getId())).count();
+        double responseRate = othersPublished.isEmpty() ? 0.0 : (double) answered / othersPublished.size();
         return new RoomHomeView.MemberStats(member.getId(), member.getNickname(), member.getRole().name(), member.getFlowerCode().name(),
                 photoCount, storyCount, responseRate);
     }

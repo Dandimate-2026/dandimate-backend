@@ -32,6 +32,8 @@ public class SecurityConfig {
                 "/api/v1/rooms/*/events", "/api/v1/photos/*/image", "/api/v1/entries/*/audio").permitAll()
             .requestMatchers(HttpMethod.PUT, "/api/v1/photos/*/upload").permitAll()
             .requestMatchers("/swagger-ui.html", "/openapi/**", "/webjars/**", "/oauth2/**", "/login/**", "/error").permitAll()
+            // 로컬 데모 페이지. 운영(app.demo-enabled=false)에서는 DemoPageFilter가 404로 막는다.
+            .requestMatchers(HttpMethod.GET, "/demo.html", "/play.html").permitAll()
             .anyRequest().authenticated())
             .requestCache(c -> c.disable())
             .exceptionHandling(e -> e

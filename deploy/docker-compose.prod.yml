@@ -1,0 +1,48 @@
+# 운영(EC2 한 대): 백엔드 + MySQL. 서버의 /home/ubuntu/durooduroo/ 에 이 파일, mysql/, .env 를 둔다.
+# CD가 이 폴더를 복사하고 BACKEND_IMAGE를 바꿔 `docker compose -f docker-compose.prod.yml up -d` 한다.
+# 무료 등급(메모리 1GB)에 맞춰 MySQL과 JVM 메모리를 줄였다. 서버에 스왑 2GB를 꼭 켠다(deploy/README.md).
+name: durooduroo
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: durooduroo-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: durooduroo
+      MYSQL_USER: ${MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Seoul
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/low-memory.cnf:/etc/mysql/conf.d/low-memory.cnf:ro
+    # 포트를 열지 않는다: 백엔드 컨테이너만 같은 네트워크에서 mysql:3306 으로 접속한다.
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    mem_limit: 450m
+
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/dandimate-2026/dandimate-backend:latest}
+    container_name: durooduroo-backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      # 같은 서버 안의 연결이라 TLS 없이 붙는다(밖으로 나가지 않음).
+      MYSQL_URL: jdbc:mysql://mysql:3306/durooduroo?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      JAVA_OPTS: -Xms128m -Xmx320m -XX:MaxMetaspaceSize=160m -XX:+UseSerialGC
+    depends_on:
+      mysql:
+        condition: service_healthy
+    # nginx(같은 서버)만 접근한다. 외부 공개는 nginx가 맡는다.
+    ports:
+      - "127.0.0.1:8080:8080"
+    mem_limit: 600m
+
+volumes:
+  mysql-data:

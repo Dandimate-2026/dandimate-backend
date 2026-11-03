@@ -12,9 +12,11 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.dandimate.durooduroo.ai.askback.AskbackCommand;
 import com.dandimate.durooduroo.ai.common.AiFailure;
 import com.dandimate.durooduroo.ai.common.AiInputs.EntryInput;
+import com.dandimate.durooduroo.ai.common.AiInputs.ImageInput;
 import com.dandimate.durooduroo.ai.common.AiInputs.MemberInput;
 import com.dandimate.durooduroo.ai.common.AiInputs.PhotoInput;
 import com.dandimate.durooduroo.ai.reply.ReplyClassificationCommand;
+import com.dandimate.durooduroo.ai.scene.SceneCardCommand;
 import com.dandimate.durooduroo.ai.weave.ScrollWeaveCommand;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -60,7 +62,48 @@ class OpenAiProvidersTest {
         assertThat(result.evidenceEntryIds()).containsExactly("e1");
         assertThat(result.openaiRequestId()).isEqualTo("req_123");
         assertThat(result.model()).isEqualTo("test-model");
-        assertThat(result.promptVersion()).isEqualTo("askback-v1");
+        assertThat(result.promptVersion()).isEqualTo("askback-v2");
+    }
+
+    @Test
+    void 장면_카드는_사진을_input_image로_함께_보내고_JSON_입력에는_바이트를_넣지_않는다() throws Exception {
+        byte[] jpeg = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00};
+        server.expect(requestTo("https://api.openai.com/v1/responses"))
+                .andExpect(jsonPath("$.input[1].content[0].type").value("input_text"))
+                .andExpect(jsonPath("$.input[1].content[0].text").value(Matchers.not(Matchers.containsString("bytes"))))
+                .andExpect(jsonPath("$.input[1].content[1].type").value("input_image"))
+                .andExpect(jsonPath("$.input[1].content[1].image_url").value("data:image/jpeg;base64,/9j/AA=="))
+                .andExpect(jsonPath("$.input[1].content[1].detail").value("low"))
+                .andRespond(withSuccess(output(Map.of("what", "비 오는 날 우산 아래 네 사람", "whoMemberIds", List.of("m1"), "emotion", List.of("장난스러움"),
+                        "voices", List.of(Map.of("entryId", "e1", "memberId", "m1", "exactQuote", "다들 웃은 사진", "toneNote", "")),
+                        "conflict", "", "gap", "", "mustQuoteEntryId", "e1", "safety", Map.of("action", "ALLOW", "categories", List.of()))), MediaType.APPLICATION_JSON));
+
+        var card = new OpenAiSceneCardAiService(client).extract(new SceneCardCommand(new PhotoInput("p1", "m1", null),
+                List.of(new EntryInput("e1", "m1", "서연", "FIRST", "다들 웃은 사진")), new ImageInput("image/jpeg", jpeg)));
+
+        server.verify();
+        assertThat(card.what()).isEqualTo("비 오는 날 우산 아래 네 사람");
+        assertThat(card.promptVersion()).isEqualTo("scene-card-v2");
+    }
+
+    @Test
+    void 사진이_없으면_장면_카드는_텍스트만_보낸다() throws Exception {
+        server.expect(requestTo("https://api.openai.com/v1/responses"))
+                .andExpect(jsonPath("$.input[1].content.length()").value(1))
+                .andRespond(withSuccess(output(Map.of("what", "", "whoMemberIds", List.of(), "emotion", List.of(), "voices", List.of(),
+                        "conflict", "", "gap", "", "mustQuoteEntryId", "", "safety", Map.of("action", "ALLOW", "categories", List.of()))), MediaType.APPLICATION_JSON));
+
+        new OpenAiSceneCardAiService(client).extract(new SceneCardCommand(new PhotoInput("p1", "m1", null), List.of()));
+
+        server.verify();
+    }
+
+    @Test
+    void 본문이_인용_끝_마침표를_빼고_썼으면_인용도_본문에_맞춘다() {
+        String body = "민호는 '구름 때문에 해는 하나도 안 보였어'라고 웃었다.";
+        assertThat(OpenAiScrollWeaveAiService.matchBody(body, "구름 때문에 해는 하나도 안 보였어.")).isEqualTo("구름 때문에 해는 하나도 안 보였어");
+        assertThat(OpenAiScrollWeaveAiService.matchBody(body, "해는 하나도")).isEqualTo("해는 하나도");
+        assertThat(OpenAiScrollWeaveAiService.matchBody(body, "본문에 없는 말.")).isEqualTo("본문에 없는 말.");
     }
 
     @Test

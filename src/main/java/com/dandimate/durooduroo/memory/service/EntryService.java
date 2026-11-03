@@ -229,7 +229,7 @@ public class EntryService {
     private void requireLength(EntryKind kind, String transcript, String inputMode) {
         if (!kind.acceptsLength(transcript, inputMode)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                    "%s은(는) %d~%d자여야 해요.".formatted(kind == EntryKind.FIRST ? "첫 한마디" : "덧붙임", kind.minLength(), kind.maxLength(inputMode)));
+                    "%s %d~%d자여야 해요.".formatted(kind == EntryKind.FIRST ? "첫 한마디는" : "덧붙임은", kind.minLength(), kind.maxLength(inputMode)));
         }
     }
 }
