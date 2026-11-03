@@ -10,6 +10,16 @@
 | 방 전체 음성 총량(분) | 15 | 40 | 90 |
 | 재엮기 시도 횟수 | 3 | 6 | 12 |
 
+## 플랜 선택 화면
+
+`GET /api/v1/plans`는 로그인 없이 Free/Lite/Pro 순서의 목록을 반환한다.
+방 1개 기준 가격(`price`, KRW)은 Free 0원, Lite 2,900원, Pro 5,900원이며, 플랜별 제한은 `RoomPlan` 정책과 같은 값을 사용한다.
+프론트는 반환된 가격·한도로 카드를 표시하고 선택한 `planType`을 화면 상태에 보관한 뒤 방 생성 요청에 전달한다.
+플랜 선택만 저장하는 API나 테이블은 추가하지 않는다. 결제 주문·승인 및 방 생성은 별도 단계다.
+현재 유료 플랜은 `paymentRequired=true`, `roomCreationAvailable=false`, `unavailableReason=PAYMENT_NOT_CONFIGURED`다.
+Free의 `roomCreationAvailable=true`는 생성 기능이 제공된다는 뜻이며 실제 생성에는 로그인이 필요하다.
+음성 총량은 `voiceLimitMs`(밀리초), 개별 녹음 최대 길이는 `firstMaxSeconds`/`otherMaxSeconds`(초)로 반환한다.
+
 ## 방 생성 및 조회
 
 `POST /api/v1/rooms`에 `capacity`(1~8)를 추가한다. 생략하면 기존 요청과 호환되도록 8명으로 저장한다.

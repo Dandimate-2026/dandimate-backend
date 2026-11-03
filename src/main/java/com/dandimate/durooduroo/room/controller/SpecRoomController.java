@@ -35,7 +35,7 @@ public class SpecRoomController {
             throw new BusinessException("CONSENT_REQUIRED", e.getMessage());
         }
         // 유료 플랜은 결제 검증이 연결되기 전까지 생성하지 않는다. FREE로 대체하지 않는다.
-        if (request.planType() != com.dandimate.durooduroo.room.domain.RoomPlan.FREE) {
+        if (request.planType().requiresPayment()) {
             throw new BusinessException(com.dandimate.durooduroo.common.exception.ErrorCode.PAYMENT_NOT_CONFIGURED,
                     "유료 플랜 결제 기능이 아직 연결되지 않았습니다.");
         }

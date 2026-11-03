@@ -9,6 +9,7 @@ tags:
   - name: 인증
   - name: 사용자
   - name: 모임방
+  - name: 플랜
   - name: 사진
   - name: 한마디
   - name: 돌려보기
@@ -19,6 +20,29 @@ tags:
 security:
   - sessionCookie: []
 paths:
+  /plans:
+    get:
+      tags: [플랜]
+      summary: 방 생성 전 플랜 목록·가격·이용 한도 조회
+      description: >-
+        로그인 없이 FREE, LITE, PRO 순서로 반환합니다. 가격은 원(KRW) 단위이며 방 1개 기준입니다.
+        화면에서 선택한 planType은 POST /rooms에 전달합니다. 선택 자체를 저장하는 별도 API는 없습니다.
+        이 조회는 결제 주문을 생성하거나 유료 권한을 부여하지 않습니다.
+        현재 LITE/PRO는 결제 미연결로 roomCreationAvailable=false이며 방 생성 시 503 PAYMENT_NOT_CONFIGURED를 반환합니다.
+        FREE도 실제 방 생성에는 로그인이 필요합니다. 음성 시간 총량 단위는 밀리초입니다.
+      security: []
+      responses:
+        '200':
+          description: 플랜 카탈로그
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/PlanCatalogItem'}
   /oauth2/authorization/kakao:
     servers: [{url: /}]
     get:
@@ -969,6 +993,24 @@ components:
         photoCount: {type: integer, minimum: 0, maximum: 10}
         storyCount: {type: integer, minimum: 0}
         responseRate: {type: number, minimum: 0, maximum: 1}
+    PlanCatalogItem:
+      type: object
+      required: [planType, price, currency, billingUnit, paymentRequired, roomCreationAvailable, maxCapacity, photosPerMember, photosPerRoom, firstMaxSeconds, otherMaxSeconds, voiceLimitMs, regenerationLimit]
+      properties:
+        planType: {$ref: '#/components/schemas/RoomPlan'}
+        price: {type: integer, minimum: 0, description: "방 1개 가격. FREE 0 / LITE 2900 / PRO 5900원"}
+        currency: {type: string, const: KRW}
+        billingUnit: {type: string, const: ROOM, description: "계정 구독이 아닌 방 단위 요금"}
+        paymentRequired: {type: boolean, description: "유료 플랜 여부"}
+        roomCreationAvailable: {type: boolean, description: "현재 생성 지원 여부. true여도 방 생성에는 로그인 필요"}
+        unavailableReason: {type: [string, 'null'], enum: [PAYMENT_NOT_CONFIGURED, null], description: "유료 플랜은 결제 미연결, Free는 null"}
+        maxCapacity: {type: integer, const: 8, description: "방장 포함 선택 가능한 최대 정원"}
+        photosPerMember: {type: integer, description: "방별 멤버 사진 한도 3/6/10장"}
+        photosPerRoom: {type: integer, description: "방 전체 사진 한도 24/48/80장"}
+        firstMaxSeconds: {type: integer, description: "첫 한마디 최대 30/60/120초"}
+        otherMaxSeconds: {type: integer, description: "덧붙임·되묻기 답변·답가 최대 20/30/60초"}
+        voiceLimitMs: {type: integer, format: int64, description: "방 전체 음성 한도 900000/2400000/5400000ms (15/40/90분)"}
+        regenerationLimit: {type: integer, description: "재엮기 한도 3/6/12회"}
     RoomPlan:
       type: string
       enum: [FREE, LITE, PRO]
