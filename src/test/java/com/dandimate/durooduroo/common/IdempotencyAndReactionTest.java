@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+@org.springframework.context.annotation.Import(com.dandimate.durooduroo.support.LegacyWorkflowSecurity.class)
 @SpringBootTest(properties = {"storage.local-root=build/test-uploads", "app.jobs.poll-interval-ms=50"})
 @AutoConfigureMockMvc
 class IdempotencyAndReactionTest {
@@ -136,7 +137,7 @@ class IdempotencyAndReactionTest {
     }
 
     private String roomBody(String name) {
-        return "{\"name\":\"" + name + "\",\"meetingDate\":\"2026-10-24\",\"hostNickname\":\"서연\"," + CONSENT + "}";
+        return "{\"name\":\"" + name + "\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"서연\"," + CONSENT + "}";
     }
 
     private ResultActions json(MockHttpServletRequestBuilder request, String token, String content) throws Exception {

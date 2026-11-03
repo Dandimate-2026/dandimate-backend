@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface PhotoRepository extends JpaRepository<Photo, String> {
     Optional<Photo> findByRoomIdAndFileHash(String roomId, String fileHash);
     boolean existsByRoomIdAndMemberId(String roomId, String memberId);
+    long countByRoomId(String roomId);
     long countByRoomIdAndMemberId(String roomId, String memberId);
     List<Photo> findAllByRoomId(String roomId);
 }

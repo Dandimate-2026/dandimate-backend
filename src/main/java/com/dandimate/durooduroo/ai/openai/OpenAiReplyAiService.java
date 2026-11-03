@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 public class OpenAiReplyAiService implements ReplyAiService, ParagraphReweaveAiService {
 
     static final String CLASSIFY_PROMPT = "reply-classify-v1";
-    static final String REWEAVE_PROMPT = "reweave-v1";
+    static final String REWEAVE_PROMPT = "reweave-v2";
     private static final Map<String, Object> CLASSIFY_SCHEMA = object(ordered(
             "classification", enumOf("NEW_FACT", "CORRECTION", "REACTION_ONLY", "UNSAFE"), "confidence", number(), "reason", string()));
 

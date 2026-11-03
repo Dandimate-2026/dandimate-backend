@@ -40,7 +40,7 @@ public class TranscriptionDraft {
         TranscriptionDraft draft = new TranscriptionDraft();
         draft.id = id; draft.roomId = roomId; draft.memberId = memberId; draft.contextType = contextType; draft.contextId = contextId; draft.kind = kind;
         draft.audioAssetId = audioAssetId; draft.audioLocation = audioLocation; draft.transcript = transcript; draft.durationMs = durationMs;
-        draft.model = model; draft.openaiRequestId = openaiRequestId; draft.createdAt = LocalDateTime.now(); draft.expiresAt = draft.createdAt.plus(TTL);
+        draft.model = model; draft.openaiRequestId = openaiRequestId; draft.createdAt = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS); draft.expiresAt = draft.createdAt.plus(TTL);
         return draft;
     }
 

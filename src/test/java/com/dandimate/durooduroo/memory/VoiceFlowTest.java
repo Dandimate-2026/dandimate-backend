@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 /** 가짜 STT(local 프로필 기본값)로 음성 입력 흐름 전체를 확인한다. */
+@org.springframework.context.annotation.Import(com.dandimate.durooduroo.support.LegacyWorkflowSecurity.class)
 @SpringBootTest(properties = "storage.local-root=build/test-uploads")
 @AutoConfigureMockMvc
 class VoiceFlowTest {
@@ -33,7 +34,7 @@ class VoiceFlowTest {
     @Test
     void 녹음_받아쓰기_수정_확정까지_음성은_서버가_길이를_재고_초안은_한_번만_쓴다() throws Exception {
         String created = body(mockMvc.perform(post("/api/v1/rooms").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"hostNickname\":\"서연\"," + CONSENT + "}")));
+                .content("{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"서연\"," + CONSENT + "}")));
         String roomId = JsonPath.read(created, "$.data.room.id");
         String host = JsonPath.read(created, "$.data.memberAccessToken");
         String invite = JsonPath.read(created, "$.data.inviteToken");
@@ -41,7 +42,7 @@ class VoiceFlowTest {
                 .content("{\"nickname\":\"지수\"," + CONSENT + "}"))), "$.data.memberAccessToken");
         String photoId = uploadPhoto(roomId, host);
 
-        // 길이·형식 검증: 첫 한마디는 5~60초
+        // 길이·형식 검증: 첫 한마디는 5~30초
         transcribe(photoId, host, "FIRST", "audio/wav", VoiceSamples.wav(2)).andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error.code").value("MIN_DURATION_NOT_MET"));
         transcribe(photoId, host, "FIRST", "audio/wav", VoiceSamples.wav(61)).andExpect(status().isUnprocessableEntity())
@@ -74,14 +75,14 @@ class VoiceFlowTest {
         entry(photo2, host, "{\"kind\":\"FIRST\",\"inputMode\":\"VOICE\",\"transcriptionId\":\"no-such-draft-0000\",\"transcript\":\"두 번째 사진 이야기\"}")
                 .andExpect(status().isBadRequest());
 
-        // 덧붙임 음성은 1~30초
+        // 덧붙임 음성은 1~20초
         transcribe(photoId, other, "ADDON", "audio/wav", VoiceSamples.wav(31)).andExpect(status().isUnprocessableEntity());
         transcribe(photoId, other, "ADDON", "audio/wav", VoiceSamples.wav(3)).andExpect(status().isCreated());
     }
 
     private ResultActions transcribe(String photoId, String token, String kind, String contentType, byte[] bytes) throws Exception {
         return mockMvc.perform(multipart("/api/v1/photos/" + photoId + "/transcriptions")
-                .file(new MockMultipartFile("file", "voice.bin", contentType, bytes)).param("kind", kind)
+                .file(new MockMultipartFile("file", "voice.bin", contentType, bytes)).param("kind", kind).header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                 .header("Authorization", "Bearer " + token));
     }
 

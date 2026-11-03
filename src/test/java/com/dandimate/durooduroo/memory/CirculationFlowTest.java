@@ -18,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+@org.springframework.context.annotation.Import(com.dandimate.durooduroo.support.LegacyWorkflowSecurity.class)
 @SpringBootTest(properties = "storage.local-root=build/test-uploads")
 @AutoConfigureMockMvc
 class CirculationFlowTest {
@@ -30,7 +31,7 @@ class CirculationFlowTest {
 
     @Test
     void 응답하기_전에는_타인의_이야기가_응답_JSON에_없다() throws Exception {
-        String created = body(json(post("/api/v1/rooms"), null, "{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"hostNickname\":\"서연\"," + CONSENT + "}"));
+        String created = body(json(post("/api/v1/rooms"), null, "{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"서연\"," + CONSENT + "}"));
         String roomId = JsonPath.read(created, "$.data.room.id");
         String a = JsonPath.read(created, "$.data.memberAccessToken");
         String invite = JsonPath.read(created, "$.data.inviteToken");

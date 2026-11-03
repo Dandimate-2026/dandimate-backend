@@ -11,6 +11,6 @@ public record CreateEntryRequest(
         @NotNull EntryKind kind,
         @NotNull @Pattern(regexp = "VOICE|TEXT", message = "inputMode는 VOICE 또는 TEXT여야 합니다.") String inputMode,
         String transcriptionId,
-        @NotBlank @Size(max = 300) String transcript
+        @NotBlank @Size(max = 3000) String transcript
 ) {
 }

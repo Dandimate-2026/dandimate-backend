@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty(name = "app.ai.provider", havingValue = "openai")
 public class OpenAiScrollWeaveAiService implements ScrollWeaveAiService {
 
-    static final String PROMPT_VERSION = "weave-v1";
+    static final String PROMPT_VERSION = "weave-v3";
     static final Map<String, Object> PARAGRAPH = object(ordered("photoId", string(), "body", string(), "citations", array(citation()), "safety", safety()));
     private static final Map<String, Object> SCHEMA = object(ordered("paragraphs", array(PARAGRAPH)));
 
@@ -37,8 +37,19 @@ public class OpenAiScrollWeaveAiService implements ScrollWeaveAiService {
     }
 
     static ScrollWeaveResult.WovenParagraph paragraph(JsonNode p) {
+        String body = com.dandimate.durooduroo.ai.common.Josa.fixQuoteParticles(p.path("body").asText());
         List<Citation> citations = new ArrayList<>();
-        p.path("citations").forEach(c -> citations.add(new Citation(c.path("entryId").asText(), c.path("memberId").asText(), c.path("exactQuote").asText())));
-        return new ScrollWeaveResult.WovenParagraph(p.path("photoId").asText(), p.path("body").asText(), citations, OpenAiSceneCardAiService.toSafety(p.path("safety")));
+        p.path("citations").forEach(c -> citations.add(new Citation(c.path("entryId").asText(), c.path("memberId").asText(),
+                matchBody(body, c.path("exactQuote").asText()))));
+        return new ScrollWeaveResult.WovenParagraph(p.path("photoId").asText(), body, citations, OpenAiSceneCardAiService.toSafety(p.path("safety")));
+    }
+
+    /** 본문이 "…먹었어'라고"처럼 인용 끝 문장부호를 빼고 썼으면, 인용도 그만큼 줄여 본문과 글자 그대로 맞춘다(형광펜 표시용). */
+    static String matchBody(String body, String quote) {
+        String trimmed = quote;
+        while (!body.contains(trimmed) && !trimmed.isEmpty() && ".!?。…~".indexOf(trimmed.charAt(trimmed.length() - 1)) >= 0) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return body.contains(trimmed) && !trimmed.isBlank() ? trimmed : quote;
     }
 }

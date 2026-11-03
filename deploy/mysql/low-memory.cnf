@@ -1,0 +1,18 @@
+# 무료 등급 EC2(메모리 1GB)에서 백엔드와 같이 돌리기 위한 MySQL 설정. 사용자가 늘면 buffer pool부터 키운다.
+[mysqld]
+character-set-server = utf8mb4
+collation-server = utf8mb4_0900_ai_ci
+default-time-zone = '+09:00'
+
+innodb_buffer_pool_size = 128M
+innodb_log_buffer_size = 8M
+performance_schema = OFF
+max_connections = 40
+table_open_cache = 400
+thread_cache_size = 8
+tmp_table_size = 16M
+max_heap_table_size = 16M
+key_buffer_size = 8M
+
+# 바이너리 로그를 끈다: 복제를 쓰지 않고, 디스크(무료 30GB)를 아낀다. 복구는 매일 백업(backup-mysql.sh)으로 한다.
+skip-log-bin

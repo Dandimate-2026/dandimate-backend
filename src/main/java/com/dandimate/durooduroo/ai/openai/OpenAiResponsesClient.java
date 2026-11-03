@@ -64,14 +64,22 @@ public class OpenAiResponsesClient {
 
     /** schema는 JSON Schema(object). input은 command를 JSON으로 직렬화해 사용자 메시지로 보낸다. */
     public Result call(String promptVersion, String schemaName, Map<String, Object> schema, Object input) {
+        return call(promptVersion, schemaName, schema, input, List.of());
+    }
+
+    /** images는 data URL 목록이다. 사용자 메시지에 input_image(detail=low)로 붙인다. */
+    public Result call(String promptVersion, String schemaName, Map<String, Object> schema, Object input, List<String> images) {
         if (apiKey.isBlank() || model.isBlank()) throw new AiFailure(AiFailure.Code.NOT_CONFIGURED, false, "OPENAI_API_KEY 또는 OPENAI_TEXT_MODEL이 없습니다.");
         Map<String, Object> body;
         try {
+            List<Map<String, Object>> userContent = new java.util.ArrayList<>();
+            userContent.add(Map.of("type", "input_text", "text", json.writeValueAsString(input)));
+            images.forEach(image -> userContent.add(Map.of("type", "input_image", "image_url", image, "detail", "low")));
             body = Map.of(
                     "model", model,
                     "input", List.of(
                             Map.of("role", "system", "content", List.of(Map.of("type", "input_text", "text", prompt(promptVersion)))),
-                            Map.of("role", "user", "content", List.of(Map.of("type", "input_text", "text", json.writeValueAsString(input))))),
+                            Map.of("role", "user", "content", userContent)),
                     "text", Map.of("format", Map.of("type", "json_schema", "name", schemaName, "strict", true, "schema", schema)));
         } catch (IOException e) {
             throw new AiFailure(AiFailure.Code.INVALID_INPUT, false, "AI 입력을 만들지 못했습니다.");

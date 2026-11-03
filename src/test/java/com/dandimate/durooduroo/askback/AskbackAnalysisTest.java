@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 /** Worker를 직접 돌려 되묻기 분석의 대상·한도·검증 규칙을 확인한다. 다른 테스트의 Worker와 섞이지 않게 전용 DB를 쓴다. */
+@org.springframework.context.annotation.Import(com.dandimate.durooduroo.support.LegacyWorkflowSecurity.class)
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:askback-analysis-test;MODE=MySQL;DB_CLOSE_DELAY=-1",
         "storage.local-root=build/test-uploads",
@@ -104,7 +105,7 @@ class AskbackAnalysisTest {
 
     private Room room() throws Exception {
         String created = body(mockMvc.perform(post("/api/v1/rooms").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"hostNickname\":\"서연\"," + CONSENT + "}")));
+                .content("{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"서연\"," + CONSENT + "}")));
         String invite = JsonPath.read(created, "$.data.inviteToken");
         String joined = body(mockMvc.perform(post("/api/v1/invites/" + invite + "/join").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"nickname\":\"지수\"," + CONSENT + "}")));

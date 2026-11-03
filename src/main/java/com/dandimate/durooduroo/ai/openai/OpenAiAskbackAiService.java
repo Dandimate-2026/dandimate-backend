@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty(name = "app.ai.provider", havingValue = "openai")
 public class OpenAiAskbackAiService implements AskbackAiService {
 
-    static final String PROMPT_VERSION = "askback-v1";
+    static final String PROMPT_VERSION = "askback-v2";
     private static final java.util.Map<String, Object> SCHEMA = object(ordered(
             "shouldAsk", bool(),
             "gapType", nullableEnumOf("CONFLICT", "MISSING_REASON", "NO_ADDON", "MISSING_CONTEXT"),
@@ -34,7 +34,8 @@ public class OpenAiAskbackAiService implements AskbackAiService {
 
     @Override
     public AskbackResult analyze(AskbackCommand command) {
-        var result = client.call(PROMPT_VERSION, "askback_result", SCHEMA, command);
+        var result = client.call(PROMPT_VERSION, "askback_result", SCHEMA, command,
+                command.image() == null ? List.of() : List.of(command.image().dataUrl()));
         JsonNode out = result.output();
         return new AskbackResult("1.0", out.path("shouldAsk").asBoolean(false), text(out, "gapType"), out.path("confidence").asDouble(0),
                 text(out, "targetMemberId"), text(out, "question"), strings(out.path("evidenceEntryIds")), out.path("reason").asText(""),

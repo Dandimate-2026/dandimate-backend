@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+@org.springframework.context.annotation.Import(com.dandimate.durooduroo.support.LegacyWorkflowSecurity.class)
 @SpringBootTest(properties = {"storage.local-root=build/test-uploads", "app.jobs.poll-interval-ms=50"})
 @AutoConfigureMockMvc
 class RoomStateFlowTest {
@@ -30,7 +31,7 @@ class RoomStateFlowTest {
 
     @Test
     void 방은_모으기_돌려보기_엮기_자라기_순서로_전이되고_상태별로_쓰기를_막는다() throws Exception {
-        String created = body(perform(post("/api/v1/rooms"), "{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"hostNickname\":\"서연\"," + CONSENT + "}")
+        String created = body(perform(post("/api/v1/rooms"), "{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"서연\"," + CONSENT + "}")
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.room.status").value("COLLECTING"))
                 .andExpect(jsonPath("$.data.member.role").value("HOST")));
@@ -92,10 +93,10 @@ class RoomStateFlowTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("INVALID_ROOM_STATE"));
 
-        // 다시 엮기는 방장만, 방당 10회까지
+        // 다시 엮기는 방장만, Free 방당 3회까지
         mockMvc.perform(post("/api/v1/rooms/" + roomId + "/weave-jobs").header("Authorization", "Bearer " + member))
                 .andExpect(status().isForbidden());
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 3; i++) {
             String reweave = body(mockMvc.perform(post("/api/v1/rooms/" + roomId + "/weave-jobs").header("Authorization", "Bearer " + host))
                     .andExpect(status().isAccepted()));
             awaitJob(JsonPath.read(reweave, "$.data.job.id"), host, "SUCCEEDED");

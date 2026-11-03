@@ -2,7 +2,7 @@
  * 명세서 멱등성 규칙을 적용한다.
  * - 계약서에 Idempotency-Key가 필수인 POST 요청은 키가 없으면 400 VALIDATION_ERROR.
  * - 같은 사용자·경로·키로 24시간 안에 다시 오면 최초 응답(상태·본문)을 그대로 돌려준다.
- * - 인증 전 요청(방 생성·입장)은 사용자 대신 요청 본문 해시로 구분한다.
+ * - 세션 계정 ID로 요청을 구분한다. 기존 비인증 테스트만 본문/헤더 해시를 사용한다.
  * - 같은 키에 다른 본문이 오면 409 IDEMPOTENCY_KEY_REUSED. 아직 처리 중인 키도 409로 거절한다.
  * - 5xx 응답은 저장하지 않아 같은 키로 다시 시도할 수 있다.
  * multipart 요청은 컨테이너가 파트를 직접 읽어야 하므로 본문 대신 Content-Type·길이로 지문을 만든다.
@@ -40,7 +40,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE + 10)
+// Spring Security(-100) 이후 실행: 계정별 응답 격리 및 인증 전 재생 방지.
+@Order(-90)
 public class IdempotencyFilter extends OncePerRequestFilter {
 
     public static final String HEADER = "Idempotency-Key";
@@ -95,7 +96,8 @@ public class IdempotencyFilter extends OncePerRequestFilter {
                 : Tokens.hash(new String(((CachedBodyRequest) body).body, StandardCharsets.UTF_8));
         String requestHash = Tokens.hash(request.getMethod() + " " + path + " " + bodyHash);
         boolean anonymous = ANONYMOUS_PATTERNS.stream().anyMatch(p -> matcher.match(p, path));
-        String scope = anonymous ? "anonymous:" + bodyHash : Tokens.hash(String.valueOf(request.getHeader("Authorization")));
+        String userId = com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull();
+        String scope = userId != null ? "user:" + userId : anonymous ? "anonymous:" + bodyHash : Tokens.hash(String.valueOf(request.getHeader("Authorization")));
 
         Optional<IdempotencyRecord> existing = findLive(scope, request.getMethod(), path, key);
         if (existing.isPresent()) {

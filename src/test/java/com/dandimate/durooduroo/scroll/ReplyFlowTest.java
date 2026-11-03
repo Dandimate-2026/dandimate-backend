@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 /** 규칙 기반 AI로 답가 분류·부분 재엮기·삭제 복구·원문 삭제 복구를 확인한다. Worker는 직접 돌린다. */
+@org.springframework.context.annotation.Import(com.dandimate.durooduroo.support.LegacyWorkflowSecurity.class)
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:reply-flow-test;MODE=MySQL;DB_CLOSE_DELAY=-1",
         "storage.local-root=build/test-uploads",
@@ -41,7 +42,7 @@ class ReplyFlowTest {
 
     @Test
     void 반응은_본문에_넣지_않고_새_사실은_엮고_지우면_복구한다() throws Exception {
-        String created = body(json(post("/api/v1/rooms"), null, "{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"hostNickname\":\"서연\"," + CONSENT + "}"));
+        String created = body(json(post("/api/v1/rooms"), null, "{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"서연\"," + CONSENT + "}"));
         String roomId = JsonPath.read(created, "$.data.room.id");
         String host = JsonPath.read(created, "$.data.memberAccessToken");
         String invite = JsonPath.read(created, "$.data.inviteToken");
@@ -89,9 +90,12 @@ class ReplyFlowTest {
 
         // GROWING에서 원문을 지우면 문단을 다시 만든다
         mockMvc.perform(delete("/api/v1/entries/" + addon).header("Authorization", "Bearer " + member)).andExpect(status().isNoContent());
-        drain();
-        String rebuilt = scroll(roomId, host);
-        assertThat(JsonPath.<String>read(rebuilt, "$.data.paragraphs[0].body")).doesNotContain("다리가 풀리는 줄 알았어").contains("막차 놓쳐서 뛰었잖아");
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() -> {
+            drain();
+            String rebuilt = scroll(roomId, host);
+            assertThat(JsonPath.<String>read(rebuilt, "$.data.paragraphs[0].body"))
+                    .doesNotContain("다리가 풀리는 줄 알았어").contains("막차 놓쳐서 뛰었잖아");
+        });
         assertThat(versions.findAllByParagraphIdOrderByVersionAsc(paragraphId)).extracting(ParagraphVersion::getReason)
                 .containsExactly("INITIAL", "REPLY_ADDED", "REPLY_DELETED", "ENTRY_DELETED");
     }

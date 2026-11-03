@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /** openapi.yaml의 방 홈·Photo.imageUrl·되묻기·두루마리 응답을 실제 흐름으로 확인한다. */
+@org.springframework.context.annotation.Import(com.dandimate.durooduroo.support.LegacyWorkflowSecurity.class)
 @SpringBootTest(properties = {"storage.local-root=build/test-uploads", "app.jobs.poll-interval-ms=50"})
 @AutoConfigureMockMvc
 class ContractFlowTest {
@@ -34,7 +35,7 @@ class ContractFlowTest {
 
     @Test
     void 홈_사진주소_되묻기_두루마리가_계약서_형식을_따른다() throws Exception {
-        String created = body(json(post("/api/v1/rooms"), null, "{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"hostNickname\":\"서연\"," + CONSENT + "}"));
+        String created = body(json(post("/api/v1/rooms"), null, "{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"서연\"," + CONSENT + "}"));
         String roomId = JsonPath.read(created, "$.data.room.id");
         String a = JsonPath.read(created, "$.data.memberAccessToken");
         String invite = JsonPath.read(created, "$.data.inviteToken");
@@ -101,7 +102,9 @@ class ContractFlowTest {
         assertThat(JsonPath.<List<String>>read(unlocked, "$.data.cards[0].otherEntries[*].kind")).containsExactly("ASKBACK_ANSWER");
         mockMvc.perform(get("/api/v1/rooms/" + roomId).header("Authorization", "Bearer " + a))
                 .andExpect(jsonPath("$.data.allCompleted").value(true))
-                .andExpect(jsonPath("$.data.members[0].responseRate").value(1.0))
+                // 응답률은 그 사람이 친구 사진에 응답한 비율: 사진을 올린 A는 응답할 사진이 없어 0, 패스한 B는 1
+                .andExpect(jsonPath("$.data.members[0].responseRate").value(0.0))
+                .andExpect(jsonPath("$.data.members[1].responseRate").value(1.0))
                 .andExpect(jsonPath("$.data.members[0].photoCount").value(1))
                 .andExpect(jsonPath("$.data.members[0].storyCount").value(1));
 

@@ -28,6 +28,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
  * 스케줄 실행은 사실상 끄고(1시간 주기) Worker·스케줄러를 직접 호출해 재시도와 시각을 결정적으로 검증한다.
  * 다른 테스트 컨텍스트의 Worker가 같은 H2의 작업을 가져가지 않도록 전용 DB를 쓴다.
  */
+@org.springframework.context.annotation.Import(com.dandimate.durooduroo.support.LegacyWorkflowSecurity.class)
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:job-worker-test;MODE=MySQL;DB_CLOSE_DELAY=-1",
         "app.jobs.poll-interval-ms=3600000",
@@ -93,8 +94,11 @@ class JobWorkerTest {
 
         doCallRealMethod().when(paragraphs).weave(any());
         AiJob retry = weaveJobs.reweave(roomId);
-        worker.runNext();
-        assertThat(job(retry).getStatus()).isEqualTo("SUCCEEDED");
+        // 실패 알림 등 먼저 생성된 작업이 있을 수 있으므로 대상 작업의 완료까지 처리한다.
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() -> {
+            worker.runNext();
+            assertThat(job(retry).getStatus()).isEqualTo("SUCCEEDED");
+        });
         Room room = rooms.findById(roomId).orElseThrow();
         assertThat(room.getStatus()).isEqualTo(RoomStatus.GROWING);
         assertThat(room.getRegenerationCount()).isEqualTo(1);

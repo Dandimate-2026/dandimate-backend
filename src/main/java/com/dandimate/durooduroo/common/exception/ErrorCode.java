@@ -31,6 +31,7 @@ public enum ErrorCode {
     AI_INVALID_OUTPUT(HttpStatus.BAD_GATEWAY),
     AI_TEMPORARILY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "STT_NOT_CONFIGURED", "WEAVE_FAILED"),
     AI_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT),
+    PAYMENT_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final HttpStatus status;
@@ -43,6 +44,11 @@ public enum ErrorCode {
 
     public HttpStatus status() {
         return status;
+    }
+
+    /** 명세 코드 이름이거나 별칭으로 등록된 문자열인지. */
+    public static boolean isMapped(String code) {
+        return Arrays.stream(values()).anyMatch(value -> value.name().equals(code) || value.aliases.contains(code));
     }
 
     /** 명세 코드나 기존 코드 문자열을 명세 코드로 바꾼다. 알 수 없는 코드는 VALIDATION_ERROR로 본다. */

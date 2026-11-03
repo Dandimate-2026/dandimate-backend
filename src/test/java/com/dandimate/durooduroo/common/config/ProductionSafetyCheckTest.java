@@ -17,4 +17,12 @@ class ProductionSafetyCheckTest {
         var check = new ProductionSafetyCheck(false, "s3", "secret", "openai", "openai", "validate", "jdbc:mysql://db/x?sslMode=REQUIRED");
         assertThat(check.warnings()).isEmpty();
     }
+
+    @Test
+    void 같은_서버의_DB는_TLS가_없어도_경고하지_않는다() {
+        var local = new ProductionSafetyCheck(false, "s3", "secret", "openai", "openai", "validate", "jdbc:mysql://mysql:3306/durooduroo?useSSL=false");
+        assertThat(local.warnings()).isEmpty();
+        var remote = new ProductionSafetyCheck(false, "s3", "secret", "openai", "openai", "validate", "jdbc:mysql://my-db.rds.amazonaws.com:3306/x?useSSL=false");
+        assertThat(remote.warnings()).hasSize(1);
+    }
 }

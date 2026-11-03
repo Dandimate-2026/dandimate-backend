@@ -5,6 +5,7 @@ import com.dandimate.durooduroo.member.domain.Member;
 import com.dandimate.durooduroo.room.domain.Room;
 import com.dandimate.durooduroo.room.dto.SpecCreateRoomResponse;
 
+@com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
 public record SpecJoinRoomResponse(SpecCreateRoomResponse.RoomInfo room,
                                    SpecCreateRoomResponse.MemberInfo member,
                                    String memberAccessToken) {

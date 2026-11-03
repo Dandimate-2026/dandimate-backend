@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * 응답이 계약서(static/openapi/public-api.yaml)의 JSON Schema(2020-12)를 따르는지 검사한다 (명세 0장 완료 조건).
  * format(date-time·date·uri)도 검사하므로 오프셋 없는 시각이나 상대 URL은 실패한다. 계약서가 바뀌면 이 파일을 다시 복사해야 한다.
  */
+@org.springframework.context.annotation.Import(com.dandimate.durooduroo.support.LegacyWorkflowSecurity.class)
 @SpringBootTest(properties = {"storage.local-root=build/test-uploads", "app.jobs.poll-interval-ms=50"})
 @AutoConfigureMockMvc
 class ContractSchemaTest {
@@ -45,7 +46,7 @@ class ContractSchemaTest {
     @Test
     void 주요_API_응답이_계약서_스키마를_따른다() throws Exception {
         String created = matches("CreateRoomResponse", json(post("/api/v1/rooms"), null,
-                "{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"hostNickname\":\"서연\"," + CONSENT + "}"));
+                "{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"서연\"," + CONSENT + "}"));
         String roomId = JsonPath.read(created, "$.data.room.id");
         String host = JsonPath.read(created, "$.data.memberAccessToken");
         String invite = JsonPath.read(created, "$.data.inviteToken");

@@ -36,7 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PhotoUploadService {
 
     public static final long MAX_PHOTO_BYTES = 2_000_000;
-    public static final int MAX_PHOTOS_PER_MEMBER = 3;
+    private final com.dandimate.durooduroo.room.repository.RoomRepository rooms;
     private static final Map<String, String> EXTENSIONS = Map.of(
             "image/jpeg", ".jpg", "image/png", ".png", "image/heic", ".heic", "image/heif", ".heif");
 
@@ -49,7 +49,8 @@ public class PhotoUploadService {
     private final com.dandimate.durooduroo.notification.service.RoomEvents roomEvents;
 
     public PhotoUploadService(PhotoRepository photos, MemberRepository members, RoomStateService roomStates, ObjectStorage storage, MediaUrls mediaUrls, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents,
-                              com.dandimate.durooduroo.job.repository.AiJobRepository jobs) {
+                              com.dandimate.durooduroo.job.repository.AiJobRepository jobs, com.dandimate.durooduroo.room.repository.RoomRepository rooms) {
+        this.rooms = rooms;
         this.photos = photos;
         this.members = members;
         this.roomStates = roomStates;
@@ -61,12 +62,17 @@ public class PhotoUploadService {
 
     @Transactional
     public UploadResponse requestUploads(String roomId, String authorization, UploadRequest request) {
-        roomStates.require(roomId, RoomAction.UPLOAD_OR_FIRST_ENTRY);
+        var room = rooms.findByIdForUpdate(roomId).orElseThrow(() -> new BusinessException(ErrorCode.ROOM_NOT_FOUND, "방이 없습니다."));
+        room.requireAllows(RoomAction.UPLOAD_OR_FIRST_ENTRY);
         Member me = members.findByRoomIdAndMemberToken(roomId, MemberTokenResolver.resolve(authorization))
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "방 참여자만 업로드할 수 있습니다."));
-        if (photos.countByRoomIdAndMemberId(roomId, me.getId()) + request.files().size() > MAX_PHOTOS_PER_MEMBER) {
-            throw new BusinessException(ErrorCode.LIMIT_REACHED, "사진은 최대 3장까지 업로드할 수 있습니다.");
+        var plan = room.getPlanType();
+        if (photos.countByRoomIdAndMemberId(roomId, me.getId()) + request.files().size() > plan.photosPerMember()
+                || photos.countByRoomId(roomId) + request.files().size() > plan.photosPerRoom()) {
+            throw new BusinessException(ErrorCode.LIMIT_REACHED, "사진 업로드 한도를 초과했습니다. 멤버당 " + plan.photosPerMember() + "장, 방당 " + plan.photosPerRoom() + "장입니다.");
         }
+        if (request.files().stream().anyMatch(f -> f.displayOrder() > plan.photosPerMember()))
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "사진 순서는 멤버별 사진 한도 안에서 지정해야 합니다.");
         List<UploadResponse.Upload> uploads = request.files().stream().map(file -> {
             String photoId = UUID.randomUUID().toString();
             String key = roomId + "/photos/" + photoId + EXTENSIONS.get(file.contentType());

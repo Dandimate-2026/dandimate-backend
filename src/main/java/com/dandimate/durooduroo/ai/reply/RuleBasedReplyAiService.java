@@ -44,7 +44,7 @@ public class RuleBasedReplyAiService implements ReplyAiService, ParagraphReweave
     /** 명세 9장: 결과 문단은 기존 길이의 1.5배를 넘지 않는다. 문장이 길면 짧은 형태로 붙인다. */
     public static String appendReply(String body, String nickname, String quote, String classification) {
         String verb = "CORRECTION".equals(classification) ? "정정했다" : "덧붙였다";
-        String sentence = body + " " + nickname + "은(는) ‘" + quote + "’라고 " + verb + ".";
+        String sentence = body + " " + com.dandimate.durooduroo.ai.common.Josa.topic(nickname) + " ‘" + quote + "’라고 " + verb + ".";
         if (sentence.length() <= body.length() * 1.5) return sentence;
         return body + " (" + nickname + ("CORRECTION".equals(classification) ? " 정정: ‘" : ": ‘") + quote + "’)";
     }

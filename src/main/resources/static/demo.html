@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>두루두루 데모</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Gowun+Batang:wght@400;700&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+/* 데모 콘솔: 왼쪽은 단계 진행, 오른쪽은 각 사람이 보는 화면, 아래는 실시간 이벤트·API 기록. 실제 백엔드 API만 호출한다. */
+:root {
+  --bg: #f3f4f7; --surface: #fff; --fg: #1c2130; --muted: #636c7d; --line: #dde1e8;
+  --accent: #33509f; --accent-soft: #e7ecf8; --ok: #1f7a4d; --ok-soft: #e2f2e9; --warn: #9a5b00; --warn-soft: #fbefd8;
+  --paper: #fbfaf6; --ink: #2a2620;
+  --azalea: #e86a92; --forsythia: #e8c13a; --royal: #c25aa8; --canola: #d7d23a;
+  --body: "IBM Plex Sans KR", "Apple SD Gothic Neo", system-ui, sans-serif; --scroll: "Gowun Batang", serif; --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.6 var(--body); }
+header { padding: 18px max(16px, env(safe-area-inset-left)) 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; border-bottom: 1px solid var(--line); background: var(--surface); }
+header h1 { margin: 0; font-size: 18px; }
+header p { margin: 0; color: var(--muted); font-size: 13px; }
+.grid { display: grid; grid-template-columns: 320px 1fr; gap: 16px; padding: 16px max(16px, env(safe-area-inset-left)); align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.panel h2 { margin: 0 0 10px; font-size: 13px; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+button { font: inherit; cursor: pointer; border-radius: 7px; border: 1px solid var(--accent); background: var(--accent); color: #fff; padding: 8px 12px; font-weight: 600; }
+button.ghost { background: transparent; color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+ol.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+ol.steps li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: start; padding: 8px; border-radius: 8px; }
+ol.steps li.current { background: var(--accent-soft); }
+.dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font-size: 11px; color: var(--muted); }
+li.done .dot { background: var(--ok); border-color: var(--ok); color: #fff; }
+li.current .dot { border-color: var(--accent); color: var(--accent); }
+.step-title { font-weight: 600; }
+.step-who { font-size: 12px; color: var(--muted); }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.screens { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; min-width: 0; }
+@media (max-width: 1100px) { .screens { grid-template-columns: 1fr; } }
+.phone { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.phone-head { display: flex; align-items: center; gap: 8px; }
+.flower { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.who { font-weight: 700; }
+.role { font-size: 12px; color: var(--muted); }
+.status { margin-left: auto; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.card img { width: 100%; border-radius: 8px; display: block; aspect-ratio: 4 / 3; object-fit: cover; background: var(--bg); }
+.label { font-size: 12px; color: var(--muted); }
+.quote { background: var(--bg); border-radius: 8px; padding: 8px 10px; }
+.locked { border: 1px dashed var(--warn); background: var(--warn-soft); color: var(--warn); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+.ask { border-left: 3px solid var(--accent); padding: 8px 10px; background: var(--accent-soft); border-radius: 0 8px 8px 0; }
+textarea { width: 100%; font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 8px; resize: vertical; min-height: 56px; background: var(--surface); color: var(--fg); }
+.empty { color: var(--muted); font-size: 13px; }
+.scroll { background: var(--paper); color: var(--ink); border-radius: 10px; padding: 16px 18px; font-family: var(--scroll); font-size: 16px; line-height: 1.9; border: 1px solid var(--line); }
+.scroll .ver { font-family: var(--body); font-size: 12px; color: var(--muted); }
+.scroll mark { background: #f3e2a6; color: inherit; padding: 0 2px; border-radius: 3px; }
+.logs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 max(16px, env(safe-area-inset-left)) 24px; }
+@media (max-width: 900px) { .logs { grid-template-columns: 1fr; } }
+.log { font-family: var(--mono); font-size: 12px; max-height: 220px; overflow: auto; display: flex; flex-direction: column; gap: 3px; }
+.log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s2 { color: var(--ok); } .s4, .s5 { color: #b3261e; }
+.toast { min-height: 20px; font-size: 13px; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { .card, .scroll { animation: rise .35s ease-out; } @keyframes rise { from { transform: translateY(4px); opacity: .6; } to { transform: none; opacity: 1; } } }
+</style>
+</head>
+<body>
+<header>
+  <h1>두루두루 데모</h1>
+  <p>실제 백엔드 API로 90초 데모 흐름을 진행합니다. 로컬 기본 설정은 가짜 음성 받아쓰기·규칙 기반 AI를 씁니다.</p>
+</header>
+
+<div class="grid">
+  <aside class="panel">
+    <h2>진행 단계</h2>
+    <ol class="steps" id="steps"></ol>
+    <div class="controls">
+      <button id="next">다음 단계</button>
+      <button id="auto" class="ghost">끝까지 자동 진행</button>
+      <button id="reset" class="ghost">처음부터</button>
+    </div>
+    <p class="toast" id="toast" role="status"></p>
+  </aside>
+
+  <section class="screens">
+    <div class="phone" id="phone-host">
+      <div class="phone-head"><span class="flower" style="background:var(--azalea)"></span><span class="who">서연</span><span class="role">방장</span><span class="status" id="status-host">방 없음</span></div>
+      <div id="host-body"><p class="empty">방을 만들면 방장 화면이 여기 보여요.</p></div>
+    </div>
+    <div class="phone" id="phone-member">
+      <div class="phone-head"><span class="flower" style="background:var(--forsythia)"></span><span class="who">지수</span><span class="role">참여자</span><span class="status" id="status-member">초대 전</span></div>
+      <div id="member-body"><p class="empty">초대 링크로 들어오면 참여자 화면이 여기 보여요.</p></div>
+    </div>
+  </section>
+</div>
+
+<div class="logs">
+  <div class="panel"><h2>실시간 이벤트 (서연의 SSE)</h2><div class="log" id="events"></div></div>
+  <div class="panel"><h2>API 호출</h2><div class="log" id="calls"></div></div>
+</div>
+
+<script>
+const API = '/api/v1';
+const S = {};               // 데모 상태: roomId, tokens, ids
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function call(method, path, { token, json, body, headers = {}, raw } = {}) {
+  const h = { ...headers };
+  if (token) h.Authorization = 'Bearer ' + token;
+  if (method === 'POST') h['Idempotency-Key'] = crypto.randomUUID();
+  if (json !== undefined) { h['Content-Type'] = 'application/json'; body = JSON.stringify(json); }
+  const url = raw ? path : API + path;
+  const res = await fetch(url, { method, headers: h, body });
+  const text = await res.text();
+  const data = text ? (() => { try { return JSON.parse(text); } catch { return text; } })() : null;
+  const line = document.createElement('div');
+  line.className = 's' + String(res.status)[0];
+  line.textContent = `${res.status} ${method} ${raw ? new URL(path, location).pathname : path}`;
+  $('calls').prepend(line);
+  if (!res.ok) throw new Error(data?.error ? `${data.error.code}: ${data.error.message}` : `HTTP ${res.status}`);
+  return data;
+}
+
+async function waitFor(check, label, timeout = 15000) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const value = await check();
+    if (value) return value;
+    await sleep(500);
+  }
+  throw new Error(label + ' 시간이 초과됐어요');
+}
+
+const CONSENT = { version: '2026-10-01', terms: true, mediaProcessing: true, externalAiProcessing: true };
+
+/** 경주 바다 사진처럼 보이는 그림을 그려 PNG로 만든다. */
+function scenePng() {
+  const c = document.createElement('canvas'); c.width = 800; c.height = 600;
+  const g = c.getContext('2d');
+  const sky = g.createLinearGradient(0, 0, 0, 360); sky.addColorStop(0, '#f6b26b'); sky.addColorStop(1, '#fbe3c3');
+  g.fillStyle = sky; g.fillRect(0, 0, 800, 360);
+  g.fillStyle = '#ffd36b'; g.beginPath(); g.arc(560, 300, 70, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#3d6fa8'; g.fillRect(0, 330, 800, 160);
+  g.fillStyle = '#e9d8b4'; g.fillRect(0, 470, 800, 130);
+  [[220, '#e86a92'], [300, '#e8c13a'], [380, '#c25aa8']].forEach(([x, color]) => {
+    g.fillStyle = color; g.beginPath(); g.arc(x, 430, 22, 0, Math.PI * 2); g.fill(); g.fillRect(x - 18, 452, 36, 60);
+  });
+  return new Promise(r => c.toBlob(r, 'image/png'));
+}
+
+/** 6초짜리 무음 WAV (서버가 길이를 직접 잰다: 첫 한마디는 5~60초). */
+function wav(seconds) {
+  const rate = 8000, n = rate * seconds, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+  const w = (o, s) => [...s].forEach((ch, i) => v.setUint8(o + i, ch.charCodeAt(0)));
+  w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true); v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+  w(36, 'data'); v.setUint32(40, n, true); for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
+  return new Blob([buf], { type: 'audio/wav' });
+}
+
+// ---- 화면 그리기 ----
+async function refresh() {
+  if (!S.roomId) return;
+  const home = await call('GET', `/rooms/${S.roomId}`, { token: S.host });
+  $('status-host').textContent = home.data.room.status;
+  if (S.member) $('status-member').textContent = home.data.room.status;
+  let hostHtml = `<div class="card"><span class="label">${esc(home.data.room.name)} · 참여자 ${home.data.members.length}명 · 남은 응답 ${home.data.myTodo.pendingCirculationCount}</span>`;
+  hostHtml += `<div>${home.data.members.map(m => `<span class="flower" style="background:var(--${m.flowerCode === 'AZALEA' ? 'azalea' : m.flowerCode === 'FORSYTHIA' ? 'forsythia' : 'royal'})"></span> ${esc(m.nickname)}`).join(' &nbsp; ')}</div></div>`;
+  if (S.photoUrl) hostHtml += `<div class="card"><img src="${esc(S.photoUrl)}" alt="서연이 올린 경주 바다 사진"><span class="label">내 사진${S.firstEntry ? '' : ' · 아직 첫 한마디 없음'}</span>${S.firstEntry ? `<div class="quote">${esc(S.firstEntry)}</div>` : ''}${S.draftHtml || ''}</div>`;
+  if (S.askback) hostHtml += `<div class="card"><span class="label">되묻기가 왔어요 (${esc(S.askback.gapType)})</span><div class="ask">${esc(S.askback.question)}</div>${S.askbackAnswer ? `<div class="quote">답: ${esc(S.askbackAnswer)}</div>` : ''}</div>`;
+  if (S.scroll) hostHtml += scrollHtml(S.scroll);
+  $('host-body').innerHTML = hostHtml;
+
+  if (!S.member) return;
+  let memberHtml = '';
+  const circ = await call('GET', `/rooms/${S.roomId}/circulation`, { token: S.member });
+  if (!circ.data.cards.length) memberHtml += `<p class="empty">아직 돌려보기에 올라온 사진이 없어요.</p>`;
+  for (const card of circ.data.cards) {
+    memberHtml += `<div class="card"><img src="${esc(card.photo.imageUrl)}" alt="${esc(card.photo.uploader.nickname)}의 사진"><span class="label">${esc(card.photo.uploader.nickname)}의 사진 · 내 응답 ${card.myResponse.status}</span>`;
+    if (card.firstEntry) memberHtml += `<div class="quote">${esc(card.firstEntry.member.nickname)}: ${esc(card.firstEntry.transcript)}</div>`;
+    if (card.locked) memberHtml += `<div class="locked">잠김: 내 기억을 먼저 남기면 다른 사람 이야기가 보여요. (서버가 응답에서 아예 빼고 보냄)</div>`;
+    else card.otherEntries.forEach(e => memberHtml += `<div class="quote">${esc(e.member.nickname)} (${e.kind === 'ASKBACK_ANSWER' ? '되묻기 답' : '덧붙임'}): ${esc(e.transcript)}</div>`);
+    memberHtml += `</div>`;
+  }
+  if (S.scroll) memberHtml += scrollHtml(S.scroll, true);
+  $('member-body').innerHTML = memberHtml;
+}
+
+function scrollHtml(scroll, mine) {
+  const p = scroll.paragraphs[0];
+  if (!p) return '';
+  let body = esc(p.body);
+  p.sources.forEach(s => { const q = esc(s.quote); body = body.split(q).join(`<mark>${q}</mark>`); });
+  return `<div class="scroll"><div class="ver">두루마리 v${scroll.version} · 문단 v${p.version} · 인용 ${p.sources.length}개${mine ? ' · 형광펜은 실제 원문 인용' : ''}</div>${body}</div>`;
+}
+
+// ---- 단계 ----
+const STEPS = [
+  { title: '방 만들기', who: '서연', run: async () => {
+      const r = await call('POST', '/rooms', { json: { name: '졸업 전 마지막 경주', meetingDate: '2026-10-24', hostNickname: '서연', consent: CONSENT } });
+      Object.assign(S, { roomId: r.data.room.id, host: r.data.memberAccessToken, invite: r.data.inviteToken });
+      openEvents();
+    } },
+  { title: '초대 링크로 입장', who: '지수', run: async () => {
+      const preview = await call('GET', `/invites/${S.invite}`);
+      const r = await call('POST', `/invites/${S.invite}/join`, { json: { nickname: '지수', consent: CONSENT } });
+      S.member = r.data.memberAccessToken;
+      return `초대 미리보기: ${preview.data.roomName}, ${preview.data.memberCount}/${preview.data.capacity}명`;
+    } },
+  { title: '사진 올리기', who: '서연', run: async () => {
+      const png = await scenePng();
+      const r = await call('POST', `/rooms/${S.roomId}/photos/upload-requests`, { token: S.host, json: { files: [{ clientFileId: 'local-1', fileName: 'gyeongju.png', contentType: 'image/png', sizeBytes: png.size, displayOrder: 1 }] } });
+      const up = r.data.uploads[0];
+      S.photoId = up.photoId;
+      await call('PUT', up.uploadUrl, { raw: true, body: png, headers: up.requiredHeaders });
+      await call('POST', `/photos/${S.photoId}/complete`, { token: S.host });
+      S.photoUrl = URL.createObjectURL(png);
+      return 'uploadUrl로 직접 PUT → complete가 저장소를 확인';
+    } },
+  { title: '음성으로 첫 한마디', who: '서연', run: async () => {
+      const form = new FormData(); form.append('kind', 'FIRST'); form.append('file', wav(6), 'voice.wav');
+      const draft = await call('POST', `/photos/${S.photoId}/transcriptions`, { token: S.host, body: form });
+      const edited = '다들 갑자기 웃었던 사진이야';
+      S.draftHtml = `<span class="label">받아쓰기 초안 → 수정</span><div class="quote"><s>${esc(draft.data.transcript)}</s><br>${esc(edited)}</div>`;
+      await refresh(); await sleep(900);
+      const r = await call('POST', `/photos/${S.photoId}/entries`, { token: S.host, json: { kind: 'FIRST', inputMode: 'VOICE', transcriptionId: draft.data.transcriptionId, transcript: edited } });
+      S.firstEntry = r.data.entry.transcript; S.draftHtml = '';
+      return '확정하면 사진이 돌려보기에 올라가고 방이 CIRCULATING이 돼요';
+    } },
+  { title: '돌려보기: 잠긴 카드에 덧붙이기', who: '지수', run: async () => {
+      await refresh(); await sleep(1400);
+      await call('POST', `/photos/${S.photoId}/entries`, { token: S.member, json: { kind: 'ADDON', inputMode: 'TEXT', transcript: '민호가 사진 찍다가 모래에 넘어졌잖아' } });
+      return '덧붙이면 잠금이 풀려요';
+    } },
+  { title: 'AI 되묻기 받고 답하기', who: '서연', run: async () => {
+      const ab = await waitFor(async () => (await call('GET', `/rooms/${S.roomId}/askbacks/me`, { token: S.host })).data.askbacks.find(a => a.status === 'PENDING'), '되묻기');
+      S.askback = ab; await refresh(); await sleep(1400);
+      S.askbackAnswer = '노을이 너무 예뻐서 다 같이 소리 질렀어';
+      await call('POST', `/askbacks/${ab.id}/answer`, { token: S.host, json: { inputMode: 'TEXT', transcript: S.askbackAnswer } });
+      return '답은 그 사진의 원문(ASKBACK_ANSWER)이 돼요';
+    } },
+  { title: '즉시 마감 → 두루마리 엮기', who: '서연', run: async () => {
+      const r = await call('POST', `/rooms/${S.roomId}/close`, { token: S.host, json: { mode: 'DEMO' } });
+      await waitFor(async () => (await call('GET', `/jobs/${r.data.job.id}`, { token: S.host })).data.status === 'SUCCEEDED', '두루마리 엮기');
+      S.scroll = (await call('GET', `/rooms/${S.roomId}/scroll`, { token: S.member })).data;
+      return '장면 카드 → 엮기 → 인용 검증을 거쳐 저장';
+    } },
+  { title: '답가로 문단 다시 엮기', who: '지수', run: async () => {
+      const p = S.scroll.paragraphs[0];
+      const r = await call('POST', `/paragraphs/${p.id}/replies`, { token: S.member, json: { inputMode: 'TEXT', transcript: '그날 밤에 다 같이 치킨 시켰잖아' } });
+      await waitFor(async () => (await call('GET', `/jobs/${r.data.job.id}`, { token: S.member })).data.status === 'SUCCEEDED', '답가 반영');
+      S.scroll = (await call('GET', `/rooms/${S.roomId}/scroll`, { token: S.member })).data;
+      return '새 사실은 기존 인용을 지키면서 덧붙고 문단 버전이 올라가요';
+    } },
+];
+let current = 0, busy = false;
+
+function renderSteps() {
+  $('steps').innerHTML = STEPS.map((s, i) => `<li class="${i < current ? 'done' : i === current ? 'current' : ''}"><span class="dot">${i < current ? '✓' : i + 1}</span><span><span class="step-title">${s.title}</span><br><span class="step-who">${s.who}</span></span></li>`).join('');
+  $('next').disabled = busy || current >= STEPS.length;
+  $('auto').disabled = busy || current >= STEPS.length;
+  $('next').textContent = current >= STEPS.length ? '데모 완료' : '다음 단계';
+}
+
+async function runStep() {
+  if (busy || current >= STEPS.length) return false;
+  busy = true; renderSteps();
+  const step = STEPS[current];
+  $('toast').textContent = `${step.title} 진행 중…`;
+  try {
+    const note = await step.run();
+    current++;
+    await refresh();
+    $('toast').textContent = note ? `${step.title}: ${note}` : `${step.title} 완료`;
+    return true;
+  } catch (e) {
+    $('toast').textContent = `${step.title} 실패 · ${e.message}`;
+    return false;
+  } finally {
+    busy = false; renderSteps();
+  }
+}
+
+function openEvents() {
+  call('POST', `/rooms/${S.roomId}/event-token`, { token: S.host }).then(r => {
+    const source = new EventSource(r.data.eventsUrl);
+    S.source = source;
+    ['connected', 'photo.uploaded', 'photo.published', 'entry.created', 'askback.created', 'job.updated', 'scroll.ready', 'paragraph.updated', 'notification.created']
+      .forEach(name => source.addEventListener(name, ev => {
+        const line = document.createElement('div');
+        line.textContent = `${new Date().toLocaleTimeString()} ${name} ${ev.data}`;
+        $('events').prepend(line);
+      }));
+  });
+}
+
+$('next').addEventListener('click', runStep);
+$('auto').addEventListener('click', async () => { while (current < STEPS.length && await runStep()) await sleep(700); });
+$('reset').addEventListener('click', () => location.reload());
+renderSteps();
+</script>
+</body>
+</html>

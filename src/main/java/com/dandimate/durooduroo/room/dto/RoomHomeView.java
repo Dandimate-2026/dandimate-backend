@@ -8,7 +8,7 @@ import java.util.List;
 public record RoomHomeView(RoomSummary room, MemberStats me, List<MemberStats> members, List<TodayFlower> todayFlowers,
                            MyTodo myTodo, long unreadCount, boolean allCompleted) {
 
-    public record RoomSummary(String id, String name, LocalDate meetingDate, String status, LocalDateTime deadlineAt) {
+    public record RoomSummary(String id, String name, LocalDate meetingDate, String status, LocalDateTime deadlineAt, int capacity, String planType, RoomQuotaView quota) {
     }
 
     public record MemberStats(String id, String nickname, String role, String flowerCode, int photoCount, int storyCount, double responseRate) {
