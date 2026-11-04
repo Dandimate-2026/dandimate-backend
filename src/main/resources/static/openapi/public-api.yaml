@@ -6,6 +6,7 @@ info:
 servers:
   - url: https://api.example.com/api/v1
 tags:
+  - name: 챗봇
   - name: 인증
   - name: 사용자
   - name: 모임방
@@ -21,6 +22,81 @@ tags:
 security:
   - sessionCookie: []
 paths:
+  /chat/messages:
+    post:
+      tags:
+      - 챗봇
+      summary: 참여 중인 방의 덧붙임으로 추억 질문하기
+      description: 로그인한 사용자가 현재 열람할 수 있는 덧붙임만 벡터 검색하고, 검색된 원문을 LLM에 전달해 답변합니다. 근거 사진마다
+        방·업로더 정보와 덧붙임 전체·각 작성자를 반환합니다. 첫 한마디·되묻기 답은 검색 대상이 아닙니다. 답변 도중 원문/권한 변경은 409,
+        색인 준비 중 또는 AI 연결 실패는 503입니다. 대화 이력은 저장하지 않습니다.
+      security:
+      - sessionCookie: []
+        csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - message
+              properties:
+                message:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+            example:
+              message: 경주에서 어떤 추억이 있었지?
+      responses:
+        '200':
+          description: 답변과 근거. 관련 기록이 없으면 sources는 빈 배열.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatMessageResponse'
+        '400':
+          description: 입력 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: CSRF 검증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 원문 또는 열람 권한 변경, 다시 질문 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: 잘못된 AI 출력
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 색인 준비 중 또는 AI 일시 사용 불가
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '504':
+          description: AI 응답 시간 초과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /payments/room-orders:
     post:
       tags:
@@ -1604,6 +1680,91 @@ components:
         application/json:
           schema: {$ref: '#/components/schemas/ErrorResponse'}
   schemas:
+    ChatAuthor:
+      type: object
+      required:
+      - userId
+      - memberId
+      - nickname
+      - role
+      - flowerCode
+      properties:
+        userId:
+          type:
+          - string
+          - 'null'
+          description: 기존 비회원 작성자는 null
+        memberId: &id001
+          type: string
+        nickname: *id001
+        role: *id001
+        flowerCode: *id001
+    ChatSource:
+      type: object
+      required:
+      - room
+      - photo
+      - entries
+      properties:
+        room:
+          type: object
+          required:
+          - roomId
+          - name
+          properties:
+            roomId: *id001
+            name: *id001
+        photo:
+          type: object
+          required:
+          - photoId
+          - imageUrl
+          - createdAt
+          - uploader
+          properties:
+            photoId: *id001
+            imageUrl:
+              type: string
+              description: 만료 시간이 있는 사진 서명 URL
+            createdAt:
+              type: string
+              format: date-time
+            uploader:
+              $ref: '#/components/schemas/ChatAuthor'
+        entries:
+          type: array
+          description: 해당 사진의 열람 가능한 덧붙임 전체. createdAt, entryId 오름차순.
+          items:
+            type: object
+            required:
+            - entryId
+            - text
+            - createdAt
+            - author
+            properties:
+              entryId: *id001
+              text: *id001
+              createdAt:
+                type: string
+                format: date-time
+              author:
+                $ref: '#/components/schemas/ChatAuthor'
+    ChatMessageResponse:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: object
+          required:
+          - answer
+          - sources
+          properties:
+            answer: *id001
+            sources:
+              type: array
+              items:
+                $ref: '#/components/schemas/ChatSource'
     PaymentOrder:
       type: object
       required:

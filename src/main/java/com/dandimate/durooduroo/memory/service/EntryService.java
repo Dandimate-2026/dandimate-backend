@@ -29,6 +29,8 @@ public class EntryService {
 
     public static final int ADDON_LIMIT_PER_MEMBER = 2;
 
+    private final com.dandimate.durooduroo.embedding.service.EmbeddingIndexService embeddingIndex;
+
     private final PhotoRepository photos;
     private final MemberRepository members;
     private final MemoryEntryRepository entries;
@@ -48,7 +50,9 @@ public class EntryService {
                         com.dandimate.durooduroo.askback.repository.AskbackRepository askbacks, TranscriptionService transcriptions,
                         com.dandimate.durooduroo.storage.MediaUrls mediaUrls, com.dandimate.durooduroo.askback.service.AskbackAnalysisService askbackAnalysis,
                         com.dandimate.durooduroo.event.EventLogger events, com.dandimate.durooduroo.room.service.RoomHomeService roomHome,
-                        com.dandimate.durooduroo.scroll.service.ReplyService replyService, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents) {
+                        com.dandimate.durooduroo.scroll.service.ReplyService replyService, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents,
+                        com.dandimate.durooduroo.embedding.service.EmbeddingIndexService embeddingIndex) {
+        this.embeddingIndex = embeddingIndex;
         this.photos = photos;
         this.members = members;
         this.entries = entries;
@@ -102,6 +106,7 @@ public class EntryService {
                 ? transcriptions.consume(request.transcriptionId(), me.getId(), "PHOTO", photoId).getAudioLocation() : null;
         MemoryEntry entry = entries.save(MemoryEntry.confirm(photo.getRoomId(), photoId, me.getId(), request.kind(),
                 request.inputMode(), request.transcriptionId(), audioLocation, transcript));
+        embeddingIndex.enqueue(entry);
         if (request.kind() == EntryKind.FIRST) {
             publish(photo);
         } else {
@@ -122,6 +127,7 @@ public class EntryService {
         if (transcript == null || transcript.isBlank()) throw new BusinessException(ErrorCode.VALIDATION_ERROR, "내용은 필수입니다.");
         requireLength(entry.getKind(), transcript.strip(), entry.getInputMode());
         entry.edit(transcript.strip());
+        embeddingIndex.enqueue(entry);
         sourceChanged(entry.getPhotoId());
         return EntryView.of(entry, members.findById(entry.getMemberId()).orElseThrow(), mediaUrls.audioUrl(entry));
     }

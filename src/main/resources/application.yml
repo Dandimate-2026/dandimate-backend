@@ -39,6 +39,11 @@ server:
   forward-headers-strategy: framework
 
 app:
+  embedding:
+    initial-delay-ms: 60000
+    poll-ms: 10000
+  chat:
+    similarity-threshold: 0.25
   # API 문서(/swagger-ui.html, /openapi/public-api.yaml) 공개 여부
   swagger:
     enabled: ${SWAGGER_ENABLED:true}
