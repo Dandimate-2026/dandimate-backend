@@ -1,0 +1,125 @@
+diff --git a/src/api/mock.ts b/src/api/mock.ts
+index e6807b6..95cf1be 100644
+--- a/src/api/mock.ts
++++ b/src/api/mock.ts
+@@ -37,6 +37,8 @@ export const MOCK_ROOM_IDS = [
+ export const MOCK_INVITE_TOKEN = 'demo'
+ 
+ export const mockInvitePreview: InvitePreview = {
++  roomId: MOCK_NEW_ROOM_ID,
++  alreadyJoined: false,
+   roomName: '경주 1박2일',
+   meetingDate: '2026-10-17',
+   status: 'COLLECTING',
+diff --git a/src/api/rooms.ts b/src/api/rooms.ts
+index 21d6fd5..d3c6983 100644
+--- a/src/api/rooms.ts
++++ b/src/api/rooms.ts
+@@ -109,7 +109,6 @@ export function updateRoom(
+ 
+ /**
+  * 이 방에서 쓰는 내 닉네임을 바꾼다
+- * TODO(백엔드 미지원): 공개 API 0.1.0에 닉네임 변경이 없다. 주소·요청 모양은 가정한 값이라 실제 모드에서는 실패한다
+  */
+ export function updateMyNickname(roomId: string, nickname: string, token: string) {
+   if (USE_MOCK) return Promise.resolve()
+@@ -135,9 +134,14 @@ export function deleteRoom(roomId: string, token: string) {
+ 
+ /**
+  * 멤버가 방장에게 플랜을 바꿔 달라고 요청한다. 방장의 방 알림(🔔)에 PLAN_UPGRADE_REQUESTED로 들어간다
+- * TODO(백엔드 미지원): 공개 API에 아직 없다. 주소·요청 모양은 가정한 값이라 실제 모드에서는 실패한다
+  */
+ export function requestPlanUpgrade(roomId: string, reason: PlanRequestReason) {
+   if (USE_MOCK) return Promise.resolve()
+   return request(`/rooms/${roomId}/plan-requests`, { method: 'POST', body: { reason }, idempotent: true })
+ }
++
++/** 방을 나가되 작성한 사진·이야기는 남긴다. 방장은 방 삭제를 이용한다. */
++export function leaveRoom(roomId: string, token: string) {
++  if (USE_MOCK) return Promise.resolve()
++  return request(`/rooms/${roomId}/members/me`, { method: 'DELETE', token })
++}
+diff --git a/src/api/types.ts b/src/api/types.ts
+index f37df60..2fd7bbb 100644
+--- a/src/api/types.ts
++++ b/src/api/types.ts
+@@ -62,6 +62,8 @@ export interface RoomQuota {
+ }
+ 
+ export interface InvitePreview {
++  roomId: string
++  alreadyJoined: boolean
+   roomName: string
+   meetingDate?: string
+   status: RoomStatus
+diff --git a/src/hooks/useRoomLiveUpdates.ts b/src/hooks/useRoomLiveUpdates.ts
+index 3588dff..7e88943 100644
+--- a/src/hooks/useRoomLiveUpdates.ts
++++ b/src/hooks/useRoomLiveUpdates.ts
+@@ -15,6 +15,8 @@ const SAFETY_POLL_INTERVAL_MS = 10000
+  * 이름 붙은 이벤트는 EventSource.onmessage로 들어오지 않아서 이름마다 따로 듣는다
+  */
+ const ROOM_EVENT_NAMES = [
++  'member.updated',
++  'member.left',
+   'photo.published',
+   'photo.uploaded',
+   'entry.created',
+diff --git a/src/pages/InviteJoinPage.tsx b/src/pages/InviteJoinPage.tsx
+index 3d85df3..e375b6f 100644
+--- a/src/pages/InviteJoinPage.tsx
++++ b/src/pages/InviteJoinPage.tsx
+@@ -25,13 +25,19 @@ function InviteJoinPage() {
+ 
+   useEffect(() => {
+     getInvitePreview(inviteToken)
+-      .then(setPreview)
++      .then((data) => {
++        if (data.alreadyJoined) {
++          navigate(paths.roomHome(data.roomId), { replace: true })
++          return
++        }
++        setPreview(data)
++      })
+       .catch((e: unknown) =>
+         setLoadError(
+           e instanceof ApiError && e.status === 404 ? '만료되었거나 없는 초대 링크예요' : '방 정보를 불러오지 못했어요',
+         ),
+       )
+-  }, [inviteToken])
++  }, [inviteToken, navigate])
+ 
+   if (loadError) return <NotFoundPage message={loadError} />
+   if (!preview) return <main className="flex-1 bg-bg" aria-busy="true" />
+diff --git a/src/pages/RoomSettingsPage.tsx b/src/pages/RoomSettingsPage.tsx
+index 8d44bf9..860f10d 100644
+--- a/src/pages/RoomSettingsPage.tsx
++++ b/src/pages/RoomSettingsPage.tsx
+@@ -1,6 +1,6 @@
+ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+ import { Link, useNavigate, useParams } from 'react-router'
+-import { deleteRoom, getRoomHome, rotateInviteToken, updateMyNickname, updateRoom } from '../api/rooms'
++import { deleteRoom, leaveRoom, getRoomHome, rotateInviteToken, updateMyNickname, updateRoom } from '../api/rooms'
+ import type { RoomHome } from '../api/types'
+ import Card from '../components/Card'
+ import Flower from '../components/Flower'
+@@ -251,8 +251,8 @@ function RoomSettingsPage() {
+     setEditing(null)
+   }
+ 
+-  const handleLeave = () => {
+-    // TODO(백엔드 미지원): 방 나가기 API가 없어서, 지금은 이 기기에 저장된 방 정보만 지운다
++  const handleLeave = async () => {
++    await leaveRoom(room.id, session.memberAccessToken)
+     removeRoomSession(room.id)
+     navigate(paths.roomList(), { replace: true })
+   }
+@@ -400,7 +400,7 @@ function RoomSettingsPage() {
+           title={`${room.name}에서 나갈까요?`}
+           description={
+             <>
+-              나가면 이 기기의 모임방 목록에서 사라져요.
++              나가면 내 모임방 목록에서 사라져요. 사진과 이야기는 남아요.
+               <br />
+               다시 들어오려면 초대 링크가 필요해요.
+             </>
