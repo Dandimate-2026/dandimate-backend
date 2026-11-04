@@ -52,6 +52,9 @@ public class PhotoUploadService {
     private final com.dandimate.durooduroo.job.repository.AiJobRepository jobs;
     private final com.dandimate.durooduroo.notification.service.RoomEvents roomEvents;
 
+    @org.springframework.beans.factory.annotation.Value("${app.photos.derive-wait-ms:15000}")
+    private long deriveWaitMs;
+
     public PhotoUploadService(PhotoRepository photos, MemberRepository members, RoomStateService roomStates, ObjectStorage storage, MediaUrls mediaUrls, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents,
                               com.dandimate.durooduroo.job.repository.AiJobRepository jobs, com.dandimate.durooduroo.room.repository.RoomRepository rooms) {
         this.rooms = rooms;
@@ -137,6 +140,22 @@ public class PhotoUploadService {
         }
         roomEvents.toMember(photo.getRoomId(), photo.getMemberId(), "photo.uploaded", Map.of("photoId", photo.getId(), "roomId", photo.getRoomId(), "status", photo.getStatus()));
         return photo;
+    }
+
+    /** 첫 한마디는 READY 사진에만 남길 수 있어서, 프론트가 바로 넘어가도 되도록 변환을 잠시 기다린다. 트랜잭션 밖에서 부른다. */
+    public Photo awaitDerivative(Photo photo) {
+        long deadline = System.currentTimeMillis() + deriveWaitMs;
+        Photo current = photo;
+        while (Photo.PROCESSING.equals(current.getStatus()) && System.currentTimeMillis() < deadline) {
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return current;
+            }
+            current = photos.findById(photo.getId()).orElse(current);
+        }
+        return current;
     }
 
     /** 주소가 만료되도록 완료되지 않은 업로드는 지워서 사진 한도를 돌려준다. 파일이 없어도 삭제는 성공한다. */

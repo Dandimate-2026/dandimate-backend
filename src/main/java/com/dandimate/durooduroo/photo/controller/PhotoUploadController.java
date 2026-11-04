@@ -39,7 +39,7 @@ public class PhotoUploadController {
 
     @PostMapping("/photos/{photoId}/complete")
     public ApiResponse<?> complete(@PathVariable String photoId, @RequestHeader(required = false) String authorization) {
-        var photo = uploads.complete(photoId, authorization);
+        var photo = uploads.awaitDerivative(uploads.complete(photoId, authorization));
         return ApiResponse.success(Map.of("photo", Map.of("id", photo.getId(), "status", photo.getStatus(), "displayOrder", photo.getDisplayOrder())));
     }
 }
