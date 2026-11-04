@@ -33,6 +33,16 @@ public class RoomEventHub {
         return emitter;
     }
 
+    public void disconnect(String roomId, String memberId) {
+        var subscribers = rooms.getOrDefault(roomId, List.of());
+        for (Subscriber subscriber : subscribers) {
+            if (subscriber.memberId().equals(memberId)) {
+                subscribers.remove(subscriber);
+                subscriber.emitter().complete();
+            }
+        }
+    }
+
     public void send(RoomEvent event) {
         for (Subscriber subscriber : rooms.getOrDefault(event.roomId(), List.of())) {
             if (event.targetMemberId() != null && !event.targetMemberId().equals(subscriber.memberId())) continue;

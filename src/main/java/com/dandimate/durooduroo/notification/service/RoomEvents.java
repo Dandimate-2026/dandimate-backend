@@ -31,6 +31,7 @@ public class RoomEvents {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     void deliver(RoomEvent event) {
+        if ("member.left".equals(event.name())) hub.disconnect(event.roomId(), (String) event.data().get("memberId"));
         hub.send(event);
     }
 }

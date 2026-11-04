@@ -1,0 +1,17 @@
+{
+  "repository": "https://github.com/Dandimate-2026/dandimate-frontend.git",
+  "baseCommit": "14683e954960e5b2088e48e6ec28bf381ac12dbd",
+  "sourcePatch": "frontend-membership.patch",
+  "buildCommands": [
+    "git apply frontend-membership.patch",
+    "npm ci",
+    "npm run build"
+  ],
+  "artifact": "dist.zip",
+  "sha256": "b0056ab73a74cbd981eaf64d3e06b49a05d4df4af33306864c702bfec49d4590",
+  "changes": [
+    "alreadyJoined: existing participants go directly to room",
+    "DELETE /rooms/{roomId}/members/me before removing local room metadata",
+    "Refresh room roster on member.updated/member.left"
+  ]
+}

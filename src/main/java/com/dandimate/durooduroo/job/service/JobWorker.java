@@ -26,7 +26,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class JobWorker {
 
     static final int MAX_ATTEMPTS = 3;
-    private static final List<String> HANDLED_TYPES = List.of(AiJob.WEAVE_SCROLL, AiJob.ASKBACK_ANALYZE, AiJob.REPLY_REWEAVE, AiJob.MEDIA_DELETE, AiJob.PHOTO_DERIVE);
+    private static final List<String> AI_TYPES = List.of(AiJob.WEAVE_SCROLL, AiJob.ASKBACK_ANALYZE, AiJob.REPLY_REWEAVE);
+    private static final List<String> MEDIA_TYPES = List.of(AiJob.MEDIA_DELETE, AiJob.PHOTO_DERIVE);
+    private static final List<String> HANDLED_TYPES = java.util.stream.Stream.concat(AI_TYPES.stream(), MEDIA_TYPES.stream()).toList();
     private static final Logger log = LoggerFactory.getLogger(JobWorker.class);
 
     private final AiJobRepository jobs;
@@ -58,16 +60,36 @@ public class JobWorker {
         this.staleAfter = Duration.ofMillis(staleAfterMs);
     }
 
-    @Scheduled(fixedDelayString = "${app.jobs.poll-interval-ms:1000}")
+    /** 전체 작업을 처리한다. 운영에서는 아래 두 Worker가 나눠서 돈다. */
     public void poll() {
         while (runNext()) {
             // 실행할 작업이 없을 때까지 이어서 처리한다.
         }
     }
 
+    /** 오래 걸리는 AI 작업은 한 번에 하나씩 처리한다. */
+    @Scheduled(fixedDelayString = "${app.jobs.poll-interval-ms:1000}")
+    public void pollAi() {
+        while (runNext(AI_TYPES)) {
+            // 실행할 작업이 없을 때까지 이어서 처리한다.
+        }
+    }
+
+    /** 사진 변환과 파일 삭제는 엮기가 도는 동안에도 기다리지 않는다. */
+    @Scheduled(fixedDelayString = "${app.jobs.poll-interval-ms:1000}")
+    public void pollMedia() {
+        while (runNext(MEDIA_TYPES)) {
+            // 실행할 작업이 없을 때까지 이어서 처리한다.
+        }
+    }
+
     /** 작업 하나를 선점해 실행한다. 실행할 작업이 없으면 false. */
     public boolean runNext() {
-        AiJob claimed = tx.execute(status -> jobs.findRunnable(HANDLED_TYPES, LocalDateTime.now(), PageRequest.of(0, 1))
+        return runNext(HANDLED_TYPES);
+    }
+
+    private boolean runNext(List<String> types) {
+        AiJob claimed = tx.execute(status -> jobs.findRunnable(types, LocalDateTime.now(), PageRequest.of(0, 1))
                 .stream().findFirst().map(job -> {
                     job.claim();
                     return job;

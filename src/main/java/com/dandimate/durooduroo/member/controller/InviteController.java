@@ -2,6 +2,7 @@
 package com.dandimate.durooduroo.member.controller;
 
 import com.dandimate.durooduroo.common.api.ApiResponse;
+import com.dandimate.durooduroo.common.auth.CurrentUser;
 import com.dandimate.durooduroo.common.exception.BusinessException;
 import com.dandimate.durooduroo.member.dto.SpecJoinRoomRequest;
 import com.dandimate.durooduroo.member.dto.SpecJoinRoomResponse;
@@ -30,9 +31,14 @@ public class InviteController {
     public ApiResponse<?> preview(@PathVariable String inviteToken) {
         var room = rooms.findByInviteToken(inviteToken)
                 .orElseThrow(() -> new BusinessException("INVITE_NOT_FOUND", "유효하지 않은 초대 토큰입니다."));
-        var roomMembers = members.findAllByRoomId(room.getId());
+        var roomMembers = members.findAllByRoomIdAndLeftAtIsNull(room.getId());
         long count = roomMembers.size();
+        String userId = CurrentUser.idOrNull();
+        boolean alreadyJoined = userId != null
+                && roomMembers.stream().anyMatch(member -> userId.equals(member.getUserId()));
         var data = new java.util.LinkedHashMap<String, Object>();
+        data.put("roomId", room.getId());
+        data.put("alreadyJoined", alreadyJoined);
         data.put("roomName", room.getTitle());
         data.put("meetingDate", room.getMeetingDate());
         data.put("status", room.getStatus().name());

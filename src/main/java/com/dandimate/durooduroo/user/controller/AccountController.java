@@ -28,7 +28,7 @@ public class AccountController {
     }
     @GetMapping("/users/me/rooms")
     public ApiResponse<?> rooms() {
-        var participation = members.findAllByUserId(CurrentUser.requireId());
+        var participation = members.findAllByUserIdAndLeftAtIsNull(CurrentUser.requireId());
         var byId = rooms.findAllById(participation.stream().map(m -> m.getRoomId()).toList()).stream()
             .collect(java.util.stream.Collectors.toMap(r -> r.getId(), r -> r));
         return ApiResponse.success(participation.stream().filter(m -> byId.containsKey(m.getRoomId())).map(m -> {

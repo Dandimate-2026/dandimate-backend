@@ -167,6 +167,7 @@ public class AskbackAnalysisService {
     /** Spring이 다시 검증하는 일 (명세 6장). 저장해도 되면 null. */
     private String rejectReason(Prepared prepared, AskbackResult result, Photo photo) {
         if (photo == null) return "photo_deleted";
+        if (members.findById(result.targetMemberId()).filter(Member::isActive).isEmpty()) return "member_left";
         if (photo.getSourceRevision() != prepared.revision) return "stale_revision";
         Room room = rooms.findById(prepared.roomId).orElseThrow();
         if (room.getStatus() != RoomStatus.CIRCULATING || pastQuestionCutoff(room)) return "room_state";
@@ -205,7 +206,9 @@ public class AskbackAnalysisService {
         roomMembers.stream().filter(m -> allText.contains(m.getNickname())).forEach(m -> candidates.add(m.getId()));
 
         List<String> eligible = new ArrayList<>();
+        Set<String> activeIds = roomMembers.stream().filter(Member::isActive).map(Member::getId).collect(java.util.stream.Collectors.toSet());
         for (String memberId : candidates) {
+            if (!activeIds.contains(memberId)) continue;
             boolean forgot = previous.stream().anyMatch(a -> a.getTargetMemberId().equals(memberId) && "FORGOT".equals(a.getStatus()));
             boolean pending = previous.stream().anyMatch(a -> a.getTargetMemberId().equals(memberId) && Askback.PENDING.equals(a.getStatus()));
             boolean limited = askbacks.countByRoomIdAndTargetMemberId(room.getId(), memberId) >= RECEIVE_LIMIT_PER_MEMBER;

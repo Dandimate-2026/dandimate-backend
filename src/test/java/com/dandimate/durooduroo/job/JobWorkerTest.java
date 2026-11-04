@@ -63,7 +63,9 @@ class JobWorkerTest {
 
         assertThat(worker.runNext()).isTrue();               // 1회차 실패 → 즉시 재시도 대기
         assertThat(job(queued).getStatus()).isEqualTo("QUEUED");
-        assertThat(worker.runNext()).isTrue();               // 2회차 실패 → 60초 뒤 재시도
+        // DB timestamp 반올림 때문에 즉시 재시도 시각이 수 µs 앞설 수 있다.
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(2))
+                .pollInterval(java.time.Duration.ofMillis(10)).until(worker::runNext); // 2회차 실패 → 60초 뒤 재시도
         assertThat(job(queued).getNextRunAt()).isAfter(LocalDateTime.now().plusSeconds(50));
         assertThat(worker.runNext()).isFalse();              // 아직 시각이 안 됨
 
@@ -81,10 +83,13 @@ class JobWorkerTest {
         AiJob queued = weaveJobs.close(roomId);
         doThrow(new IllegalStateException("ai down")).when(paragraphs).weave(any());
 
-        worker.runNext();
-        worker.runNext();
+        // H2의 timestamp 반올림으로 실행 가능 시각이 수 µs 뒤가 될 수 있다.
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(2))
+                .pollInterval(java.time.Duration.ofMillis(10)).until(worker::runNext);
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(2))
+                .pollInterval(java.time.Duration.ofMillis(10)).until(worker::runNext);
         makeDue(queued.getId());
-        worker.runNext();
+        assertThat(worker.runNext()).isTrue();
 
         AiJob failed = job(queued);
         assertThat(failed.getStatus()).isEqualTo("FAILED");

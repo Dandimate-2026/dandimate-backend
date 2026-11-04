@@ -62,7 +62,7 @@ class OpenAiProvidersTest {
         assertThat(result.evidenceEntryIds()).containsExactly("e1");
         assertThat(result.openaiRequestId()).isEqualTo("req_123");
         assertThat(result.model()).isEqualTo("test-model");
-        assertThat(result.promptVersion()).isEqualTo("askback-v2");
+        assertThat(result.promptVersion()).isEqualTo("askback-v3");
     }
 
     @Test

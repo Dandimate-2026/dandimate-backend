@@ -15,6 +15,10 @@ public interface MemberRepository extends JpaRepository<Member, String> {
 
     boolean existsByRoomIdAndNickname(String roomId, String nickname);
 
+    long countByRoomIdAndLeftAtIsNull(String roomId);
+    java.util.List<Member> findAllByRoomIdAndLeftAtIsNull(String roomId);
+    java.util.List<Member> findAllByUserIdAndLeftAtIsNull(String userId);
+    boolean existsByRoomIdAndNicknameAndIdNot(String roomId, String nickname, String id);
     long countByRoomId(String roomId);
     java.util.List<Member> findAllByRoomId(String roomId);
 
@@ -22,7 +26,7 @@ public interface MemberRepository extends JpaRepository<Member, String> {
 
     /** 토큰 원문으로 참여자를 찾는다. 어느 방에도 없는 토큰이면 401 INVALID_MEMBER_TOKEN. */
     default Member authenticate(String rawToken) {
-        return findByAccessTokenHash(Tokens.hash(rawToken))
+        return findByAccessTokenHash(Tokens.hash(rawToken)).filter(Member::isActive)
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_MEMBER_TOKEN, "참여자 토큰이 올바르지 않습니다."));
     }
 
@@ -32,7 +36,7 @@ public interface MemberRepository extends JpaRepository<Member, String> {
      */
     default Optional<Member> findByRoomIdAndMemberToken(String roomId, String rawToken) {
         String userId = com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull();
-        if (userId != null) return findByRoomIdAndUserId(roomId, userId);
+        if (userId != null) return findByRoomIdAndUserId(roomId, userId).filter(Member::isActive);
         Member member = authenticate(rawToken);
         return member.getRoomId().equals(roomId) ? Optional.of(member) : Optional.empty();
     }

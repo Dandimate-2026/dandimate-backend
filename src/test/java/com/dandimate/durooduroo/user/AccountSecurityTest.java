@@ -52,6 +52,37 @@ class AccountSecurityTest {
         mvc.perform(get("/api/v1/users/me").header("Authorization","Bearer old-token")).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/v1/rooms").with(csrf())).andExpect(status().isUnauthorized());
     }
+    @Test void planCatalogIsPublicButDoesNotAuthenticateOrEnableUnpaidRooms() throws Exception {
+        mvc.perform(get("/api/v1/plans"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.length()").value(3))
+            .andExpect(jsonPath("$.data[*].planType").value(org.hamcrest.Matchers.contains("FREE", "LITE", "PRO")))
+            .andExpect(jsonPath("$.data[*].price").value(org.hamcrest.Matchers.contains(0, 2900, 5900)))
+            .andExpect(jsonPath("$.data[*].currency").value(org.hamcrest.Matchers.contains("KRW", "KRW", "KRW")))
+            .andExpect(jsonPath("$.data[*].billingUnit").value(org.hamcrest.Matchers.contains("ROOM", "ROOM", "ROOM")))
+            .andExpect(jsonPath("$.data[*].maxCapacity").value(org.hamcrest.Matchers.contains(8, 8, 8)))
+            .andExpect(jsonPath("$.data[*].photosPerMember").value(org.hamcrest.Matchers.contains(3, 6, 10)))
+            .andExpect(jsonPath("$.data[*].photosPerRoom").value(org.hamcrest.Matchers.contains(24, 48, 80)))
+            .andExpect(jsonPath("$.data[*].firstMaxSeconds").value(org.hamcrest.Matchers.contains(30, 60, 120)))
+            .andExpect(jsonPath("$.data[*].otherMaxSeconds").value(org.hamcrest.Matchers.contains(20, 30, 60)))
+            .andExpect(jsonPath("$.data[*].voiceLimitMs").value(org.hamcrest.Matchers.contains(900000, 2400000, 5400000)))
+            .andExpect(jsonPath("$.data[*].regenerationLimit").value(org.hamcrest.Matchers.contains(3, 6, 12)))
+            .andExpect(jsonPath("$.data[0].roomCreationAvailable").value(true))
+            .andExpect(jsonPath("$.data[0].paymentRequired").value(false))
+            .andExpect(jsonPath("$.data[1].roomCreationAvailable").value(false))
+            .andExpect(jsonPath("$.data[2].roomCreationAvailable").value(false))
+            .andExpect(jsonPath("$.data[1].unavailableReason").value("PAYMENT_NOT_CONFIGURED"))
+            .andExpect(jsonPath("$.data[2].paymentRequired").value(true));
+        mvc.perform(get("/api/v1/users/me")).andExpect(status().isUnauthorized());
+        MockHttpSession loggedIn = session(account());
+        for (String plan : java.util.List.of("LITE", "PRO")) {
+            mvc.perform(post("/api/v1/rooms").session(loggedIn).with(csrf())
+                .header("Idempotency-Key", UUID.randomUUID().toString()).contentType("application/json")
+                .content("{\"name\":\"플랜 테스트\",\"meetingDate\":\"2026-11-03\",\"hostNickname\":\"서연\",\"planType\":\""+plan+"\","+CONSENT+"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.error.code").value("PAYMENT_NOT_CONFIGURED"));
+        }
+    }
     @Test void sessionRequiresCsrfAndLogoutInvalidatesIt() throws Exception {
         MockHttpSession s=session(account());
         mvc.perform(get("/api/v1/users/me").session(s)).andExpect(status().isOk());
@@ -76,6 +107,157 @@ class AccountSecurityTest {
         mvc.perform(get("/api/v1/users/me/rooms").session(gs)).andExpect(jsonPath("$.data[0].roomId").value(room));
         mvc.perform(delete("/api/v1/rooms/"+room).session(gs).with(csrf())).andExpect(status().isForbidden());
     }
+    @Test void invitePreviewIdentifiesCurrentAccountWithoutJoiningOrChangingRoles() throws Exception {
+        String hostId=account(), guestId=account();
+        MockHttpSession host=session(hostId), guest=session(guestId), outsider=session(account());
+        String created=create(host,UUID.randomUUID().toString());
+        String room=JsonPath.read(created,"$.data.room.id"), invite=JsonPath.read(created,"$.data.inviteToken");
+        String preview="/api/v1/invites/"+invite;
+        mvc.perform(get(preview)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.roomId").value(room))
+            .andExpect(jsonPath("$.data.alreadyJoined").value(false));
+        mvc.perform(get(preview).session(host)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.alreadyJoined").value(true));
+        mvc.perform(get(preview).session(guest)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.alreadyJoined").value(false));
+        assertThat(members.countByRoomId(room)).isEqualTo(1);
+        postJson(preview+"/join",guest,"{\"nickname\":\"민주\","+CONSENT+"}");
+        mvc.perform(get(preview).session(guest)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.roomId").value(room))
+            .andExpect(jsonPath("$.data.alreadyJoined").value(true));
+        mvc.perform(get(preview).session(outsider)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.alreadyJoined").value(false));
+        mvc.perform(get(preview)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.alreadyJoined").value(false));
+        mvc.perform(get(preview).session(session(hostId))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.alreadyJoined").value(true));
+        mvc.perform(get("/api/v1/rooms/"+room).session(host)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.me.role").value("HOST"));
+        mvc.perform(get("/api/v1/rooms/"+room).session(guest)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.me.role").value("MEMBER"));
+        mvc.perform(get("/api/v1/rooms/"+room).session(outsider)).andExpect(status().isForbidden());
+        assertThat(members.countByRoomId(room)).isEqualTo(2);
+    }
+    @Test void existingParticipantCanReenterFullRoomUsingPreviewRoomId() throws Exception {
+        MockHttpSession host=session(account()), outsider=session(account());
+        String created=postJson("/api/v1/rooms",host,
+            "{\"name\":\"정원 테스트\",\"meetingDate\":\"2026-11-04\",\"hostNickname\":\"서연\",\"capacity\":1,\"planType\":\"FREE\","+CONSENT+"}");
+        String room=JsonPath.read(created,"$.data.room.id"), invite=JsonPath.read(created,"$.data.inviteToken");
+        mvc.perform(get("/api/v1/invites/"+invite).session(host)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.roomId").value(room))
+            .andExpect(jsonPath("$.data.alreadyJoined").value(true))
+            .andExpect(jsonPath("$.data.canJoin").value(false));
+        mvc.perform(get("/api/v1/rooms/"+room).session(host)).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/invites/"+invite).session(outsider)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.alreadyJoined").value(false))
+            .andExpect(jsonPath("$.data.canJoin").value(false));
+        String rotated=postJson("/api/v1/rooms/"+room+"/invite-token/rotate",host,"{}");
+        String newInvite=JsonPath.read(rotated,"$.data.inviteToken");
+        mvc.perform(get("/api/v1/invites/"+invite).session(host)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/invites/"+newInvite).session(host)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.alreadyJoined").value(true));
+    }
+
+    @Test void nicknameChangesOnlyCurrentMemberAndRejectsDuplicatesAndInvalidNames() throws Exception {
+        MockHttpSession host=session(account()), guest=session(account()), outsider=session(account());
+        String created=create(host,UUID.randomUUID().toString());
+        String room=JsonPath.read(created,"$.data.room.id"), invite=JsonPath.read(created,"$.data.inviteToken");
+        postJson("/api/v1/invites/"+invite+"/join",guest,"{\"nickname\":\"민주\","+CONSENT+"}");
+        String path="/api/v1/rooms/"+room+"/members/me";
+        String response=mvc.perform(patch(path).session(guest).with(csrf()).contentType("application/json")
+            .content("{\"nickname\":\" 지수 \"}")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.nickname").value("지수"))
+            .andExpect(jsonPath("$.data.role").value("MEMBER")).andReturn().getResponse().getContentAsString();
+        contract("patch","/rooms/{roomId}/members/me","200",response);
+        mvc.perform(get("/api/v1/rooms/"+room).session(host)).andExpect(jsonPath("$.data.me.nickname").value("서연"));
+        for (String bad : java.util.List.of("서연"," ","12345678901")) {
+            mvc.perform(patch(path).session(guest).with(csrf()).contentType("application/json")
+                .content("{\"nickname\":\""+bad+"\"}")).andExpect(status().is(bad.equals("서연")?409:400));
+        }
+        mvc.perform(patch(path).session(outsider).with(csrf()).contentType("application/json").content("{\"nickname\":\"다른이름\"}"))
+            .andExpect(status().isForbidden());
+        mvc.perform(patch(path).session(guest).contentType("application/json").content("{\"nickname\":\"다른이름\"}"))
+            .andExpect(status().isForbidden());
+        mvc.perform(patch(path).with(csrf()).contentType("application/json").content("{\"nickname\":\"다른이름\"}"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test void planRequestNotifiesOnlyHostAndIsIdempotentWithoutChangingPlan() throws Exception {
+        MockHttpSession host=session(account()), guest=session(account()), outsider=session(account());
+        String created=create(host,UUID.randomUUID().toString());
+        String room=JsonPath.read(created,"$.data.room.id"), invite=JsonPath.read(created,"$.data.inviteToken");
+        postJson("/api/v1/invites/"+invite+"/join",guest,"{\"nickname\":\"민주\","+CONSENT+"}");
+        String path="/api/v1/rooms/"+room+"/plan-requests", key=UUID.randomUUID().toString(), notificationId=null;
+        for (int i=0;i<2;i++) {
+            String response=mvc.perform(post(path).session(guest).with(csrf()).header("Idempotency-Key",key)
+                .contentType("application/json").content("{\"reason\":\"PHOTO\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+            contract("post","/rooms/{roomId}/plan-requests","201",response);
+            String actual=JsonPath.read(response,"$.data.notificationId");
+            if(notificationId!=null) assertThat(actual).isEqualTo(notificationId);
+            notificationId=actual;
+        }
+        mvc.perform(get("/api/v1/rooms/"+room+"/notifications").session(host))
+            .andExpect(jsonPath("$.data.length()").value(1))
+            .andExpect(jsonPath("$.data[0].type").value("PLAN_UPGRADE_REQUESTED"))
+            .andExpect(jsonPath("$.data[0].resourceType").value("PHOTO"));
+        mvc.perform(get("/api/v1/rooms/"+room+"/notifications").session(guest))
+            .andExpect(jsonPath("$.data.length()").value(0));
+        mvc.perform(get("/api/v1/rooms/"+room).session(host)).andExpect(jsonPath("$.data.room.planType").value("FREE"));
+        for(MockHttpSession denied : java.util.List.of(host,outsider)) {
+            mvc.perform(post(path).session(denied).with(csrf()).header("Idempotency-Key",UUID.randomUUID().toString())
+                .contentType("application/json").content("{\"reason\":\"VOICE\"}")).andExpect(status().isForbidden());
+        }
+        mvc.perform(post(path).session(guest).with(csrf()).header("Idempotency-Key",UUID.randomUUID().toString())
+            .contentType("application/json").content("{\"reason\":\"OTHER\"}")).andExpect(status().isBadRequest());
+    }
+
+    @Test void leavingReleasesCapacityAndRevokesAccessWhileRejoiningKeepsMemberId() throws Exception {
+        String hostId=account(), guestId=account(); MockHttpSession host=session(hostId), guest=session(guestId);
+        String created=postJson("/api/v1/rooms",host,
+            "{\"name\":\"정원\",\"meetingDate\":\"2026-11-04\",\"hostNickname\":\"서연\",\"capacity\":2,\"planType\":\"FREE\","+CONSENT+"}");
+        String room=JsonPath.read(created,"$.data.room.id"), invite=JsonPath.read(created,"$.data.inviteToken");
+        String joined=postJson("/api/v1/invites/"+invite+"/join",guest,"{\"nickname\":\"민주\","+CONSENT+"}");
+        String member=JsonPath.read(joined,"$.data.member.id");
+        String eventToken=postJson("/api/v1/rooms/"+room+"/event-token",guest,"{}");
+        String eventsUrl=JsonPath.read(eventToken,"$.data.eventsUrl");
+        String path="/api/v1/rooms/"+room+"/members/me";
+        mvc.perform(delete(path).session(host).with(csrf())).andExpect(status().isForbidden());
+        mvc.perform(delete(path).session(guest)).andExpect(status().isForbidden());
+        for(int i=0;i<2;i++) mvc.perform(delete(path).session(guest).with(csrf())).andExpect(status().isNoContent());
+        assertThat(members.findById(member).orElseThrow().getLeftAt()).isNotNull();
+        mvc.perform(get("/api/v1/users/me/rooms").session(guest)).andExpect(jsonPath("$.data.length()").value(0));
+        mvc.perform(get("/api/v1/rooms/"+room).session(guest)).andExpect(status().isForbidden());
+        mvc.perform(get(eventsUrl.substring("http://localhost".length())).session(guest)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/invites/"+invite).session(guest)).andExpect(jsonPath("$.data.alreadyJoined").value(false))
+            .andExpect(jsonPath("$.data.memberCount").value(1)).andExpect(jsonPath("$.data.canJoin").value(true));
+        // Nine different former participants must not exhaust the eight flower slots.
+        for(int i=0;i<9;i++) {
+            MockHttpSession other=session(account());
+            postJson("/api/v1/invites/"+invite+"/join",other,"{\"nickname\":\"친구"+i+"\","+CONSENT+"}");
+            mvc.perform(post("/api/v1/invites/"+invite+"/join").session(guest).with(csrf())
+                .header("Idempotency-Key",UUID.randomUUID().toString()).contentType("application/json")
+                .content("{\"nickname\":\"민주\","+CONSENT+"}")).andExpect(status().isConflict());
+            mvc.perform(delete(path).session(other).with(csrf())).andExpect(status().isNoContent());
+        }
+        String rejoined=postJson("/api/v1/invites/"+invite+"/join",guest,"{\"nickname\":\"민주\","+CONSENT+"}");
+        assertThat((String)JsonPath.read(rejoined,"$.data.member.id")).isEqualTo(member);
+        assertThat(members.countByRoomIdAndLeftAtIsNull(room)).isEqualTo(2);
+        mvc.perform(get("/api/v1/invites/"+invite).session(guest)).andExpect(jsonPath("$.data.alreadyJoined").value(true));
+        mvc.perform(get("/api/v1/rooms/"+room).session(host)).andExpect(jsonPath("$.data.me.role").value("HOST"));
+        mvc.perform(delete("/api/v1/rooms/"+room).session(guest).with(csrf())).andExpect(status().isForbidden());
+        mvc.perform(delete("/api/v1/rooms/"+room).session(host).with(csrf())).andExpect(status().isNoContent());
+        assertThat(members.countByRoomId(room)).isZero();
+        mvc.perform(get("/api/v1/users/me").session(guest)).andExpect(status().isOk());
+    }
+
+    private void contract(String method,String path,String status,String response) throws Exception {
+        String pointer="/paths/"+path.replace("~","~0").replace("/","~1")+"/"+method+"/responses/"+status+"/content/application~1json/schema";
+        var factory=com.networknt.schema.JsonSchemaFactory.getInstance(com.networknt.schema.SpecVersion.VersionFlag.V202012);
+        var location=com.networknt.schema.SchemaLocation.of("classpath:static/openapi/public-api.yaml#"+pointer.replace("{","%7B").replace("}","%7D"));
+        assertThat(factory.getSchema(location).validate(new com.fasterxml.jackson.databind.ObjectMapper().readTree(response))).isEmpty();
+    }
+
     @Test void idempotencyIsScopedToAccountEvenForIdenticalRoomRequests() throws Exception {
         String a=account(),b=account(),key=UUID.randomUUID().toString();
         MockHttpSession sa=session(a),sb=session(b);
@@ -133,6 +315,12 @@ class AccountSecurityTest {
         String scroll=mvc.perform(get("/api/v1/rooms/"+room+"/scroll").session(guest)).andExpect(status().isOk())
             .andReturn().getResponse().getContentAsString();
         assertThat(scroll).contains(hostMember,guestMember);
+        mvc.perform(delete("/api/v1/rooms/"+room+"/members/me").session(guest).with(csrf())).andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/rooms/"+room+"/scroll").session(host)).andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.containsString(guestMember)));
+        mvc.perform(get("/api/v1/rooms/"+room+"/scroll").session(guest)).andExpect(status().isForbidden());
+        String rejoined=postJson("/api/v1/invites/"+invite+"/join",guest,"{\"nickname\":\"민주\","+CONSENT+"}");
+        assertThat((String)JsonPath.read(rejoined,"$.data.member.id")).isEqualTo(guestMember);
     }
 
     @Test void csrfEndpointTokenWorksWithBrowserStyleRequestsAndCorsRestrictsOrigins() throws Exception {

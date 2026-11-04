@@ -53,6 +53,7 @@ class RoomPlanFlowTest {
     @Autowired com.dandimate.durooduroo.memory.repository.VoiceUsageRepository usages;
     @Autowired PlatformTransactionManager manager;
     @Autowired MockMvc mvc;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
     @MockitoBean TranscriptionAiService stt;
 
     @BeforeEach void prepare() {
@@ -124,6 +125,23 @@ class RoomPlanFlowTest {
                 .andExpect(jsonPath("$.data.room.quota.myPhotosRemaining").value(0))
                 .andExpect(jsonPath("$.data.room.quota.photosPerRoom").value(plan.photosPerRoom()))
                 .andExpect(jsonPath("$.data.room.capacity").value(2));
+    }
+
+    @org.junit.jupiter.api.Test
+    void abandonedUploadsReleasePhotoQuotaButFreshOnesStillCount() throws Exception {
+        Fixture f = fixture(RoomPlan.FREE);
+        int limit = RoomPlan.FREE.photosPerMember();
+        uploads.requestUploads(f.room.getId(),token(f.host),files(limit-1,2));
+        assertThatThrownBy(() -> uploads.requestUploads(f.room.getId(),token(f.host),files(1,1))).isInstanceOf(BusinessException.class);
+
+        jdbc.update("update photos set created_at = ? where room_id = ?",
+                java.time.LocalDateTime.now().minus(com.dandimate.durooduroo.storage.MediaUrls.UPLOAD_TTL).minusSeconds(1), f.room.getId());
+        mvc.perform(get("/api/v1/rooms/"+f.room.getId()).header("Authorization",token(f.host))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.room.quota.myPhotosRemaining").value(limit))
+                .andExpect(jsonPath("$.data.room.quota.photoCount").value(0));
+
+        uploads.requestUploads(f.room.getId(),token(f.host),files(limit,1));
+        assertThat(photos.countByRoomId(f.room.getId())).isEqualTo(limit);
     }
 
     @ParameterizedTest @EnumSource(RoomPlan.class)

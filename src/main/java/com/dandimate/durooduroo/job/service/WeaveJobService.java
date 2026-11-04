@@ -114,7 +114,7 @@ public class WeaveJobService {
             var scroll = paragraphs.save(plan, woven);
             job.succeed();
             lockRoom(roomId).completeWeaving();
-            members.findAllByRoomId(roomId).forEach(member -> notifier.notify(roomId, member.getId(), "SCROLL_READY", "SCROLL", scroll.getId()));
+            members.findAllByRoomIdAndLeftAtIsNull(roomId).forEach(member -> notifier.notify(roomId, member.getId(), "SCROLL_READY", "SCROLL", scroll.getId()));
             roomEvents.toRoom(roomId, "scroll.ready", java.util.Map.of("scrollId", scroll.getId(), "version", scroll.getVersion()));
         });
     }
