@@ -2,7 +2,7 @@ package com.dandimate.durooduroo.room.dto;
 
 import com.dandimate.durooduroo.room.domain.Room;
 
-/** 남은 음성 시간은 처리 중 예약량을 제외한다. 사진은 업로드 대기분도 포함한다. */
+/** 남은 음성 시간은 처리 중 예약량을 제외한다. 사진은 업로드 대기분도 포함하되, 주소가 만료된 실패 업로드는 뺀다. */
 public record RoomQuotaView(int photosPerMember, int photosPerRoom, long photoCount, long myPhotoCount,
                             long photosRemaining, long myPhotosRemaining,
                             int firstMaxSeconds, int otherMaxSeconds, long voiceLimitMs,

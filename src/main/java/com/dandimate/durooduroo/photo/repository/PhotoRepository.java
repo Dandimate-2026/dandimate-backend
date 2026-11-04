@@ -11,4 +11,5 @@ public interface PhotoRepository extends JpaRepository<Photo, String> {
     long countByRoomId(String roomId);
     long countByRoomIdAndMemberId(String roomId, String memberId);
     List<Photo> findAllByRoomId(String roomId);
+    List<Photo> findAllByRoomIdAndStatusAndCreatedAtBefore(String roomId, String status, java.time.LocalDateTime cutoff);
 }

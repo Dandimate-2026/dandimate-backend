@@ -62,7 +62,8 @@ public class RoomHomeService {
         Member me = members.findByRoomIdAndMemberToken(roomId, MemberTokenResolver.resolve(authorization))
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "방 참여자만 조회할 수 있습니다."));
         List<Member> roomMembers = members.findAllByRoomIdAndLeftAtIsNull(roomId).stream().sorted(Comparator.comparing(m -> m.getFlowerCode().ordinal())).toList();
-        List<Photo> roomPhotos = photos.findAllByRoomId(roomId);
+        var uploadCutoff = java.time.LocalDateTime.now().minus(com.dandimate.durooduroo.storage.MediaUrls.UPLOAD_TTL);
+        List<Photo> roomPhotos = photos.findAllByRoomId(roomId).stream().filter(p -> !p.isAbandonedUpload(uploadCutoff)).toList();
         List<Photo> published = roomPhotos.stream().filter(Photo::isPublished).toList();
         List<MemoryEntry> roomEntries = entries.findAllByRoomIdOrderByCreatedAtAsc(roomId);
         Set<String> responded = responded(roomId, roomEntries);

@@ -24,6 +24,37 @@ class PhotoUploadTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private com.dandimate.durooduroo.photo.repository.PhotoRepository photos;
+
+    @Autowired
+    private com.dandimate.durooduroo.storage.ObjectStorage storage;
+
+    @Test
+    void complete가_저장된_사진에서_위치정보를_지운다() throws Exception {
+        String created = mockMvc.perform(post("/api/v1/rooms").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"서연\"," + CONSENT + "}"))
+                .andReturn().getResponse().getContentAsString();
+        String roomId = JsonPath.read(created, "$.data.room.id");
+        String host = JsonPath.read(created, "$.data.memberAccessToken");
+        String requested = mockMvc.perform(post("/api/v1/rooms/" + roomId + "/photos/upload-requests").header("Authorization", "Bearer " + host)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"files\":[{\"clientFileId\":\"c1\",\"fileName\":\"a.jpg\",\"contentType\":\"image/jpeg\",\"sizeBytes\":10,\"displayOrder\":1}]}"))
+                .andReturn().getResponse().getContentAsString();
+        String photoId = JsonPath.read(requested, "$.data.uploads[0].photoId");
+        String uploadPath = JsonPath.<String>read(requested, "$.data.uploads[0].uploadUrl").substring("http://localhost".length());
+
+        mockMvc.perform(put(uploadPath).contentType("image/jpeg").content(com.dandimate.durooduroo.photo.image.JpegSamples.withOrientationAndTrailer(6)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/photos/" + photoId + "/complete").header("Authorization", "Bearer " + host))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.photo.status").value("READY"));
+
+        byte[] stored = storage.read(photos.findById(photoId).orElseThrow().getFileUrl()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(new String(stored, java.nio.charset.StandardCharsets.ISO_8859_1))
+                .doesNotContain("GPS").doesNotContain("MOTION").contains("Exif");
+    }
+
     @Test
     void 업로드_URL로_올리고_complete가_저장소를_검증한다() throws Exception {
         String created = mockMvc.perform(post("/api/v1/rooms").contentType(MediaType.APPLICATION_JSON)

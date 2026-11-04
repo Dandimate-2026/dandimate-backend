@@ -1,6 +1,6 @@
 /**
  * 사진 업로드 URL과 응답에 넣을 imageUrl을 만든다. 직접 업로드와 img 태그는 Authorization 헤더를 보낼 수 없으므로 URL 자체가 권한을 담는다.
- * - S3: presigned PUT(업로드, 10분) / presigned GET(조회)
+ * - S3: presigned PUT(업로드, 2분) / presigned GET(조회)
  * - 로컬: PUT /api/v1/photos/{id}/upload, GET /api/v1/photos/{id}/image 에 expires·signature (HMAC-SHA256, 용도별로 다른 서명)
  * 서명 키(app.media.signing-secret)가 비어 있으면 시작할 때 무작위로 만들며, 그러면 재시작 후 이전 URL은 무효가 된다.
  */
@@ -23,7 +23,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 @Component
 public class MediaUrls {
 
-    public static final Duration UPLOAD_TTL = Duration.ofMinutes(10);
+    public static final Duration UPLOAD_TTL = Duration.ofMinutes(2);
 
     private final ObjectStorage storage;
     private final byte[] secret;
