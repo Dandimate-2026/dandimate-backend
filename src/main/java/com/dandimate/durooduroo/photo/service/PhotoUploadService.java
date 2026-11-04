@@ -10,6 +10,8 @@ package com.dandimate.durooduroo.photo.service;
 import com.dandimate.durooduroo.common.auth.MemberTokenResolver;
 import com.dandimate.durooduroo.common.exception.BusinessException;
 import com.dandimate.durooduroo.common.exception.ErrorCode;
+import com.dandimate.durooduroo.photo.image.JpegMetadata;
+import com.dandimate.durooduroo.photo.image.PngMetadata;
 import com.dandimate.durooduroo.job.domain.AiJob;
 import com.dandimate.durooduroo.member.domain.Member;
 import com.dandimate.durooduroo.member.repository.MemberRepository;
@@ -35,6 +37,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PhotoUploadService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PhotoUploadService.class);
+
     public static final long MAX_PHOTO_BYTES = 2_000_000;
     private final com.dandimate.durooduroo.room.repository.RoomRepository rooms;
     private static final Map<String, String> EXTENSIONS = Map.of(
@@ -47,6 +51,9 @@ public class PhotoUploadService {
     private final MediaUrls mediaUrls;
     private final com.dandimate.durooduroo.job.repository.AiJobRepository jobs;
     private final com.dandimate.durooduroo.notification.service.RoomEvents roomEvents;
+
+    @org.springframework.beans.factory.annotation.Value("${app.photos.derive-wait-ms:15000}")
+    private long deriveWaitMs;
 
     public PhotoUploadService(PhotoRepository photos, MemberRepository members, RoomStateService roomStates, ObjectStorage storage, MediaUrls mediaUrls, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents,
                               com.dandimate.durooduroo.job.repository.AiJobRepository jobs, com.dandimate.durooduroo.room.repository.RoomRepository rooms) {
@@ -66,6 +73,7 @@ public class PhotoUploadService {
         room.requireAllows(RoomAction.UPLOAD_OR_FIRST_ENTRY);
         Member me = members.findByRoomIdAndMemberToken(roomId, MemberTokenResolver.resolve(authorization))
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "방 참여자만 업로드할 수 있습니다."));
+        releaseAbandonedUploads(roomId);
         var plan = room.getPlanType();
         if (photos.countByRoomIdAndMemberId(roomId, me.getId()) + request.files().size() > plan.photosPerMember()
                 || photos.countByRoomId(roomId) + request.files().size() > plan.photosPerRoom()) {
@@ -124,6 +132,7 @@ public class PhotoUploadService {
         if (knownType && !stored.contentType().equalsIgnoreCase(photo.getContentType())) {
             throw new BusinessException(ErrorCode.UPLOAD_VERIFICATION_FAILED, "업로드 요청과 파일 형식이 달라요.");
         }
+        removeMetadata(photo);
         photo.complete(hashOf(photo));
         if (Photo.PROCESSING.equals(photo.getStatus())) {
             jobs.save(AiJob.queued(photo.getRoomId(), AiJob.PHOTO_DERIVE, photo.getId()));
@@ -131,6 +140,54 @@ public class PhotoUploadService {
         }
         roomEvents.toMember(photo.getRoomId(), photo.getMemberId(), "photo.uploaded", Map.of("photoId", photo.getId(), "roomId", photo.getRoomId(), "status", photo.getStatus()));
         return photo;
+    }
+
+    /** 첫 한마디는 READY 사진에만 남길 수 있어서, 프론트가 바로 넘어가도 되도록 변환을 잠시 기다린다. 트랜잭션 밖에서 부른다. */
+    public Photo awaitDerivative(Photo photo) {
+        long deadline = System.currentTimeMillis() + deriveWaitMs;
+        Photo current = photo;
+        while (Photo.PROCESSING.equals(current.getStatus()) && System.currentTimeMillis() < deadline) {
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return current;
+            }
+            current = photos.findById(photo.getId()).orElse(current);
+        }
+        return current;
+    }
+
+    /** 주소가 만료되도록 완료되지 않은 업로드는 지워서 사진 한도를 돌려준다. 파일이 없어도 삭제는 성공한다. */
+    private void releaseAbandonedUploads(String roomId) {
+        for (Photo photo : photos.findAllByRoomIdAndStatusAndCreatedAtBefore(roomId, Photo.UPLOADING, LocalDateTime.now().minus(MediaUrls.UPLOAD_TTL))) {
+            try {
+                storage.delete(photo.getFileUrl());
+            } catch (RuntimeException e) {
+                log.warn("Abandoned upload file not deleted: {} ({})", photo.getId(), e.getClass().getSimpleName());
+            }
+            photos.delete(photo);
+        }
+    }
+
+    /** 브라우저가 저장소에 바로 올린 원본에서 위치 정보 같은 메타데이터를 지운다. HEIC·HEIF는 파생본을 만들 때 지운다. */
+    private void removeMetadata(Photo photo) {
+        if (photo.needsDerivative()) return;
+        byte[] original = storage.read(photo.getFileUrl())
+                .orElseThrow(() -> new BusinessException(ErrorCode.UPLOAD_VERIFICATION_FAILED, "업로드된 파일을 찾을 수 없어요."));
+        byte[] cleaned;
+        try {
+            cleaned = cleaned(original);
+        } catch (IllegalArgumentException | IndexOutOfBoundsException e) {
+            throw new BusinessException(ErrorCode.UPLOAD_VERIFICATION_FAILED, "사진 파일이 손상되어 올릴 수 없어요.");
+        }
+        if (!java.util.Arrays.equals(original, cleaned)) storage.putBytes(photo.getStorageKey(), cleaned, photo.getContentType());
+    }
+
+    private static byte[] cleaned(byte[] original) {
+        if (JpegMetadata.isJpeg(original)) return JpegMetadata.stripKeepingOrientation(original);
+        if (PngMetadata.isPng(original)) return PngMetadata.strip(original);
+        return original;
     }
 
     /** 로컬 파일은 SHA-256을 계산하고, 직접 읽을 수 없는 저장소(S3)는 비워 둔다. */

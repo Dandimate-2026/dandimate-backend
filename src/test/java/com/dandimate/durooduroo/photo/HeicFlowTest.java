@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.ResultActions;
 /** HEIC 업로드: PROCESSING → (파생본 생성) → READY, 변환 실패 → FAILED → complete로 재시도. Worker는 직접 돌린다. */
 @org.springframework.context.annotation.Import(com.dandimate.durooduroo.support.LegacyWorkflowSecurity.class)
 @SpringBootTest(properties = {"storage.local-root=build/test-uploads", "app.jobs.retry-delay-ms=0",
+        "app.photos.derive-wait-ms=0",
         "app.jobs.poll-interval-ms=3600000", "app.jobs.deadline-check-interval-ms=3600000", "app.jobs.stale-check-interval-ms=3600000"})
 @AutoConfigureMockMvc
 class HeicFlowTest {

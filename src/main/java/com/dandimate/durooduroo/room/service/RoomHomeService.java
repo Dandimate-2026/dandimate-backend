@@ -37,6 +37,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class RoomHomeService {
 
+    private static final java.time.ZoneId SERVICE_ZONE = java.time.ZoneId.of("Asia/Seoul");
+
     private final RoomRepository rooms;
     private final MemberRepository members;
     private final PhotoRepository photos;
@@ -62,7 +64,8 @@ public class RoomHomeService {
         Member me = members.findByRoomIdAndMemberToken(roomId, MemberTokenResolver.resolve(authorization))
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "방 참여자만 조회할 수 있습니다."));
         List<Member> roomMembers = members.findAllByRoomIdAndLeftAtIsNull(roomId).stream().sorted(Comparator.comparing(m -> m.getFlowerCode().ordinal())).toList();
-        List<Photo> roomPhotos = photos.findAllByRoomId(roomId);
+        var uploadCutoff = java.time.LocalDateTime.now().minus(com.dandimate.durooduroo.storage.MediaUrls.UPLOAD_TTL);
+        List<Photo> roomPhotos = photos.findAllByRoomId(roomId).stream().filter(p -> !p.isAbandonedUpload(uploadCutoff)).toList();
         List<Photo> published = roomPhotos.stream().filter(Photo::isPublished).toList();
         List<MemoryEntry> roomEntries = entries.findAllByRoomIdOrderByCreatedAtAsc(roomId);
         Set<String> responded = responded(roomId, roomEntries);
@@ -71,9 +74,9 @@ public class RoomHomeService {
         RoomHomeView.MemberStats myStats = stats.stream().filter(s -> s.id().equals(me.getId())).findFirst().orElseThrow();
 
         List<Member> allMembers = members.findAllByRoomId(roomId);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(SERVICE_ZONE);
         List<RoomHomeView.TodayFlower> todayFlowers = roomEntries.stream()
-                .filter(e -> (e.getKind() == EntryKind.FIRST || e.getKind() == EntryKind.ADDON) && e.getCreatedAt().toLocalDate().equals(today))
+                .filter(e -> (e.getKind() == EntryKind.FIRST || e.getKind() == EntryKind.ADDON) && isOn(e.getCreatedAt(), today))
                 .map(e -> new RoomHomeView.TodayFlower(e.getMemberId(), flowerOf(e.getMemberId(), allMembers), e.getKind().name()))
                 .toList();
 
@@ -112,6 +115,11 @@ public class RoomHomeService {
         return !published.isEmpty() && roomMembers.stream().allMatch(m -> published.stream()
                 .filter(p -> !p.getMemberId().equals(m.getId()))
                 .allMatch(p -> responded.contains(p.getId() + ":" + m.getId())));
+    }
+
+    /** 서버 시간대와 관계없이 한국 날짜로 비교한다. */
+    static boolean isOn(java.time.LocalDateTime serverTime, LocalDate koreanDate) {
+        return serverTime.atZone(java.time.ZoneId.systemDefault()).withZoneSameInstant(SERVICE_ZONE).toLocalDate().equals(koreanDate);
     }
 
     private RoomHomeView.MemberStats stats(Member member, List<Photo> roomPhotos, List<Photo> published,

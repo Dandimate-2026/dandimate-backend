@@ -50,6 +50,8 @@ public class Photo {
     public String getDisplayLocation() { return derivedUrl != null ? derivedUrl : fileUrl; }
     public void publish() { if (publishedAt == null) publishedAt = LocalDateTime.now(); }
     public void bumpSourceRevision() { sourceRevision++; }
+    /** 업로드 주소가 만료될 때까지 완료되지 않은 사진. 실패한 업로드로 보고 한도에서 뺀다. */
+    public boolean isAbandonedUpload(LocalDateTime cutoff) { return UPLOADING.equals(status) && createdAt.isBefore(cutoff); }
     public boolean isReady() { return READY.equals(status); }
     public boolean isPublished() { return publishedAt != null; }
     public String getId(){return id;} public String getRoomId(){return roomId;} public String getMemberId(){return memberId;}

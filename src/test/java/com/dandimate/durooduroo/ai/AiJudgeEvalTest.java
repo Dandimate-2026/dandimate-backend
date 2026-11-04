@@ -65,7 +65,7 @@ class AiJudgeEvalTest {
                     entries, previous, new AskbackCommand.Limits(AiEvalTest.strings(c.get("eligible")), AiEvalTest.strings(c.get("allowed")))));
             if (!result.shouldAsk()) continue;
             asked++;
-            JsonNode judged = client.call("judge-askback-v1", "askback_judgement", ASKBACK_SCHEMA,
+            JsonNode judged = client.call("judge-askback-v2", "askback_judgement", ASKBACK_SCHEMA,
                     new AskbackJudgeInput(plain(entries), names.get(result.targetMemberId()), result.question())).output();
             if (judged.path("worthAnswering").asBoolean()) worth++;
             if (judged.path("specific").asBoolean()) specific++;

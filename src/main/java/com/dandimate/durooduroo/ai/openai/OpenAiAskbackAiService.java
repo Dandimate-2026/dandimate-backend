@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty(name = "app.ai.provider", havingValue = "openai")
 public class OpenAiAskbackAiService implements AskbackAiService {
 
-    static final String PROMPT_VERSION = "askback-v2";
+    static final String PROMPT_VERSION = "askback-v3";
     private static final java.util.Map<String, Object> SCHEMA = object(ordered(
             "shouldAsk", bool(),
             "gapType", nullableEnumOf("CONFLICT", "MISSING_REASON", "NO_ADDON", "MISSING_CONTEXT"),
