@@ -102,10 +102,16 @@ class ContractCoverageTest {
         String addonId = JsonPath.read(addon, "$.data.entry.id");
         check("PATCH", "/entries/{entryId}", json(patch("/api/v1/entries/" + addonId), a, "{\"transcript\":\"나도 그날 똑똑히 기억나\"}"), 200);
 
+        // 방장이 다른 멤버의 사진을 패스하면 방장에게도 질문이 온다.
+        String questionPhoto = uploadOne(roomId, b);
+        json(post("/api/v1/photos/" + questionPhoto + "/entries"), b, entry("FIRST", "함께 웃은 순간"));
+        authed(put("/api/v1/photos/" + questionPhoto + "/passes/me"), a);
+        drain();
         // 되묻기
         String askbacks = check("GET", "/rooms/{roomId}/askbacks/me", authed(get("/api/v1/rooms/" + roomId + "/askbacks/me"), a), 200);
         String askbackId = JsonPath.read(askbacks, "$.data.askbacks[0].id");
         check("GET", "/askbacks/{askbackId}", authed(get("/api/v1/askbacks/" + askbackId), a), 200);
+        check("GET", "/rooms/{roomId}/askbacks/next", authed(get("/api/v1/rooms/" + roomId + "/askbacks/next"), a), 200);
         check("GET", "/askbacks/{askbackId}", authed(get("/api/v1/askbacks/" + askbackId), b), 404);
         check("POST", "/askbacks/{askbackId}/transcriptions", mockMvc.perform(multipart("/api/v1/askbacks/" + askbackId + "/transcriptions")
                 .file(new MockMultipartFile("file", "v.wav", "audio/wav", VoiceSamples.wav(3))).header("Authorization", "Bearer " + a)), 201);
@@ -119,6 +125,7 @@ class ContractCoverageTest {
         drain();
         askForgotFlow(roomId, b);
 
+        check("POST", "/askbacks/{askbackId}/pass", authed(post("/api/v1/askbacks/" + askbackId + "/pass"), b), 404);
         // 알림·SSE
         String notifications = check("GET", "/rooms/{roomId}/notifications", authed(get("/api/v1/rooms/" + roomId + "/notifications"), a), 200);
         check("POST", "/notifications/{notificationId}/read", authed(post("/api/v1/notifications/" + JsonPath.read(notifications, "$.data[0].id") + "/read"), a), 200);
@@ -162,7 +169,9 @@ class ContractCoverageTest {
         // 실제 보안 설정으로 user/AccountSecurityTest·OAuthCallbackTest가 검사한다.
         all.removeAll(Set.of("GET /auth/csrf", "POST /auth/logout", "GET /users/me", "GET /users/me/rooms",
                 "GET /oauth2/authorization/kakao", "GET /login/oauth2/code/kakao",
-                "PATCH /rooms/{roomId}/members/me", "DELETE /rooms/{roomId}/members/me", "POST /rooms/{roomId}/plan-requests"));
+                "PATCH /rooms/{roomId}/members/me", "DELETE /rooms/{roomId}/members/me", "POST /rooms/{roomId}/plan-requests", "POST /rooms/{roomId}/host-transfer",
+                "POST /payments/room-orders", "POST /payments/confirm", "GET /payments/orders/{orderId}",
+                "POST /rooms/{roomId}/plan-orders"));
         assertThat(all).as("호출하지 않은 계약서 operation").isEmpty();
         assertThat(problems).as("계약서와 다른 응답").isEmpty();
     }

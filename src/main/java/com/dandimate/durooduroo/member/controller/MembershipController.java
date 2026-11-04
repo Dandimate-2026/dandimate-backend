@@ -16,6 +16,13 @@ public class MembershipController {
     private final MembershipService service;
     public MembershipController(MembershipService service) { this.service = service; }
 
+    public record TransferHostRequest(@NotBlank String memberId) {}
+
+    @PostMapping("/host-transfer")
+    public ApiResponse<?> transferHost(@PathVariable String roomId, @Valid @RequestBody TransferHostRequest request) {
+        return ApiResponse.success(service.transferHost(roomId, request.memberId()));
+    }
+
     public record RenameRequest(@NotBlank @Size(max = 10) String nickname) {}
     public record PlanRequest(@NotNull MembershipService.PlanRequestReason reason) {}
 

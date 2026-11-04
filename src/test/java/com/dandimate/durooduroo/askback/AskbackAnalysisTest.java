@@ -47,39 +47,43 @@ class AskbackAnalysisTest {
     @MockitoSpyBean private AskbackAiService ai;
 
     @Test
-    void 첫_한마디가_확정되면_업로더에게_묻고_기억_안_나요를_누른_사람에게는_다시_묻지_않는다() throws Exception {
+    void 패스한_참가자만_질문을_받고_질문_패스는_다음_질문을_반환한다() throws Exception {
         Room room = room();
         String photo = publishedPhoto(room, "다들 웃은 사진");
         drain();
-
+        assertThat(askbacks.findAllByPhotoId(photo)).isEmpty();
+        pass(photo, room.member);
+        drain();
         Askback first = only(askbacks.findAllByPhotoId(photo));
-        assertThat(first.getTargetMemberId()).isEqualTo(room.hostId);
-        assertThat(first.getGapType()).isEqualTo("NO_ADDON");
-        assertThat(eventLogs.findAllByRoomIdAndName(room.id, "askback_sent")).hasSize(1);
+        assertThat(first.getTargetMemberId()).isEqualTo(room.memberId);
+        String secondPhoto = publishedPhoto(room, "바다 앞 사진");
+        pass(secondPhoto, room.member);
+        drain();
+        Askback second = only(askbacks.findAllByPhotoId(secondPhoto));
+        mockMvc.perform(post("/api/v1/askbacks/" + first.getId() + "/pass").header("Authorization", "Bearer " + room.host))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/v1/askbacks/" + first.getId() + "/pass").header("Authorization", "Bearer " + room.member))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.nextAskback.id").value(second.getId()))
+                .andExpect(jsonPath("$.data.remainingCount").value(1)).andExpect(jsonPath("$.data.completed").value(false));
+        mockMvc.perform(post("/api/v1/askbacks/" + second.getId() + "/pass").header("Authorization", "Bearer " + room.member))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.remainingCount").value(0))
+                .andExpect(jsonPath("$.data.completed").value(true));
+        assertThat(askbacks.findById(first.getId()).orElseThrow().getStatus()).isEqualTo("SKIPPED");
+        entry(photo, room.host, "ADDON", "다시 떠오른 이야기");
+        drain();
+        assertThat(askbacks.findAllByPhotoId(photo)).hasSize(1);
+    }
 
-        mockMvc.perform(post("/api/v1/askbacks/" + first.getId() + "/forgot").header("Authorization", "Bearer " + room.host))
+    private void pass(String photo, String token) throws Exception {
+        mockMvc.perform(put("/api/v1/photos/" + photo + "/passes/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
-        // 지수가 덧붙이면 다시 분석한다. 서연은 FORGOT이라 제외되고, 원문을 남긴 지수에게 다른 유형으로 묻는다.
-        entry(photo, room.member, "ADDON", "막차 놓쳐서 다 같이 뛰었지").andExpect(status().isCreated());
-        drain();
-        List<Askback> all = askbacks.findAllByPhotoId(photo);
-        assertThat(all).hasSize(2);
-        Askback second = all.stream().filter(a -> !a.getId().equals(first.getId())).findFirst().orElseThrow();
-        assertThat(second.getTargetMemberId()).isEqualTo(room.memberId);
-        assertThat(second.getGapType()).isNotEqualTo("NO_ADDON");
-
-        // 사진당 최대 2개: 더 바뀌어도 새 질문은 없다
-        mockMvc.perform(post("/api/v1/askbacks/" + second.getId() + "/forgot").header("Authorization", "Bearer " + room.member));
-        entry(photo, room.member, "ADDON", "역에서 표도 잃어버렸어").andExpect(status().isCreated());
-        drain();
-        assertThat(askbacks.findAllByPhotoId(photo)).hasSize(2);
-        assertThat(eventLogs.findAllByRoomIdAndName(room.id, "askback_skipped")).isNotEmpty();
     }
 
     @Test
     void 분석하는_사이_원문이_바뀌면_오래된_결과를_저장하지_않는다() throws Exception {
         Room room = room();
         String photo = publishedPhoto(room, "다들 웃은 사진");
+        pass(photo, room.member);
         doAnswer(invocation -> {
             jdbc.update("update photos set source_revision = source_revision + 1 where id = ?", photo);
             return invocation.callRealMethod();

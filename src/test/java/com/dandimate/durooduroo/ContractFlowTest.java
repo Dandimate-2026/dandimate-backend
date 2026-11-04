@@ -69,30 +69,31 @@ class ContractFlowTest {
         assertThat(image).isEqualTo(PNG);
         mockMvc.perform(get(imagePath.replaceAll("signature=[^&]+", "signature=forged"))).andExpect(status().isForbidden());
 
-        // 되묻기 데모 실행 → 업로더(A)가 받는다. B에게는 존재도 알리지 않는다.
+        mockMvc.perform(put("/api/v1/photos/" + photoA + "/passes/me").header("Authorization", "Bearer " + b)).andExpect(status().isOk());
+        // 되묻기 데모 실행 → 패스한 B가 받는다. A에게는 존재도 알리지 않는다.
         mockMvc.perform(post("/api/v1/rooms/" + roomId + "/askbacks/run").header("Authorization", "Bearer " + a))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.data.job.type").value("ASKBACK_ANALYZE"));
         await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
-                mockMvc.perform(get("/api/v1/rooms/" + roomId + "/askbacks/me").header("Authorization", "Bearer " + a))
+                mockMvc.perform(get("/api/v1/rooms/" + roomId + "/askbacks/me").header("Authorization", "Bearer " + b))
                         .andExpect(jsonPath("$.data.askbacks.length()").value(1)));
-        String mine = body(mockMvc.perform(get("/api/v1/rooms/" + roomId + "/askbacks/me").header("Authorization", "Bearer " + a)));
+        String mine = body(mockMvc.perform(get("/api/v1/rooms/" + roomId + "/askbacks/me").header("Authorization", "Bearer " + b)));
         String askbackId = JsonPath.read(mine, "$.data.askbacks[0].id");
         assertThat(JsonPath.<String>read(mine, "$.data.askbacks[0].photo.id")).isEqualTo(photoA);
         assertThat(JsonPath.<String>read(mine, "$.data.askbacks[0].gapType")).isEqualTo("NO_ADDON");
         assertThat(JsonPath.<List<String>>read(mine, "$.data.askbacks[0].evidenceNicknames")).containsExactly("서연");
-        mockMvc.perform(get("/api/v1/askbacks/" + askbackId).header("Authorization", "Bearer " + b)).andExpect(status().isNotFound());
-        mockMvc.perform(get("/api/v1/rooms/" + roomId).header("Authorization", "Bearer " + a))
+        mockMvc.perform(get("/api/v1/askbacks/" + askbackId).header("Authorization", "Bearer " + a)).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/rooms/" + roomId).header("Authorization", "Bearer " + b))
                 .andExpect(jsonPath("$.data.myTodo.topAskback.id").value(askbackId))
                 .andExpect(jsonPath("$.data.unreadCount").value(1));
 
         // 답변 → ASKBACK_ANSWER 원문. 다시 답하면 409 ASKBACK_CLOSED.
-        json(post("/api/v1/askbacks/" + askbackId + "/answer"), a, "{\"inputMode\":\"TEXT\",\"transcript\":\"지수가 뒤로 넘어졌거든\"}")
+        json(post("/api/v1/askbacks/" + askbackId + "/answer"), b, "{\"inputMode\":\"TEXT\",\"transcript\":\"지수가 뒤로 넘어졌거든\"}")
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.askback.status").value("ANSWERED"))
                 .andExpect(jsonPath("$.data.entry.kind").value("ASKBACK_ANSWER"))
                 .andExpect(jsonPath("$.data.entry.photoId").value(photoA));
-        json(post("/api/v1/askbacks/" + askbackId + "/answer"), a, "{\"inputMode\":\"TEXT\",\"transcript\":\"한 번 더\"}")
+        json(post("/api/v1/askbacks/" + askbackId + "/answer"), b, "{\"inputMode\":\"TEXT\",\"transcript\":\"한 번 더\"}")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("ASKBACK_CLOSED"));
 
@@ -121,7 +122,7 @@ class ContractFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.version").value(1))
                 .andExpect(jsonPath("$.data.memberCount").value(2))
-                .andExpect(jsonPath("$.data.participantCount").value(1))
+                .andExpect(jsonPath("$.data.participantCount").value(2))
                 .andExpect(jsonPath("$.data.paragraphs.length()").value(1))
                 .andExpect(jsonPath("$.data.paragraphs[0].photo.id").value(photoA))
                 .andExpect(jsonPath("$.data.paragraphs[0].aiGenerated").value(true))

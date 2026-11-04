@@ -67,12 +67,13 @@ class ContractSchemaTest {
         matches("RoomHomeResponse", authed(get("/api/v1/rooms/" + roomId), host));
         matches("CirculationResponse", authed(get("/api/v1/rooms/" + roomId + "/circulation"), member));
 
+        mockMvc.perform(put("/api/v1/photos/" + photoId + "/passes/me").header("Authorization", "Bearer " + member)).andExpect(status().isOk());
         await().atMost(Duration.ofSeconds(5)).until(() ->
-                JsonPath.<Integer>read(body(authed(get("/api/v1/rooms/" + roomId + "/askbacks/me"), host)), "$.data.askbacks.length()") == 1);
-        String askbacks = matches("AskbackListResponse", authed(get("/api/v1/rooms/" + roomId + "/askbacks/me"), host));
+                JsonPath.<Integer>read(body(authed(get("/api/v1/rooms/" + roomId + "/askbacks/me"), member)), "$.data.askbacks.length()") == 1);
+        String askbacks = matches("AskbackListResponse", authed(get("/api/v1/rooms/" + roomId + "/askbacks/me"), member));
         String askbackId = JsonPath.read(askbacks, "$.data.askbacks[0].id");
-        matches("AskbackDetailResponse", authed(get("/api/v1/askbacks/" + askbackId), host));
-        matches("AskbackAnswerResponse", json(post("/api/v1/askbacks/" + askbackId + "/answer"), host, "{\"inputMode\":\"TEXT\",\"transcript\":\"지수가 넘어졌거든\"}"));
+        matches("AskbackDetailResponse", authed(get("/api/v1/askbacks/" + askbackId), member));
+        matches("AskbackAnswerResponse", json(post("/api/v1/askbacks/" + askbackId + "/answer"), member, "{\"inputMode\":\"TEXT\",\"transcript\":\"지수가 넘어졌거든\"}"));
 
         matchesPath("/rooms/{roomId}/notifications", "get", "200", authed(get("/api/v1/rooms/" + roomId + "/notifications"), host));
         matchesPath("/rooms/{roomId}/event-token", "post", "201", authed(post("/api/v1/rooms/" + roomId + "/event-token"), host));

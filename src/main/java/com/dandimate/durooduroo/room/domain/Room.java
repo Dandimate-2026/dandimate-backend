@@ -66,6 +66,12 @@ public class Room implements Persistable<String> {
         return room;
     }
 
+    public void upgradePlan(RoomPlan target) {
+        if (target.priceKrw() <= planType.priceKrw())
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "상위 플랜으로만 변경할 수 있습니다.");
+        this.planType = target;
+    }
+
     public void reserveVoice(long durationMs) {
         if (durationMs <= 0) throw new IllegalArgumentException("durationMs must be positive");
         if (durationMs > getVoiceRemainingMs())

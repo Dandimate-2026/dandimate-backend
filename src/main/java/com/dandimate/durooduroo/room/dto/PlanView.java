@@ -9,10 +9,13 @@ public record PlanView(RoomPlan planType, int price, String currency, String bil
                        int maxCapacity, int photosPerMember, int photosPerRoom,
                        int firstMaxSeconds, int otherMaxSeconds, long voiceLimitMs, int regenerationLimit) {
     public static PlanView from(RoomPlan plan) {
+        return from(plan, false);
+    }
+    public static PlanView from(RoomPlan plan, boolean paymentsEnabled) {
         boolean paid = plan.requiresPayment();
         // 결제 검증이 연결되기 전에는 유료 플랜의 방 생성을 지원하지 않는다.
-        return new PlanView(plan, plan.priceKrw(), "KRW", "ROOM", paid, !paid,
-                paid ? "PAYMENT_NOT_CONFIGURED" : null, Room.CAPACITY,
+        return new PlanView(plan, plan.priceKrw(), "KRW", "ROOM", paid, !paid || paymentsEnabled,
+                paid && !paymentsEnabled ? "PAYMENT_NOT_CONFIGURED" : null, Room.CAPACITY,
                 plan.photosPerMember(), plan.photosPerRoom(), plan.firstSeconds(),
                 plan.otherSeconds(), plan.voiceLimitMs(), plan.regenerations());
     }

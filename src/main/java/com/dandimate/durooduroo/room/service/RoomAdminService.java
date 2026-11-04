@@ -31,12 +31,14 @@ public class RoomAdminService {
     /** 문단에 딸린 엔티티 (paragraphId로 지운다, Paragraph보다 먼저). */
     private static final List<String> PARAGRAPH_SCOPED = List.of("ParagraphSource", "ParagraphVersion", "ParagraphReaction", "ParagraphRating");
 
+    private final com.dandimate.durooduroo.payment.PaymentOrderRepository paymentOrders;
     private final RoomRepository rooms;
     private final MemberRepository members;
     private final AiJobRepository jobs;
     private final EntityManager em;
 
-    public RoomAdminService(RoomRepository rooms, MemberRepository members, AiJobRepository jobs, EntityManager em) {
+    public RoomAdminService(RoomRepository rooms, MemberRepository members, AiJobRepository jobs, EntityManager em, com.dandimate.durooduroo.payment.PaymentOrderRepository paymentOrders) {
+        this.paymentOrders = paymentOrders;
         this.rooms = rooms;
         this.members = members;
         this.jobs = jobs;
@@ -62,6 +64,7 @@ public class RoomAdminService {
     @Transactional
     public void delete(String roomId, String authorization) {
         requireHostRoom(roomId, authorization);
+        com.dandimate.durooduroo.payment.PaymentGuard.requireIdle(paymentOrders, roomId);
         for (String entity : PARAGRAPH_SCOPED) {
             em.createQuery("delete from " + entity + " x where x.paragraphId in (select p.id from Paragraph p where p.roomId = :roomId)")
                     .setParameter("roomId", roomId).executeUpdate();

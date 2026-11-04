@@ -9,6 +9,7 @@ tags:
   - name: 인증
   - name: 사용자
   - name: 모임방
+  - name: 결제
   - name: 플랜
   - name: 사진
   - name: 한마디
@@ -20,15 +21,550 @@ tags:
 security:
   - sessionCookie: []
 paths:
+  /payments/room-orders:
+    post:
+      tags:
+      - 결제
+      summary: 유료 방 생성 결제 주문
+      description: 방은 아직 생성하지 않습니다. LITE/PRO만 가능하며 주문 가격은 서버가 결정합니다. 주문 유효 시간은 30분입니다.
+      security:
+      - sessionCookie: []
+        csrfToken: []
+      responses:
+        '201':
+          description: 정상 처리
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PaymentOrder'
+        '400':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 결제 처리 중 또는 플랜 변경 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: PAYMENT_NOT_CONFIGURED 또는 PAYMENT_UNCERTAIN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoomRequest'
+  /rooms/{roomId}/plan-orders:
+    post:
+      tags:
+      - 결제
+      summary: 방 플랜 업그레이드 차액 주문
+      description: 방장만 FREE→LITE/PRO, LITE→PRO 가능. LITE→PRO 차액은 현재 3000원. 이미 사용한 한도는
+        초기화하지 않습니다.
+      security:
+      - sessionCookie: []
+        csrfToken: []
+      responses:
+        '201':
+          description: 정상 처리
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PaymentOrder'
+        '400':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 결제 처리 중 또는 플랜 변경 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: PAYMENT_NOT_CONFIGURED 또는 PAYMENT_UNCERTAIN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: roomId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - planType
+              properties:
+                planType:
+                  $ref: '#/components/schemas/RoomPlan'
+  /payments/confirm:
+    post:
+      tags:
+      - 결제
+      summary: 토스 테스트 결제 승인 및 방 생성·플랜 변경
+      description: 테스트 키만 지원. 서버 검증 후 한 번만 적용하며 주문 자체로 멱등성을 보장합니다. DONE의 roomId로 입장하고
+        초대 토큰은 기존 재발급 API로 얻습니다. PAYMENT_UNCERTAIN이면 같은 orderId/paymentKey/amount로 재확인합니다.
+        결제 처리 중 방 삭제·위임·다른 결제를 차단합니다.
+      security:
+      - sessionCookie: []
+        csrfToken: []
+      responses:
+        '200':
+          description: 정상 처리
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PaymentOrder'
+        '400':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 결제 처리 중 또는 플랜 변경 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: PAYMENT_NOT_CONFIGURED 또는 PAYMENT_UNCERTAIN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - orderId
+              - paymentKey
+              - amount
+              properties:
+                orderId:
+                  type: string
+                  maxLength: 36
+                paymentKey:
+                  type: string
+                  maxLength: 200
+                amount:
+                  type: integer
+                  minimum: 1
+  /payments/orders/{orderId}:
+    get:
+      tags:
+      - 결제
+      summary: 본인 결제 주문 상태 조회
+      description: 주문 소유자만 조회합니다. PROCESSING이면 같은 값으로 confirm을 재시도합니다.
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          description: 정상 처리
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PaymentOrder'
+        '400':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 결제 처리 중 또는 플랜 변경 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: PAYMENT_NOT_CONFIGURED 또는 PAYMENT_UNCERTAIN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+  /rooms/{roomId}/host-transfer:
+    post:
+      tags:
+      - 모임방
+      summary: 방장 위임
+      description: 현재 방장만 같은 방의 활성 일반 멤버에게 위임합니다. 기존 방장은 일반 멤버가 됩니다. 결제 처리 중에는 409입니다.
+      security:
+      - sessionCookie: []
+        csrfToken: []
+      responses:
+        '200':
+          description: 정상 처리
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    type: object
+                    required:
+                    - hostMemberId
+                    - previousHostMemberId
+                    properties:
+                      hostMemberId:
+                        type: string
+                      previousHostMemberId:
+                        type: string
+        '400':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 결제 처리 중 또는 플랜 변경 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: PAYMENT_NOT_CONFIGURED 또는 PAYMENT_UNCERTAIN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: roomId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - memberId
+              properties:
+                memberId:
+                  type: string
+  /rooms/{roomId}/askbacks/next:
+    get:
+      tags:
+      - 되묻기
+      summary: 내 다음 AI 질문과 남은 개수 조회
+      description: 패스한 사진의 본인 미응답 질문만 반환합니다. remainingCount는 현재 질문 포함. 없으면 nextAskback=null,
+        completed=true입니다.
+      security:
+      - sessionCookie: []
+      responses:
+        '200':
+          description: 정상 처리
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AskbackQueue'
+        '400':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 결제 처리 중 또는 플랜 변경 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: PAYMENT_NOT_CONFIGURED 또는 PAYMENT_UNCERTAIN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: roomId
+        in: path
+        required: true
+        schema:
+          type: string
+  /askbacks/{askbackId}/pass:
+    post:
+      tags:
+      - 되묻기
+      summary: AI 질문 패스 및 다음 질문 조회
+      description: 본인 질문을 SKIPPED로 종료하고 다음 질문과 남은 개수를 반환합니다. postpone과 달리 다시 대기열에 표시하지
+        않습니다.
+      security:
+      - sessionCookie: []
+        csrfToken: []
+      responses:
+        '200':
+          description: 정상 처리
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AskbackQueue'
+        '400':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 결제 처리 중 또는 플랜 변경 충돌
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 요청 처리 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: PAYMENT_NOT_CONFIGURED 또는 PAYMENT_UNCERTAIN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+      - name: askbackId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
   /plans:
     get:
       tags: [플랜]
       summary: 방 생성 전 플랜 목록·가격·이용 한도 조회
       description: >-
         로그인 없이 FREE, LITE, PRO 순서로 반환합니다. 가격은 원(KRW) 단위이며 방 1개 기준입니다.
-        화면에서 선택한 planType은 POST /rooms에 전달합니다. 선택 자체를 저장하는 별도 API는 없습니다.
+        FREE는 POST /rooms, LITE/PRO는 POST /payments/room-orders로 전달합니다.
         이 조회는 결제 주문을 생성하거나 유료 권한을 부여하지 않습니다.
-        현재 LITE/PRO는 결제 미연결로 roomCreationAvailable=false이며 방 생성 시 503 PAYMENT_NOT_CONFIGURED를 반환합니다.
+        토스 테스트 시크릿 키를 등록하면 LITE/PRO의 roomCreationAvailable=true입니다. 실제 적용은 결제 승인 후 수행합니다.
         FREE도 실제 방 생성에는 로그인이 필요합니다. 음성 시간 총량 단위는 밀리초입니다.
       security: []
       responses:
@@ -205,7 +741,7 @@ paths:
       tags: [플랜]
       summary: 방장에게 플랜 변경 요청 알림 보내기
       description: >-
-        활성 일반 참가자만 요청할 수 있습니다. 방장 알림에 type=PLAN_UPGRADE_REQUESTED,
+        FREE 방의 활성 일반 참가자만 요청할 수 있습니다. LITE/PRO에서는 요청할 수 없습니다. 방장 알림에 type=PLAN_UPGRADE_REQUESTED,
         resourceType=PHOTO/VOICE/REWEAVE, resourceId=roomId로 저장합니다.
         결제나 플랜 변경은 수행하지 않습니다. 같은 Idempotency-Key 재전송은 알림을 중복 생성하지 않습니다.
       security:
@@ -1068,6 +1604,63 @@ components:
         application/json:
           schema: {$ref: '#/components/schemas/ErrorResponse'}
   schemas:
+    PaymentOrder:
+      type: object
+      required:
+      - orderId
+      - orderName
+      - amount
+      - currency
+      - status
+      - roomId
+      - fromPlan
+      - targetPlan
+      - testMode
+      properties:
+        orderId:
+          type: string
+        orderName:
+          type: string
+        amount:
+          type: integer
+          minimum: 1
+        currency:
+          type: string
+          const: KRW
+        status:
+          type: string
+          enum:
+          - READY
+          - PROCESSING
+          - DONE
+          - FAILED
+        roomId:
+          type:
+          - string
+          - 'null'
+        fromPlan:
+          $ref: '#/components/schemas/RoomPlan'
+        targetPlan:
+          $ref: '#/components/schemas/RoomPlan'
+        testMode:
+          type: boolean
+          const: true
+    AskbackQueue:
+      type: object
+      required:
+      - nextAskback
+      - remainingCount
+      - completed
+      properties:
+        nextAskback:
+          anyOf:
+          - $ref: '#/components/schemas/Askback'
+          - type: 'null'
+        remainingCount:
+          type: integer
+          minimum: 0
+        completed:
+          type: boolean
     Id:
       type: string
       minLength: 16
@@ -1111,7 +1704,7 @@ components:
         billingUnit: {type: string, const: ROOM, description: "계정 구독이 아닌 방 단위 요금"}
         paymentRequired: {type: boolean, description: "유료 플랜 여부"}
         roomCreationAvailable: {type: boolean, description: "현재 생성 지원 여부. true여도 방 생성에는 로그인 필요"}
-        unavailableReason: {type: [string, 'null'], enum: [PAYMENT_NOT_CONFIGURED, null], description: "유료 플랜은 결제 미연결, Free는 null"}
+        unavailableReason: {type: [string, 'null'], enum: [PAYMENT_NOT_CONFIGURED, null], description: "결제 미설정 시 PAYMENT_NOT_CONFIGURED, 그 외 null"}
         maxCapacity: {type: integer, const: 8, description: "방장 포함 선택 가능한 최대 정원"}
         photosPerMember: {type: integer, description: "방별 멤버 사진 한도 3/6/10장"}
         photosPerRoom: {type: integer, description: "방 전체 사진 한도 24/48/80장"}
@@ -1146,7 +1739,7 @@ components:
       type: object
       additionalProperties: false
       required: [name, meetingDate, hostNickname, consent, planType]
-      description: "플랜 선택 필수. FREE는 즉시 생성. LITE/PRO는 결제 검증 미연결 상태에서 503 PAYMENT_NOT_CONFIGURED를 반환하며 방을 생성하지 않습니다."
+      description: "POST /rooms는 FREE 전용. LITE/PRO는 같은 본문으로 POST /payments/room-orders 호출 후 결제 승인을 완료해야 생성됩니다."
       properties:
         planType: {$ref: '#/components/schemas/RoomPlan'}
         capacity: {type: integer, minimum: 1, maximum: 8, default: 8, description: "방장 포함 정원. 생략 시 8명"}
@@ -1392,7 +1985,7 @@ components:
         expiresAt: {type: string, format: date-time}
     AskbackStatus:
       type: string
-      enum: [PENDING, ANSWERED, FORGOT, EXPIRED, CANCELLED]
+      enum: [PENDING, ANSWERED, FORGOT, SKIPPED, EXPIRED, CANCELLED]
     AskbackListResponse:
       type: object
       required: [data]

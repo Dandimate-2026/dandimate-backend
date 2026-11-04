@@ -164,6 +164,7 @@ public class EntryService {
             passes.saveAndFlush(PhotoPass.of(photo.getRoomId(), photoId, me.getId()));
             events.log(photo.getRoomId(), me.getId(), "circulation_passed", java.util.Map.of("photoId", photoId));
             logIfAllCompleted(photo.getRoomId());
+            askbackAnalysis.enqueue(photoId);
         }
     }
 

@@ -43,6 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AskbackService {
 
+    private final com.dandimate.durooduroo.memory.repository.PhotoPassRepository passes;
     private final AskbackRepository askbacks;
     private final MemberRepository members;
     private final PhotoRepository photos;
@@ -61,7 +62,8 @@ public class AskbackService {
                           RoomRepository rooms, RoomStateService roomStates, AskbackAnalysisService analysis, AiJobRepository jobs,
                           NotificationRepository notifications, MediaUrls mediaUrls,
                           com.dandimate.durooduroo.memory.service.TranscriptionService transcriptions,
-                          com.dandimate.durooduroo.event.EventLogger events, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents) {
+                          com.dandimate.durooduroo.event.EventLogger events, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents, com.dandimate.durooduroo.memory.repository.PhotoPassRepository passes) {
+        this.passes = passes;
         this.askbacks = askbacks;
         this.members = members;
         this.photos = photos;
@@ -83,10 +85,34 @@ public class AskbackService {
         Member me = requireMember(roomId, authorization);
         return askbacks.findAllByRoomIdAndTargetMemberId(roomId, me.getId()).stream()
                 .filter(a -> status == null || status.equals(a.getStatus()))
+                .filter(a -> !Askback.PENDING.equals(a.getStatus()) || eligible(a))
                 .sorted(Comparator.comparing((Askback a) -> a.getPostponedAt() != null).thenComparing(Askback::getCreatedAt))
                 .map(a -> view(a, false))
                 .filter(Objects::nonNull)
                 .toList();
+    }
+
+    private boolean eligible(Askback a) {
+        return a.getExpiresAt().isAfter(java.time.LocalDateTime.now())
+                && passes.findByPhotoIdAndMemberId(a.getPhotoId(), a.getTargetMemberId()).isPresent()
+                && entries.countByPhotoIdAndMemberIdAndKind(a.getPhotoId(), a.getTargetMemberId(), EntryKind.ADDON) == 0;
+    }
+
+    public record QueueResult(AskbackView nextAskback, int remainingCount, boolean completed) {}
+
+    @Transactional(readOnly = true)
+    public QueueResult next(String roomId, String authorization) {
+        var pending = mine(roomId, authorization, Askback.PENDING);
+        return new QueueResult(pending.isEmpty() ? null : pending.getFirst(), pending.size(), pending.isEmpty());
+    }
+
+    @Transactional
+    public QueueResult skip(String askbackId, String authorization) {
+        Askback a = requireOwn(askbackId, authorization);
+        roomStates.require(a.getRoomId(), RoomAction.ASKBACK_ANSWER);
+        a.skip();
+        roomEvents.toMember(a.getRoomId(), a.getTargetMemberId(), "askback.updated", Map.of("askbackId", a.getId()));
+        return next(a.getRoomId(), authorization);
     }
 
     @Transactional(readOnly = true)
@@ -186,6 +212,8 @@ public class AskbackService {
         Member me = members.findByRoomIdAndMemberToken(askback.getRoomId(), MemberTokenResolver.resolve(authorization))
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "방 참여자만 사용할 수 있습니다."));
         if (!me.getId().equals(askback.getTargetMemberId())) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "질문이 없습니다.");
+        if (Askback.PENDING.equals(askback.getStatus()) && !eligible(askback))
+            throw new BusinessException(ErrorCode.ASKBACK_CLOSED, "패스하지 않았거나 이미 답한 사진의 질문입니다.");
         return askback;
     }
 }
