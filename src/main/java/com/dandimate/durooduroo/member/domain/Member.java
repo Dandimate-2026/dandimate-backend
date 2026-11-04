@@ -22,7 +22,7 @@ import org.springframework.data.domain.Persistable;
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_members_room_user", columnNames = {"room_id", "user_id"}),
                 @UniqueConstraint(name = "uk_members_room_nickname", columnNames = {"room_id", "nickname"}),
-                @UniqueConstraint(name = "uk_members_room_flower", columnNames = {"room_id", "flower_code"})
+                @UniqueConstraint(name = "uk_members_room_active_flower", columnNames = {"room_id", "active_flower_code"})
         }
 )
 public class Member implements Persistable<String> {
@@ -58,8 +58,28 @@ public class Member implements Persistable<String> {
     private MemberRole role;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "flower_code", nullable = false, length = 20, updatable = false)
+    @Column(name = "flower_code", nullable = false, length = 20)
     private FlowerCode flowerCode;
+
+    @Column(name = "active_flower_code", length = 20)
+    private String activeFlowerCode;
+
+    @Column(name = "left_at")
+    private LocalDateTime leftAt;
+
+    public boolean isActive() { return leftAt == null; }
+    public LocalDateTime getLeftAt() { return leftAt; }
+    public void rename(String nickname) { this.nickname = nickname; }
+    public void leave() {
+        this.leftAt = LocalDateTime.now();
+        this.activeFlowerCode = null;
+    }
+    public void rejoin(String nickname, FlowerCode flower) {
+        this.nickname = nickname;
+        this.flowerCode = flower;
+        this.activeFlowerCode = flower.name();
+        this.leftAt = null;
+    }
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -91,6 +111,7 @@ public class Member implements Persistable<String> {
         this.accessTokenHash = Tokens.hash(issuedAccessToken);
         this.role = role;
         this.flowerCode = flowerCode;
+        this.activeFlowerCode = flowerCode.name();
         this.createdAt = LocalDateTime.now();
     }
 

@@ -83,10 +83,13 @@ class JobWorkerTest {
         AiJob queued = weaveJobs.close(roomId);
         doThrow(new IllegalStateException("ai down")).when(paragraphs).weave(any());
 
-        worker.runNext();
-        worker.runNext();
+        // H2의 timestamp 반올림으로 실행 가능 시각이 수 µs 뒤가 될 수 있다.
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(2))
+                .pollInterval(java.time.Duration.ofMillis(10)).until(worker::runNext);
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(2))
+                .pollInterval(java.time.Duration.ofMillis(10)).until(worker::runNext);
         makeDue(queued.getId());
-        worker.runNext();
+        assertThat(worker.runNext()).isTrue();
 
         AiJob failed = job(queued);
         assertThat(failed.getStatus()).isEqualTo("FAILED");

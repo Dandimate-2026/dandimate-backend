@@ -161,7 +161,8 @@ class ContractCoverageTest {
         // 로그인·세션 API는 이 테스트(참가자 토큰 시나리오, LegacyWorkflowSecurity)에서 부를 수 없다.
         // 실제 보안 설정으로 user/AccountSecurityTest·OAuthCallbackTest가 검사한다.
         all.removeAll(Set.of("GET /auth/csrf", "POST /auth/logout", "GET /users/me", "GET /users/me/rooms",
-                "GET /oauth2/authorization/kakao", "GET /login/oauth2/code/kakao"));
+                "GET /oauth2/authorization/kakao", "GET /login/oauth2/code/kakao",
+                "PATCH /rooms/{roomId}/members/me", "DELETE /rooms/{roomId}/members/me", "POST /rooms/{roomId}/plan-requests"));
         assertThat(all).as("호출하지 않은 계약서 operation").isEmpty();
         assertThat(problems).as("계약서와 다른 응답").isEmpty();
     }

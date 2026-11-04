@@ -30,17 +30,19 @@ public class MemberService {
         Room room = roomRepository.findByInviteTokenHashForUpdate(com.dandimate.durooduroo.common.auth.Tokens.hash(inviteToken))
                 .orElseThrow(() -> new BusinessException("INVITE_NOT_FOUND", "유효하지 않은 초대 토큰입니다."));
         String userId = com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull();
-        if (userId != null) {
-            var existing = memberRepository.findByRoomIdAndUserId(room.getId(), userId);
-            if (existing.isPresent()) return SpecJoinRoomResponse.from(room, existing.get());
-        }
-        if (memberRepository.countByRoomId(room.getId()) >= room.getCapacity()) {
+        Member existing = userId == null ? null : memberRepository.findByRoomIdAndUserId(room.getId(), userId).orElse(null);
+        if (existing != null && existing.isActive()) return SpecJoinRoomResponse.from(room, existing);
+        if (memberRepository.countByRoomIdAndLeftAtIsNull(room.getId()) >= room.getCapacity()) {
             throw new BusinessException("ROOM_FULL", "방 정원이 가득 찼습니다.");
         }
         String nickname = request.nickname().trim();
-        if (memberRepository.existsByRoomIdAndNickname(room.getId(), nickname)) {
+        if (memberRepository.existsByRoomIdAndNicknameAndIdNot(room.getId(), nickname, existing == null ? "" : existing.getId())) {
             throw new BusinessException(com.dandimate.durooduroo.common.exception.ErrorCode.NICKNAME_TAKEN, "이미 사용 중인 이름이에요.",
                     java.util.Map.of("suggestions", suggestions(room.getId(), nickname)));
+        }
+        if (existing != null) {
+            existing.rejoin(nickname, nextFlower(room.getId()));
+            return SpecJoinRoomResponse.from(room, existing);
         }
         return SpecJoinRoomResponse.from(room, memberRepository.save(Member.join(room.getId(), nickname, nextFlower(room.getId()), userId)));
     }
@@ -58,7 +60,7 @@ public class MemberService {
 
     /** 방 행 잠금 안에서 정원 검사와 꽃 배정을 함께 처리한다. */
     private FlowerCode nextFlower(String roomId) {
-        var used = memberRepository.findAllByRoomId(roomId).stream().map(Member::getFlowerCode).toList();
+        var used = memberRepository.findAllByRoomIdAndLeftAtIsNull(roomId).stream().map(Member::getFlowerCode).toList();
         FlowerCode flower = FlowerCode.firstAvailable(used);
         if (flower == null) throw new BusinessException("ROOM_FULL", "방 정원이 가득 찼습니다.");
         return flower;

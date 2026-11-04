@@ -54,6 +54,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
             "/api/v1/invites/*/join",
             "/api/v1/rooms/*/invite-token/rotate",
             "/api/v1/rooms/*/close",
+            "/api/v1/rooms/*/plan-requests",
             "/api/v1/rooms/*/photos/upload-requests",
             "/api/v1/photos/*/complete",
             "/api/v1/photos/*/entries",
