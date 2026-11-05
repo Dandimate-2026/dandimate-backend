@@ -755,6 +755,24 @@ paths:
                         nickname: {type: string}
                         role: {type: string, enum: [HOST, MEMBER]}
         '401': {description: 로그인 필요}
+  /users/me/map:
+    get:
+      tags: [사용자]
+      summary: 내 지도 조회
+      description: >-
+        내가 참여 중인 방에서 공개된, 좌표가 있는 사진을 도시별로 묶어 돌려줍니다. 최근 모임 날짜 순입니다.
+        bloomed는 완성된 두루마리가 있는지를 뜻합니다. recordCount는 첫 한마디·덧붙임·되묻기 답의 합입니다.
+      responses:
+        '200':
+          description: 도시별 핀 (없으면 빈 배열)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: {$ref: '#/components/schemas/PhotoMap'}
+        '401': {description: 로그인 필요}
   /rooms/{roomId}/members/me:
     parameters:
       - $ref: '#/components/parameters/RoomId'
@@ -1076,6 +1094,84 @@ paths:
       responses:
         '204': {description: "삭제 완료"}
         '403': {$ref: '#/components/responses/Forbidden'}
+  /photos/{photoId}/location:
+    parameters:
+      - $ref: '#/components/parameters/PhotoId'
+    put:
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      tags: [사진]
+      summary: "내가 올린 사진의 장소 입력·수정"
+      description: >-
+        장소 이름만 보내면 사진에만 표시됩니다. 장소 검색 결과의 주소와 좌표까지 보내면 내 지도에도 나옵니다.
+        도시 이름은 서버가 주소에서 정합니다. WEAVING 중에는 바꿀 수 없습니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [placeName]
+              properties:
+                placeName: {type: string, minLength: 1, maxLength: 60}
+                address: {type: [string, 'null'], maxLength: 200}
+                latitude: {type: [number, 'null'], minimum: -90, maximum: 90}
+                longitude: {type: [number, 'null'], minimum: -180, maximum: 180}
+      responses:
+        '200':
+          description: "저장한 장소"
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: {$ref: '#/components/schemas/PhotoLocation'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+    delete:
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      tags: [사진]
+      summary: "내가 올린 사진의 장소 삭제"
+      responses:
+        '204': {description: "삭제 완료"}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /places/search:
+    get:
+      tags: [사진]
+      summary: "사진에 넣을 장소 검색"
+      description: "카카오 로컬 검색 결과를 최대 10건 돌려줍니다. 고른 값을 사진 장소 입력에 그대로 보내면 됩니다."
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 50}
+      responses:
+        '200':
+          description: "검색 결과 (없으면 빈 배열)"
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/Place'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {description: 로그인 필요}
+        '503':
+          description: "PLACE_SEARCH_UNAVAILABLE - 검색을 쓸 수 없음. 장소 이름 직접 입력은 가능"
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /photos/{photoId}/transcriptions:
     post:
       security:
@@ -2126,6 +2222,70 @@ components:
         imageUrl: {type: string, format: uri}
         uploader: {$ref: '#/components/schemas/Member'}
         displayOrder: {type: integer}
+        location:
+          anyOf:
+            - $ref: '#/components/schemas/PhotoLocation'
+            - type: 'null'
+    PhotoLocation:
+      type: object
+      required: [placeName]
+      properties:
+        placeName: {type: string, maxLength: 60}
+        address: {type: [string, 'null']}
+        city: {type: [string, 'null'], description: "주소에서 뽑은 도시 이름. 예: 경주"}
+        latitude: {type: [number, 'null']}
+        longitude: {type: [number, 'null']}
+    Place:
+      type: object
+      required: [placeName, address, latitude, longitude]
+      properties:
+        placeName: {type: string}
+        address: {type: string}
+        city: {type: [string, 'null']}
+        latitude: {type: number}
+        longitude: {type: number}
+    PhotoMap:
+      type: object
+      required: [cities]
+      properties:
+        cities:
+          type: array
+          items:
+            type: object
+            required: [city, latitude, longitude, photoCount, recordCount, bloomed, summary, rooms, places]
+            properties:
+              city: {type: string}
+              latitude: {type: number}
+              longitude: {type: number}
+              photoCount: {type: integer}
+              recordCount: {type: integer}
+              bloomed: {type: boolean}
+              summary: {type: [string, 'null'], maxLength: 80, description: "그 도시에서 가장 최근 방의 AI 한 줄 요약. 아직 없으면 null"}
+              rooms:
+                type: array
+                items:
+                  type: object
+                  required: [roomId, name, meetingDate, status, scrollReady, photoCount, recordCount, summary]
+                  properties:
+                    roomId: {$ref: '#/components/schemas/Id'}
+                    name: {type: string}
+                    meetingDate: {type: string, format: date}
+                    status: {type: string}
+                    scrollReady: {type: boolean}
+                    photoCount: {type: integer}
+                    recordCount: {type: integer}
+                    summary: {type: [string, 'null'], maxLength: 80}
+              places:
+                type: array
+                items:
+                  type: object
+                  required: [photoId, roomId, placeName, latitude, longitude]
+                  properties:
+                    photoId: {$ref: '#/components/schemas/Id'}
+                    roomId: {$ref: '#/components/schemas/Id'}
+                    placeName: {type: string}
+                    latitude: {type: number}
+                    longitude: {type: number}
     Askback:
       type: object
       required: [id, photo, gapType, question, evidenceNicknames, status, createdAt, expiresAt]

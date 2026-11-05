@@ -43,11 +43,13 @@ public class WeaveJobService {
     private final TransactionTemplate tx;
     private final com.dandimate.durooduroo.notification.service.Notifier notifier;
     private final com.dandimate.durooduroo.notification.service.RoomEvents roomEvents;
+    private final com.dandimate.durooduroo.scroll.service.ScrollSummaryService summaries;
 
     public WeaveJobService(RoomRepository rooms, AiJobRepository jobs, ScrollGenerationService paragraphs,
                            AskbackRepository askbacks, MemberRepository members, NotificationRepository notifications,
                            com.dandimate.durooduroo.event.EventLogger events, PlatformTransactionManager transactionManager,
-                           com.dandimate.durooduroo.notification.service.Notifier notifier, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents) {
+                           com.dandimate.durooduroo.notification.service.Notifier notifier, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents,
+                           com.dandimate.durooduroo.scroll.service.ScrollSummaryService summaries) {
         this.rooms = rooms;
         this.jobs = jobs;
         this.paragraphs = paragraphs;
@@ -58,6 +60,7 @@ public class WeaveJobService {
         this.tx = new TransactionTemplate(transactionManager);
         this.notifier = notifier;
         this.roomEvents = roomEvents;
+        this.summaries = summaries;
     }
 
     /** 조기·데모 마감: CIRCULATING → WEAVING + 작업 생성. 이미 엮는 중이면 진행 중인 작업을 돌려준다. */
@@ -116,6 +119,7 @@ public class WeaveJobService {
             lockRoom(roomId).completeWeaving();
             members.findAllByRoomIdAndLeftAtIsNull(roomId).forEach(member -> notifier.notify(roomId, member.getId(), "SCROLL_READY", "SCROLL", scroll.getId()));
             roomEvents.toRoom(roomId, "scroll.ready", java.util.Map.of("scrollId", scroll.getId(), "version", scroll.getVersion()));
+            summaries.enqueue(roomId);
         });
     }
 

@@ -31,6 +31,12 @@ public class Photo {
     /** 확정 원문이 추가·수정·삭제될 때마다 1씩 오른다. AI 결과가 오래된 원문으로 만든 것인지 판단한다. */
     @Column(nullable = false) private int sourceRevision;
     @Column(nullable = false) private LocalDateTime createdAt;
+    /** 업로더가 직접 입력한 장소. 좌표가 없으면 사진에만 표시되고 지도에는 나오지 않는다. */
+    @Column(length = 60) private String placeName;
+    @Column(length = 200) private String address;
+    @Column(length = 30) private String city;
+    private Double latitude;
+    private Double longitude;
     protected Photo() {}
     /** 업로드 URL을 발급하며 UPLOADING 상태로 만든다. storageKey·fileUrl(저장 위치)은 서버가 정한다. */
     public static Photo pending(String id, String roomId, String memberId, String storageKey, String fileUrl, String contentType, int displayOrder) {
@@ -48,6 +54,10 @@ public class Photo {
     public void failProcessing() { if (PROCESSING.equals(status)) status = FAILED; }
     /** 화면에 보여 줄 위치: 파생본이 있으면 파생본. */
     public String getDisplayLocation() { return derivedUrl != null ? derivedUrl : fileUrl; }
+    public void locate(String placeName, String address, String city, Double latitude, Double longitude) {
+        this.placeName = placeName; this.address = address; this.city = city; this.latitude = latitude; this.longitude = longitude;
+    }
+    public void clearLocation() { locate(null, null, null, null, null); }
     public void publish() { if (publishedAt == null) publishedAt = LocalDateTime.now(); }
     public void bumpSourceRevision() { sourceRevision++; }
     /** 업로드 주소가 만료될 때까지 완료되지 않은 사진. 실패한 업로드로 보고 한도에서 뺀다. */
@@ -57,4 +67,5 @@ public class Photo {
     public String getId(){return id;} public String getRoomId(){return roomId;} public String getMemberId(){return memberId;}
     public String getFileUrl(){return fileUrl;} public String getStorageKey(){return storageKey;} public String getContentType(){return contentType;} public String getFileHash(){return fileHash;} public int getDisplayOrder(){return displayOrder;}
     public String getStatus(){return status;} public LocalDateTime getPublishedAt(){return publishedAt;} public int getSourceRevision(){return sourceRevision;} public LocalDateTime getCreatedAt(){return createdAt;}
+    public String getPlaceName(){return placeName;} public String getAddress(){return address;} public String getCity(){return city;} public Double getLatitude(){return latitude;} public Double getLongitude(){return longitude;}
 }

@@ -166,6 +166,7 @@ Authorization: Bearer {memberAccessToken}
 | 403 | `FORBIDDEN` | 방장·작성자·참여자 권한 없음 |
 | 404 | `ROOM_NOT_FOUND` | 존재하지 않는 방 또는 초대 링크 |
 | 404 | `RESOURCE_NOT_FOUND` | 사진·원문·문단·되묻기 없음, 또는 볼 권한 없음 |
+| 503 | `PLACE_SEARCH_UNAVAILABLE` | 장소 검색 사용 불가. 장소 이름 직접 입력은 가능 |
 | 409 | `ROOM_FULL` | 방 정원 8명 초과 |
 | 409 | `NICKNAME_TAKEN` | 닉네임 중복 |
 | 409 | `ROOM_WEAVING` | 엮는 중 쓰기 요청 |
@@ -195,6 +196,7 @@ Authorization: Bearer {memberAccessToken}
 | 되묻기 답변 | – | O | X | X (마감 시 만료) |
 | 원문 수정 | O | O | X | X |
 | 원문·사진 삭제 | O | O | X | O |
+| 사진 장소 입력·삭제 | O | O | X | O |
 | 답가 | X | X | X | O |
 
 X는 `WEAVING`이면 `409 ROOM_WEAVING`, 그 외에는 `409 INVALID_ROOM_STATE`를 반환한다.
@@ -508,6 +510,21 @@ Idempotency-Key: {uuid}
 ```
 
 Spring은 Object Storage HEAD 요청으로 크기·MIME을 검증한다. HEIC면 `PROCESSING`, 그 외에는 `READY`로 바꾼다. 검증에 실패하면 `422 UPLOAD_VERIFICATION_FAILED`를 반환한다.
+
+## 사진 장소 API
+
+```http
+GET /api/v1/places/search?query=황리단길
+PUT /api/v1/photos/{photoId}/location
+DELETE /api/v1/photos/{photoId}/location
+GET /api/v1/users/me/map
+```
+
+- 사진을 올린 본인만 장소를 바꿀 수 있고, `READY` 사진에만 넣을 수 있다.
+- `placeName`만 보내면 사진에만 표시한다. 검색 결과의 `address`, `latitude`, `longitude`까지 보내면 지도에도 나온다. 도시는 서버가 주소에서 정한다.
+- 지도에는 내가 참여 중인 방에서 공개된 사진만 나온다. `bloomed`는 완성된 두루마리가 있는지, `recordCount`는 첫 한마디·덧붙임·되묻기 답의 합이다.
+- `summary`는 두루마리 한 줄 요약(80자 이내)이다. 엮기, 문단 변경, 사진 삭제 뒤 비동기로 갱신하고, 도시 핀에는 가장 최근 방의 요약을 보여 준다. 아직 없으면 `null`이다.
+- 사진 파일의 GPS는 읽지 않는다.
 
 ## 받아쓰기·확정 API
 

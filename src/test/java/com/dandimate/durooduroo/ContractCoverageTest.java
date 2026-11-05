@@ -158,6 +158,15 @@ class ContractCoverageTest {
 
         // 삭제
         check("DELETE", "/entries/{entryId}", authed(delete("/api/v1/entries/" + addonId), a), 204);
+        check("GET", "/places/search", authed(get("/api/v1/places/search?query=황리단길"), b), 503);
+        check("GET", "/places/search", authed(get("/api/v1/places/search").param("query", " "), b), 400);
+        String location = "{\"placeName\":\"황리단길\",\"address\":\"경북 경주시 포석로\",\"latitude\":35.8,\"longitude\":129.2}";
+        check("PUT", "/photos/{photoId}/location", json(put("/api/v1/photos/" + photoB + "/location"), a, location), 403);
+        check("PUT", "/photos/{photoId}/location", json(put("/api/v1/photos/" + photoB + "/location"), b, "{\"placeName\":\"\"}"), 400);
+        check("PUT", "/photos/{photoId}/location", json(put("/api/v1/photos/" + photoB + "/location"), b, location), 200);
+        check("GET", "/rooms/{roomId}/scroll", authed(get("/api/v1/rooms/" + roomId + "/scroll"), b), 200);
+        check("DELETE", "/photos/{photoId}/location", authed(delete("/api/v1/photos/" + photoB + "/location"), a), 403);
+        check("DELETE", "/photos/{photoId}/location", authed(delete("/api/v1/photos/" + photoB + "/location"), b), 204);
         check("DELETE", "/photos/{photoId}", authed(delete("/api/v1/photos/" + photoB), a), 403);
         check("DELETE", "/photos/{photoId}", authed(delete("/api/v1/photos/" + photoB), b), 204);
         check("DELETE", "/rooms/{roomId}", authed(delete("/api/v1/rooms/" + roomId), b), 403);
@@ -167,7 +176,7 @@ class ContractCoverageTest {
         all.removeAll(called);
         // 로그인·세션 API는 이 테스트(참가자 토큰 시나리오, LegacyWorkflowSecurity)에서 부를 수 없다.
         // 실제 보안 설정으로 user/AccountSecurityTest·OAuthCallbackTest, chat/ChatFlowTest가 검사한다.
-        all.removeAll(Set.of("POST /chat/messages", "GET /auth/csrf", "POST /auth/logout", "GET /users/me", "GET /users/me/rooms",
+        all.removeAll(Set.of("POST /chat/messages", "GET /auth/csrf", "POST /auth/logout", "GET /users/me", "GET /users/me/rooms", "GET /users/me/map",
                 "GET /oauth2/authorization/kakao", "GET /login/oauth2/code/kakao",
                 "PATCH /rooms/{roomId}/members/me", "DELETE /rooms/{roomId}/members/me", "POST /rooms/{roomId}/plan-requests", "POST /rooms/{roomId}/host-transfer",
                 "POST /payments/room-orders", "POST /payments/confirm", "GET /payments/orders/{orderId}",

@@ -26,7 +26,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class JobWorker {
 
     static final int MAX_ATTEMPTS = 3;
-    private static final List<String> AI_TYPES = List.of(AiJob.WEAVE_SCROLL, AiJob.ASKBACK_ANALYZE, AiJob.REPLY_REWEAVE);
+    private static final List<String> AI_TYPES = List.of(AiJob.WEAVE_SCROLL, AiJob.ASKBACK_ANALYZE, AiJob.REPLY_REWEAVE, AiJob.SCROLL_SUMMARY);
     private static final List<String> MEDIA_TYPES = List.of(AiJob.MEDIA_DELETE, AiJob.PHOTO_DERIVE);
     private static final List<String> HANDLED_TYPES = java.util.stream.Stream.concat(AI_TYPES.stream(), MEDIA_TYPES.stream()).toList();
     private static final Logger log = LoggerFactory.getLogger(JobWorker.class);
@@ -35,6 +35,7 @@ public class JobWorker {
     private final WeaveJobService weaveJobs;
     private final com.dandimate.durooduroo.askback.service.AskbackAnalysisService askbackAnalysis;
     private final com.dandimate.durooduroo.scroll.service.ReplyReweaveService replyReweave;
+    private final com.dandimate.durooduroo.scroll.service.ScrollSummaryService scrollSummary;
     private final TransactionTemplate tx;
     private final com.dandimate.durooduroo.storage.ObjectStorage storage;
     private final com.dandimate.durooduroo.photo.service.PhotoDeriveService photoDerive;
@@ -43,7 +44,7 @@ public class JobWorker {
     private final Duration staleAfter;
 
     public JobWorker(AiJobRepository jobs, WeaveJobService weaveJobs, com.dandimate.durooduroo.askback.service.AskbackAnalysisService askbackAnalysis,
-                     com.dandimate.durooduroo.scroll.service.ReplyReweaveService replyReweave,
+                     com.dandimate.durooduroo.scroll.service.ReplyReweaveService replyReweave, com.dandimate.durooduroo.scroll.service.ScrollSummaryService scrollSummary,
                      PlatformTransactionManager transactionManager, com.dandimate.durooduroo.storage.ObjectStorage storage,
                      com.dandimate.durooduroo.photo.service.PhotoDeriveService photoDerive, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents,
                      @Value("${app.jobs.retry-delay-ms:5000}") long retryDelayMs,
@@ -52,6 +53,7 @@ public class JobWorker {
         this.weaveJobs = weaveJobs;
         this.askbackAnalysis = askbackAnalysis;
         this.replyReweave = replyReweave;
+        this.scrollSummary = scrollSummary;
         this.tx = new TransactionTemplate(transactionManager);
         this.storage = storage;
         this.photoDerive = photoDerive;
@@ -101,6 +103,7 @@ public class JobWorker {
             switch (claimed.getType()) {
                 case AiJob.ASKBACK_ANALYZE -> askbackAnalysis.execute(claimed.getId());
                 case AiJob.REPLY_REWEAVE -> replyReweave.execute(claimed.getId());
+                case AiJob.SCROLL_SUMMARY -> scrollSummary.execute(claimed.getId());
                 case AiJob.MEDIA_DELETE -> deleteMedia(claimed);
                 case AiJob.PHOTO_DERIVE -> photoDerive.execute(claimed.getId());
                 default -> weaveJobs.execute(claimed.getId());
@@ -130,7 +133,7 @@ public class JobWorker {
 
     /** 공개 작업(되묻기 분석 제외)의 상태 변화를 방 전체에 알린다. */
     private void publishJob(String jobId) {
-        jobs.findById(jobId).filter(job -> !AiJob.ASKBACK_ANALYZE.equals(job.getType()) && !AiJob.PHOTO_DERIVE.equals(job.getType())).ifPresent(job ->
+        jobs.findById(jobId).filter(job -> !AiJob.ASKBACK_ANALYZE.equals(job.getType()) && !AiJob.PHOTO_DERIVE.equals(job.getType()) && !AiJob.SCROLL_SUMMARY.equals(job.getType())).ifPresent(job ->
                 roomEvents.toRoom(job.getRoomId(), "job.updated", java.util.Map.of("jobId", job.getId(), "status", job.getStatus())));
     }
 
