@@ -5,9 +5,9 @@ import com.dandimate.durooduroo.member.domain.Member;
 import com.dandimate.durooduroo.member.dto.MemberView;
 import com.dandimate.durooduroo.photo.domain.Photo;
 
-public record PhotoView(String id, String imageUrl, MemberView uploader, int displayOrder) {
+public record PhotoView(String id, String imageUrl, MemberView uploader, int displayOrder, PhotoLocationView location) {
 
     public static PhotoView of(Photo photo, Member uploader, String imageUrl) {
-        return new PhotoView(photo.getId(), imageUrl, MemberView.from(uploader), photo.getDisplayOrder());
+        return new PhotoView(photo.getId(), imageUrl, MemberView.from(uploader), photo.getDisplayOrder(), PhotoLocationView.of(photo));
     }
 }

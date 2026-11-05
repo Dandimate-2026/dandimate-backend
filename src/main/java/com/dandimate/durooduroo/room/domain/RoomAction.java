@@ -13,6 +13,8 @@ public enum RoomAction {
     EDIT_ENTRY(EnumSet.of(RoomStatus.COLLECTING, RoomStatus.CIRCULATING)),
     /** 원문·사진 삭제 */
     DELETE_CONTENT(EnumSet.of(RoomStatus.COLLECTING, RoomStatus.CIRCULATING, RoomStatus.GROWING)),
+    /** 사진 장소 입력·수정·삭제 */
+    EDIT_PHOTO_LOCATION(EnumSet.of(RoomStatus.COLLECTING, RoomStatus.CIRCULATING, RoomStatus.GROWING)),
     REPLY(EnumSet.of(RoomStatus.GROWING));
 
     private final Set<RoomStatus> allowed;
