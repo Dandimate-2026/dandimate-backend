@@ -1,0 +1,43 @@
+백엔드 연동 변경 (2026-11-04)
+
+결제는 토스 테스트 모드만 지원합니다. 실제 청구/정산은 발생하지 않습니다.
+서버 환경변수: TOSS_SECRET_KEY (API 개별 연동 테스트 시크릿 키, test_sk_ 접두사)
+프론트: 같은 상점의 test_ck_ 클라이언트 키로 토스 결제창 SDK를 사용합니다.
+시크릿 키를 소스·프론트·Git에 넣지 마세요. 서버 .env 등록 후 컨테이너 재생성이 필요합니다.
+현재 테스트 키가 없으면 유료 플랜 roomCreationAvailable=false / PAYMENT_NOT_CONFIGURED입니다.
+
+1. 무료 방: 기존 POST /api/v1/rooms 사용.
+2. 유료 새 방: 동일 본문을 POST /api/v1/payments/room-orders로 전송.
+   응답 orderId/orderName/amount/currency로 프론트에서 토스 결제창을 엽니다.
+3. 기존 방 업그레이드: 방장이 POST /api/v1/rooms/{roomId}/plan-orders {"planType":"PRO"} 호출.
+   FREE→LITE/PRO, LITE→PRO만 가능. 금액은 서버 계산이며 LITE 2900원, PRO 5900원 기준 차액 3000원.
+4. 토스 결제창 successUrl/failUrl은 프론트에 구현한 실제 라우트를 사용합니다.
+   successUrl로 돌아온 것만으로 완료 처리하지 않습니다.
+5. 성공 페이지에서 POST /api/v1/payments/confirm {orderId,paymentKey,amount} 호출.
+   DONE일 때 roomId로 이동합니다. 새 방의 초대 링크는 기존 invite-token/rotate API 사용.
+   중복 confirm은 같은 결과이며 방·플랜을 다시 생성하지 않습니다.
+6. GET /api/v1/payments/orders/{orderId}로 본인 주문 확인.
+   PAYMENT_UNCERTAIN/PROCESSING: 동일 주문과 paymentKey로 confirm 재시도. 새 결제 금지.
+   PAYMENT_REJECTED/FAILED: 새 주문 생성 가능. 30분 지난 미승인 주문은 만료됩니다.
+   PROCESSING 동안 방 삭제·방장 위임·다른 결제를 차단합니다.
+   브라우저가 종료된 경우 orderId/paymentKey를 해당 로그인 사용자의 복구 흐름에 보관해야 합니다.
+   결제 주문 ID/승인 키를 다른 사용자에게 공유하지 마세요.
+7. 모든 쓰기 요청은 기존 세션+CSRF 필요. 주문 생성·위임·AI 패스는 Idempotency-Key 필수.
+   confirm은 주문 자체로 멱등성을 보장하므로 Idempotency-Key는 필수가 아닙니다.
+
+방장 위임: POST /rooms/{roomId}/host-transfer {memberId}. 같은 방의 활성 일반 멤버만 대상.
+닉네임 변경: 기존 PATCH /rooms/{roomId}/members/me 유지.
+플랜 변경 요청: 기존 POST /rooms/{roomId}/plan-requests는 FREE 방 일반 멤버만 허용.
+LITE 방장은 plan-orders로 직접 PRO 업그레이드 가능.
+
+AI 추가 질문: 돌려보기에서 해당 사진을 패스한 참가자만 질문 대상입니다.
+업로더·방장이라는 이유만으로 대상이 되지 않습니다. 패스 취소/덧붙임 작성 시 대상에서 제외됩니다.
+GET /rooms/{roomId}/askbacks/next → {nextAskback,remainingCount,completed}
+POST /askbacks/{askbackId}/pass → SKIPPED 처리 후 같은 형식의 다음 질문 반환.
+remainingCount는 현재 반환 질문을 포함하며 0이면 nextAskback=null, completed=true입니다.
+기존 postpone은 나중에 다시 보기, pass는 해당 질문 종료입니다.
+프론트에서 allCompleted만으로 AI 질문을 숨기지 말고 nextAskback/topAskback을 확인해 주세요.
+
+DB: src/main/resources/db/migration/V5__payment_orders.sql만 새로 추가.
+기존 Flyway V1~V4와 팀원의 사진 업로드 한도 복구·메타데이터 제거 변경은 유지합니다.
+프론트 빌드 파일은 이번 API 배포에서 교체하지 않습니다. 위 API 연결은 프론트에서 필요합니다.

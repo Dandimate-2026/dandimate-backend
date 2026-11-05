@@ -69,6 +69,7 @@ public class Member implements Persistable<String> {
 
     public boolean isActive() { return leftAt == null; }
     public LocalDateTime getLeftAt() { return leftAt; }
+    public void changeRole(MemberRole role) { this.role = role; }
     public void rename(String nickname) { this.nickname = nickname; }
     public void leave() {
         this.leftAt = LocalDateTime.now();

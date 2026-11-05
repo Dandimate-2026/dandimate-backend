@@ -33,6 +33,16 @@ public class AskbackController {
         return ApiResponse.success(Map.of("askbacks", askbackService.mine(roomId, authorization, status)));
     }
 
+    @GetMapping("/rooms/{roomId}/askbacks/next")
+    public ApiResponse<?> next(@PathVariable String roomId, @RequestHeader(required = false) String authorization) {
+        return ApiResponse.success(askbackService.next(roomId, authorization));
+    }
+
+    @PostMapping("/askbacks/{askbackId}/pass")
+    public ApiResponse<?> pass(@PathVariable String askbackId, @RequestHeader(required = false) String authorization) {
+        return ApiResponse.success(askbackService.skip(askbackId, authorization));
+    }
+
     @GetMapping("/askbacks/{askbackId}")
     public ApiResponse<?> detail(@PathVariable String askbackId, @RequestHeader(required = false) String authorization) {
         return ApiResponse.success(Map.of("askback", askbackService.detail(askbackId, authorization)));

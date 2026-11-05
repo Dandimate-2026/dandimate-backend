@@ -83,7 +83,9 @@ public class RoomHomeService {
         boolean needsFirstEntry = roomPhotos.stream().anyMatch(p -> p.getMemberId().equals(me.getId()) && p.isReady() && !p.isPublished());
         int pending = (int) published.stream().filter(p -> !p.getMemberId().equals(me.getId()) && !responded.contains(p.getId() + ":" + me.getId())).count();
         RoomHomeView.TopAskback topAskback = askbacks.findAllByRoomIdAndTargetMemberId(roomId, me.getId()).stream()
-                .filter(a -> Askback.PENDING.equals(a.getStatus()))
+                .filter(a -> Askback.PENDING.equals(a.getStatus()) && a.getExpiresAt().isAfter(java.time.LocalDateTime.now()))
+                .filter(a -> passes.findByPhotoIdAndMemberId(a.getPhotoId(), me.getId()).isPresent())
+                .filter(a -> entries.countByPhotoIdAndMemberIdAndKind(a.getPhotoId(), me.getId(), EntryKind.ADDON) == 0)
                 .sorted(Comparator.comparing((Askback a) -> a.getPostponedAt() != null).thenComparing(Askback::getCreatedAt))
                 .findFirst().map(a -> new RoomHomeView.TopAskback(a.getId(), a.getQuestion())).orElse(null);
 

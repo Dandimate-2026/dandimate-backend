@@ -48,6 +48,7 @@ public class Askback {
     }
 
     public void answer(String entryId) { requirePending(); status = "ANSWERED"; answerEntryId = entryId; resolvedAt = LocalDateTime.now(); }
+    public void skip() { if ("SKIPPED".equals(status)) return; requirePending(); status = "SKIPPED"; resolvedAt = LocalDateTime.now(); }
     public void forgot() { requirePending(); status = "FORGOT"; resolvedAt = LocalDateTime.now(); }
     public void postpone() { requirePending(); postponedAt = LocalDateTime.now(); }
     public void cancel() { if (PENDING.equals(status)) { status = "CANCELLED"; resolvedAt = LocalDateTime.now(); } }

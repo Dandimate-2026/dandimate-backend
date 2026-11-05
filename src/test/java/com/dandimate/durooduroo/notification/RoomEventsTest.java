@@ -45,14 +45,17 @@ class RoomEventsTest {
         json(post("/api/v1/photos/" + photo + "/entries"), host, "{\"kind\":\"FIRST\",\"inputMode\":\"TEXT\",\"transcript\":\"다들 웃은 사진\"}")
                 .andExpect(status().isCreated());
 
+        mockMvc.perform(put("/api/v1/photos/" + photo + "/passes/me").header("Authorization", "Bearer " + member)).andExpect(status().isOk());
+
         // 방 전체: 사진 노출·원문 확정. 본문·사진 URL은 싣지 않는다.
         await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
             assertThat(memberStream.getContentAsString()).contains("event:photo.published").contains("event:entry.created");
-            // 업로더 전용(photo.uploaded)·되묻기 대상자(서연) 전용 이벤트는 서연에게만
-            assertThat(hostStream.getContentAsString()).contains("event:photo.uploaded").contains("event:askback.created").contains("event:notification.created");
+            // 업로드 이벤트는 업로더에게, 질문 이벤트는 패스한 참가자에게만
+            assertThat(hostStream.getContentAsString()).contains("event:photo.uploaded").doesNotContain("event:askback.created");
+            assertThat(memberStream.getContentAsString()).contains("event:askback.created").contains("event:notification.created");
         });
         assertThat(memberStream.getContentAsString())
-                .doesNotContain("photo.uploaded").doesNotContain("askback.created").doesNotContain("다들 웃은 사진").doesNotContain("imageUrl");
+                .doesNotContain("photo.uploaded").doesNotContain("다들 웃은 사진").doesNotContain("imageUrl");
     }
 
     private MockHttpServletResponse subscribe(String roomId, String token) throws Exception {

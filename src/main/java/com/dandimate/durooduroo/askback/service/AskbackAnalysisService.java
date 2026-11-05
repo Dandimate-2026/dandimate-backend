@@ -1,7 +1,7 @@
 /**
  * 원문이 바뀔 때 되묻기 분석 작업을 만들고, Worker가 넘긴 작업을 실행한다 (명세 6장·6-1장).
  * - 같은 사진에 QUEUED 작업이 있으면 새로 만들지 않는다. Worker는 실행 시점의 최신 원문을 읽는다.
- * - 대상 후보(FR-D2): 사진을 올린 사람, 그 사진에 원문을 남긴 사람, 원문에 이름이 나왔지만 원문이 없는 사람.
+ * - 대상 후보(FR-D2): 그 사진을 패스했고 아직 덧붙임을 남기지 않은 활성 참가자.
  *   FORGOT 응답자·이미 미응답 질문이 있는 사람·수신 한도(방 전체 2개) 도달자는 뺀다.
  * - 사진당 1회, 이전과 다른 구멍 유형이면 1회 추가. NO_ADDON은 덧붙임 0개이고 첫 한마디 20자 미만일 때만 허용한다.
  * - AI 결과는 신뢰도 0.6 이상, 허용 목록의 대상, 해당 사진의 원문 근거, 60자 이내, 금칙 표현 없음일 때만 저장한다.
@@ -53,6 +53,7 @@ public class AskbackAnalysisService {
     private static final List<String> GAP_TYPES = List.of("CONFLICT", "MISSING_REASON", "NO_ADDON", "MISSING_CONTEXT");
     private static final List<String> FORBIDDEN_PHRASES = List.of("왜 기억 못", "기억 안 나", "기억도 못");
 
+    private final com.dandimate.durooduroo.memory.repository.PhotoPassRepository passes;
     private final AiJobRepository jobs;
     private final PhotoRepository photos;
     private final RoomRepository rooms;
@@ -71,7 +72,8 @@ public class AskbackAnalysisService {
                                   MemoryEntryRepository entries, AskbackRepository askbacks, NotificationRepository notifications,
                                   AskbackAiService ai, EventLogger events, PlatformTransactionManager transactionManager,
                                   com.dandimate.durooduroo.notification.service.Notifier notifier, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents,
-                                  com.dandimate.durooduroo.photo.service.PhotoImageLoader images) {
+                                  com.dandimate.durooduroo.photo.service.PhotoImageLoader images, com.dandimate.durooduroo.memory.repository.PhotoPassRepository passes) {
+        this.passes = passes;
         this.jobs = jobs;
         this.photos = photos;
         this.rooms = rooms;
@@ -168,6 +170,8 @@ public class AskbackAnalysisService {
     private String rejectReason(Prepared prepared, AskbackResult result, Photo photo) {
         if (photo == null) return "photo_deleted";
         if (members.findById(result.targetMemberId()).filter(Member::isActive).isEmpty()) return "member_left";
+        if (passes.findByPhotoIdAndMemberId(photo.getId(), result.targetMemberId()).isEmpty()) return "not_passed";
+        if (entries.countByPhotoIdAndMemberIdAndKind(photo.getId(), result.targetMemberId(), EntryKind.ADDON) > 0) return "already_answered";
         if (photo.getSourceRevision() != prepared.revision) return "stale_revision";
         Room room = rooms.findById(prepared.roomId).orElseThrow();
         if (room.getStatus() != RoomStatus.CIRCULATING || pastQuestionCutoff(room)) return "room_state";
@@ -199,17 +203,16 @@ public class AskbackAnalysisService {
     }
 
     private List<String> eligibleMembers(Room room, Photo photo, List<Member> roomMembers, List<MemoryEntry> photoEntries, List<Askback> previous) {
-        Set<String> candidates = new LinkedHashSet<>();
-        candidates.add(photo.getMemberId());
-        photoEntries.forEach(e -> candidates.add(e.getMemberId()));
-        String allText = String.join(" ", photoEntries.stream().map(MemoryEntry::getTranscript).toList());
-        roomMembers.stream().filter(m -> allText.contains(m.getNickname())).forEach(m -> candidates.add(m.getId()));
+        Set<String> candidates = passes.findAllByPhotoId(photo.getId()).stream()
+                .map(com.dandimate.durooduroo.memory.domain.PhotoPass::getMemberId)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
 
         List<String> eligible = new ArrayList<>();
         Set<String> activeIds = roomMembers.stream().filter(Member::isActive).map(Member::getId).collect(java.util.stream.Collectors.toSet());
         for (String memberId : candidates) {
             if (!activeIds.contains(memberId)) continue;
-            boolean forgot = previous.stream().anyMatch(a -> a.getTargetMemberId().equals(memberId) && "FORGOT".equals(a.getStatus()));
+            if (photoEntries.stream().anyMatch(e -> e.getMemberId().equals(memberId) && e.getKind() == EntryKind.ADDON)) continue;
+            boolean forgot = previous.stream().anyMatch(a -> a.getTargetMemberId().equals(memberId) && ("FORGOT".equals(a.getStatus()) || "SKIPPED".equals(a.getStatus())));
             boolean pending = previous.stream().anyMatch(a -> a.getTargetMemberId().equals(memberId) && Askback.PENDING.equals(a.getStatus()));
             boolean limited = askbacks.countByRoomIdAndTargetMemberId(room.getId(), memberId) >= RECEIVE_LIMIT_PER_MEMBER;
             if (!forgot && !pending && !limited) eligible.add(memberId);

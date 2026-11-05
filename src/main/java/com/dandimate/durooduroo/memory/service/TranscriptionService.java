@@ -58,10 +58,16 @@ public class TranscriptionService {
     private final AudioDurationProbe durationProbe;
     private final TranscriptionAiService stt;
     private final VoiceQuotaService quota;
+    private final com.dandimate.durooduroo.memory.repository.PhotoPassRepository passes;
+    private final com.dandimate.durooduroo.memory.repository.MemoryEntryRepository entries;
 
     public TranscriptionService(TranscriptionDraftRepository drafts, PhotoRepository photos, AskbackRepository askbacks, ParagraphRepository paragraphs,
                                 MemberRepository members, RoomStateService roomStates, ObjectStorage storage, AudioDurationProbe durationProbe,
-                                TranscriptionAiService stt, VoiceQuotaService quota) {
+                                TranscriptionAiService stt, VoiceQuotaService quota,
+                                com.dandimate.durooduroo.memory.repository.PhotoPassRepository passes,
+                                com.dandimate.durooduroo.memory.repository.MemoryEntryRepository entries) {
+        this.passes = passes;
+        this.entries = entries;
         this.quota = quota;
         this.drafts = drafts;
         this.photos = photos;
@@ -98,6 +104,10 @@ public class TranscriptionService {
         Member me = member(askback.getRoomId(), authorization);
         if (!me.getId().equals(askback.getTargetMemberId())) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "질문이 없습니다.");
         if (!Askback.PENDING.equals(askback.getStatus())) throw new BusinessException(ErrorCode.ASKBACK_CLOSED, "이미 끝난 질문이에요.");
+        if (!askback.getExpiresAt().isAfter(LocalDateTime.now())
+                || passes.findByPhotoIdAndMemberId(askback.getPhotoId(), me.getId()).isEmpty()
+                || entries.countByPhotoIdAndMemberIdAndKind(askback.getPhotoId(), me.getId(), com.dandimate.durooduroo.memory.domain.EntryKind.ADDON) > 0)
+            throw new BusinessException(ErrorCode.ASKBACK_CLOSED, "답변할 수 없는 질문입니다.");
         roomStates.require(askback.getRoomId(), RoomAction.ASKBACK_ANSWER);
         return create(askback.getRoomId(), me, "ASKBACK", askbackId, "ASKBACK_ANSWER", file, requestKey);
     }

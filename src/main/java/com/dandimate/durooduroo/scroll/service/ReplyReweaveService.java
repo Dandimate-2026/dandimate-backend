@@ -69,12 +69,13 @@ public class ReplyReweaveService {
     private final TransactionTemplate tx;
     private final com.dandimate.durooduroo.notification.service.Notifier notifier;
     private final com.dandimate.durooduroo.notification.service.RoomEvents events;
+    private final ScrollSummaryService summaries;
 
     public ReplyReweaveService(AiJobRepository jobs, ReplyRepository replies, ParagraphRepository paragraphs, ParagraphSourceRepository sources,
                                ParagraphVersionRepository versions, PhotoRepository photos, MemoryEntryRepository entries, MemberRepository members,
                                RoomRepository rooms, NotificationRepository notifications, ScrollGenerationService generation,
                                ReplyAiService classifier, ParagraphReweaveAiService reweaver, PlatformTransactionManager transactionManager,
-                               com.dandimate.durooduroo.notification.service.Notifier notifier, com.dandimate.durooduroo.notification.service.RoomEvents events) {
+                               com.dandimate.durooduroo.notification.service.Notifier notifier, com.dandimate.durooduroo.notification.service.RoomEvents events, ScrollSummaryService summaries) {
         this.jobs = jobs;
         this.replies = replies;
         this.paragraphs = paragraphs;
@@ -91,6 +92,7 @@ public class ReplyReweaveService {
         this.tx = new TransactionTemplate(transactionManager);
         this.notifier = notifier;
         this.events = events;
+        this.summaries = summaries;
     }
 
     public void execute(String jobId) {
@@ -216,6 +218,7 @@ public class ReplyReweaveService {
         generation.saveSources(paragraph.getId(), woven.citations());
         versions.save(ParagraphVersion.of(paragraph.getId(), paragraph.getVersion(), woven.body(), ScrollGenerationService.sourcesSummary(woven.citations()), reason));
         events.toRoom(paragraph.getRoomId(), "paragraph.updated", Map.of("paragraphId", paragraph.getId(), "version", paragraph.getVersion()));
+        summaries.enqueue(paragraph.getRoomId());
     }
 
     private void succeed(String jobId) {

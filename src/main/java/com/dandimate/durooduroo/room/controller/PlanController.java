@@ -10,8 +10,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class PlanController {
+    private final com.dandimate.durooduroo.payment.PaymentGateway gateway;
+    public PlanController(com.dandimate.durooduroo.payment.PaymentGateway gateway) { this.gateway = gateway; }
     @GetMapping("/api/v1/plans")
     public ApiResponse<List<PlanView>> plans() {
-        return ApiResponse.success(Arrays.stream(RoomPlan.values()).map(PlanView::from).toList());
+        return ApiResponse.success(Arrays.stream(RoomPlan.values()).map(p -> PlanView.from(p, gateway.configured())).toList());
     }
 }

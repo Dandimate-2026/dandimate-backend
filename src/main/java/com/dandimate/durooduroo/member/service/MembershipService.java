@@ -18,11 +18,13 @@ public class MembershipService {
     public enum PlanRequestReason { PHOTO, VOICE, REWEAVE }
 
     private final MemberRepository members;
+    private final com.dandimate.durooduroo.payment.PaymentOrderRepository paymentOrders;
     private final RoomRepository rooms;
     private final RoomEvents events;
     private final Notifier notifier;
 
-    public MembershipService(MemberRepository members, RoomRepository rooms, RoomEvents events, Notifier notifier) {
+    public MembershipService(MemberRepository members, RoomRepository rooms, RoomEvents events, Notifier notifier, com.dandimate.durooduroo.payment.PaymentOrderRepository paymentOrders) {
+        this.paymentOrders = paymentOrders;
         this.members = members;
         this.rooms = rooms;
         this.events = events;
@@ -60,9 +62,24 @@ public class MembershipService {
         events.toRoom(roomId, "member.left", Map.of("memberId", me.getId()));
     }
 
+    public Map<String, Object> transferHost(String roomId, String memberId) {
+        Member me = active(roomId);
+        if (me.getRole() != MemberRole.HOST) throw new BusinessException("FORBIDDEN", "방장만 위임할 수 있습니다.");
+        Member target = members.findById(memberId)
+                .filter(m -> m.getRoomId().equals(roomId) && m.isActive() && m.getRole() == MemberRole.MEMBER)
+                .orElseThrow(() -> new BusinessException("VALIDATION_ERROR", "같은 방의 다른 활성 멤버를 선택해 주세요."));
+        com.dandimate.durooduroo.payment.PaymentGuard.requireIdle(paymentOrders, roomId);
+        me.changeRole(MemberRole.MEMBER);
+        target.changeRole(MemberRole.HOST);
+        events.toRoom(roomId, "member.updated", Map.of("memberId", target.getId(), "previousHostId", me.getId()));
+        return Map.of("hostMemberId", target.getId(), "previousHostMemberId", me.getId());
+    }
+
     public Map<String, Object> requestPlan(String roomId, PlanRequestReason reason) {
         Member me = active(roomId);
         if (me.getRole() == MemberRole.HOST) throw new BusinessException("FORBIDDEN", "방장에게 요청하는 기능입니다.");
+        if (rooms.findById(roomId).orElseThrow().getPlanType() != com.dandimate.durooduroo.room.domain.RoomPlan.FREE)
+            throw new BusinessException("VALIDATION_ERROR", "무료 방에서만 방장에게 플랜 변경을 요청할 수 있습니다.");
         Member host = members.findAllByRoomIdAndLeftAtIsNull(roomId).stream()
                 .filter(m -> m.getRole() == MemberRole.HOST).findFirst()
                 .orElseThrow(() -> new BusinessException("ROOM_NOT_FOUND", "방장을 찾을 수 없습니다."));

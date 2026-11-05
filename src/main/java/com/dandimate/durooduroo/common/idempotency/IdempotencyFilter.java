@@ -50,6 +50,10 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
     /** openapi.yaml에서 IdempotencyKey 파라미터를 가진 POST 경로. */
     private static final List<String> PATTERNS = List.of(
+            "/api/v1/payments/room-orders",
+            "/api/v1/rooms/*/plan-orders",
+            "/api/v1/rooms/*/host-transfer",
+            "/api/v1/askbacks/*/pass",
             "/api/v1/rooms",
             "/api/v1/invites/*/join",
             "/api/v1/rooms/*/invite-token/rotate",

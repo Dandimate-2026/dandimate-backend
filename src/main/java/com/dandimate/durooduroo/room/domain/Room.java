@@ -44,6 +44,12 @@ public class Room implements Persistable<String> {
     @Column(nullable = false)
     @org.hibernate.annotations.ColumnDefault("0")
     private long voiceReservedMs;
+    /** 지도에 보여 줄 두루마리 한 줄 요약. 엮기 전이나 요약 실패 시 null. */
+    @Column(length = 200)
+    private String scrollSummary;
+
+    public String getScrollSummary() { return scrollSummary; }
+    public void summarizeScroll(String summary) { this.scrollSummary = summary; }
 
     public int getCapacity() { return capacity; }
     public RoomPlan getPlanType() { return planType; }
@@ -64,6 +70,12 @@ public class Room implements Persistable<String> {
         room.capacity = capacity;
         room.planType = planType;
         return room;
+    }
+
+    public void upgradePlan(RoomPlan target) {
+        if (target.priceKrw() <= planType.priceKrw())
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "상위 플랜으로만 변경할 수 있습니다.");
+        this.planType = target;
     }
 
     public void reserveVoice(long durationMs) {

@@ -166,6 +166,7 @@ Authorization: Bearer {memberAccessToken}
 | 403 | `FORBIDDEN` | 방장·작성자·참여자 권한 없음 |
 | 404 | `ROOM_NOT_FOUND` | 존재하지 않는 방 또는 초대 링크 |
 | 404 | `RESOURCE_NOT_FOUND` | 사진·원문·문단·되묻기 없음, 또는 볼 권한 없음 |
+| 503 | `PLACE_SEARCH_UNAVAILABLE` | 장소 검색 사용 불가. 장소 이름 직접 입력은 가능 |
 | 409 | `ROOM_FULL` | 방 정원 8명 초과 |
 | 409 | `NICKNAME_TAKEN` | 닉네임 중복 |
 | 409 | `ROOM_WEAVING` | 엮는 중 쓰기 요청 |
@@ -195,6 +196,7 @@ Authorization: Bearer {memberAccessToken}
 | 되묻기 답변 | – | O | X | X (마감 시 만료) |
 | 원문 수정 | O | O | X | X |
 | 원문·사진 삭제 | O | O | X | O |
+| 사진 장소 입력·삭제 | O | O | X | O |
 | 답가 | X | X | X | O |
 
 X는 `WEAVING`이면 `409 ROOM_WEAVING`, 그 외에는 `409 INVALID_ROOM_STATE`를 반환한다.
@@ -508,6 +510,21 @@ Idempotency-Key: {uuid}
 ```
 
 Spring은 Object Storage HEAD 요청으로 크기·MIME을 검증한다. HEIC면 `PROCESSING`, 그 외에는 `READY`로 바꾼다. 검증에 실패하면 `422 UPLOAD_VERIFICATION_FAILED`를 반환한다.
+
+## 사진 장소 API
+
+```http
+GET /api/v1/places/search?query=황리단길
+PUT /api/v1/photos/{photoId}/location
+DELETE /api/v1/photos/{photoId}/location
+GET /api/v1/users/me/map
+```
+
+- 사진을 올린 본인만 장소를 바꿀 수 있고, `READY` 사진에만 넣을 수 있다.
+- `placeName`만 보내면 사진에만 표시한다. 검색 결과의 `address`, `latitude`, `longitude`까지 보내면 지도에도 나온다. 도시는 서버가 주소에서 정한다.
+- 지도에는 내가 참여 중인 방에서 공개된 사진만 나온다. `bloomed`는 완성된 두루마리가 있는지, `recordCount`는 첫 한마디·덧붙임·되묻기 답의 합이다.
+- `summary`는 두루마리 한 줄 요약(80자 이내)이다. 엮기, 문단 변경, 사진 삭제 뒤 비동기로 갱신하고, 도시 핀에는 가장 최근 방의 요약을 보여 준다. 아직 없으면 `null`이다.
+- 사진 파일의 GPS는 읽지 않는다.
 
 ## 받아쓰기·확정 API
 
@@ -1841,3 +1858,20 @@ Spring 단일 애플리케이션을 먼저 배포하고 Web의 API 주소를 연
 | 혼자 쓰는 일기 | 핵심 가설인 친구 간 회람과 무관 |
 | 영상 편집·사진 보정 | 핵심 가치와 무관 |
 | AI가 원문 자동 수정 | 말투 보존과 사실 충실도 훼손 |
+
+
+### 챗봇 연속 대화 연동
+
+`POST /api/v1/chat/messages`는 `{ "message": "질문", "conversationId": "클라이언트가-생성한-ID" }`를 받습니다.
+`conversationId`는 선택 필드이며 영문·숫자·하이픈·밑줄 1~64자입니다. 같은 로그인 세션에서 같은 ID를 유지하면 대화가 이어집니다.
+새 대화 버튼은 새 ID를 발급하면 됩니다. 생략하면 기존의 단발 질문 방식이며, 요청에 이전 문답이나 사용자 ID를 전달하지 않습니다.
+로그인 사용자별 세션에 최근 4개 대화, 대화별 최근 8회 구조화된 맥락만 보관합니다. 로그아웃·세션 만료·서버 재시작 후에는 복구되지 않습니다.
+
+응답의 `answer`, `sources`는 유지하며 `citations`, `context`, `decision`이 추가됩니다.
+`sources[].firstEntry`는 첫 한마디(없으면 null), `entries`는 열람 가능한 덧붙임 전체이며 작성 순서입니다.
+사진 업로더와 각 글 작성자는 별도 필드입니다. `citations`는 실제 인용문과 문장 번호(0부터)를 연결합니다.
+`context`, `decision`은 서버 상태 확인용이며 요청으로 되돌려 보내지 않습니다. 과거 AI 판단은 원문 사실로 취급하지 않습니다.
+
+첫 한마디와 덧붙임은 별도 임베딩으로 검색하며 기존 원문 저장은 유지됩니다. 기존 첫 한마디도 백그라운드에서 색인됩니다.
+LLM 호출은 답변당 한 번이며 챗봇에만 medium 추론을 적용합니다. 관련 자료가 작은 경우 전체 허용 기록, 큰 경우 상위 8개 사진을 최대 48,000자 예산으로 전달하므로 모든 기록을 항상 확인하는 것은 아닙니다.
+인용 일치·권한·순위 일관성 검증은 환각의 완전한 방지를 보장하지 않습니다. 신규 DB 마이그레이션은 없습니다.
