@@ -68,7 +68,11 @@ class ChatFlowTest {
   first=entries.save(MemoryEntry.confirm(room.getId(),photo.getId(),guest.getId(),EntryKind.ADDON,"TEXT",null,null,"경주에서 함께 웃었어"));
   second=entries.save(MemoryEntry.confirm(room.getId(),photo.getId(),guest.getId(),EntryKind.ADDON,"TEXT",null,null,"밤에는 달을 봤어"));
   worker.enqueue(first);worker.enqueue(second);worker.runNext();worker.runNext();
-  when(ai.answer(any())).thenReturn(new ChatResult("민주는 경주에서 함께 웃었다고 했어요.",List.of(first.getId())));
+  when(ai.answer(any())).thenReturn(grounded(first.getId(),"민주는 경주에서 함께 웃었다고 했어요."));
+ }
+ static ChatResult grounded(String id,String answer) {
+  var support=new ChatResult.Support(id,"경주에서 함께 웃었어");
+  return new ChatResult("ANSWER",List.of(new ChatResult.Statement(answer,List.of(support))),List.of(support));
  }
  MockHttpSession session(String user) {
   var p=new AccountPrincipal(user);var ctx=SecurityContextHolder.createEmptyContext();
@@ -101,16 +105,25 @@ class ChatFlowTest {
   assertThat(chat.answer(outsider,"뭐 했지").sources()).hasSize(1);
  }
  @Test void leaveWhileLlmIsRunningDiscardsAnswer() {
-  when(ai.answer(any())).thenAnswer(inv->{guest.leave();members.save(guest);return new ChatResult("기억",List.of(first.getId()));});
+  when(ai.answer(any())).thenAnswer(inv->{guest.leave();members.save(guest);return grounded(first.getId(),"기억");});
   assertThatThrownBy(()->chat.answer(guestUser,"뭐 했지")).hasMessageContaining("권한");
  }
+ @Test void lockedParticipantCanSearchPublicFirstButNotPrivateAddons() {
+  String user=accounts.findOrCreate(UUID.randomUUID().toString());
+  members.save(Member.join(photo.getRoomId(),"참가자",FlowerCode.ROYAL_AZALEA,user));
+  var intro=entries.save(MemoryEntry.confirm(photo.getRoomId(),photo.getId(),owner.getId(),EntryKind.FIRST,"TEXT",null,null,"공개된 첫 이야기"));
+  var visible=access.load(user,false);
+  assertThat(visible.keySet()).containsExactly(intro.getId());
+  assertThat(visible.get(intro.getId()).source().entries()).isEmpty();
+  assertThat(visible.get(intro.getId()).source().firstEntry().author().userId()).isEqualTo(ownerUser);
+ }
  @Test void editDuringLlmDiscardsAnswer() {
-  when(ai.answer(any())).thenAnswer(inv->{first.edit("새 원문");entries.save(first);return new ChatResult("기억",List.of(first.getId()));});
-  assertThatThrownBy(()->chat.answer(ownerUser,"뭐 했지")).hasMessageContaining("변경");
+  when(ai.answer(any())).thenAnswer(inv->{first.edit("새 원문");entries.save(first);return grounded(first.getId(),"기억");});
+  assertThatThrownBy(()->chat.answer(ownerUser,"뭐 했지")).isInstanceOfSatisfying(com.dandimate.durooduroo.common.exception.BusinessException.class, e -> assertThat(e.getErrorCode()).isEqualTo(com.dandimate.durooduroo.common.exception.ErrorCode.VERSION_CONFLICT));
  }
  @Test void fabricatedCitationIsRejected() {
-  when(ai.answer(any())).thenReturn(new ChatResult("기억",List.of(UUID.randomUUID().toString())));
-  assertThatThrownBy(()->chat.answer(ownerUser,"뭐 했지")).hasMessageContaining("AI 응답");
+  when(ai.answer(any())).thenReturn(grounded(UUID.randomUUID().toString(),"기억"));
+  assertThat(chat.answer(ownerUser,"뭐 했지").sources()).isEmpty();
  }
  @Test void editResetsIndexAndDeleteCascadesWithoutChangingOriginalStorage() {
   first.edit("새로운 기억");first=entries.save(first);worker.enqueue(first);
@@ -138,12 +151,12 @@ class ChatFlowTest {
   assertThat(index.findById(first.getId()).orElseThrow().getStatus()).isEqualTo("PENDING");
   assertThat(entries.findById(first.getId()).orElseThrow().getTranscript()).isEqualTo("retry text");
  }
- @Test void backfillOnlyIndexesAddons() {
+ @Test void backfillIndexesFirstAndAddons() {
   index.deleteAll();
   var own=entries.save(MemoryEntry.confirm(photo.getRoomId(),photo.getId(),owner.getId(),EntryKind.FIRST,"TEXT",null,null,"첫 한마디"));
   worker.backfill();
-  assertThat(index.count()).isEqualTo(2);
-  assertThat(index.existsById(own.getId())).isFalse();
+  assertThat(index.count()).isEqualTo(3);
+  assertThat(index.existsById(own.getId())).isTrue();
  }
  @Test void originalEditApiEnqueuesIndexInSameTransaction() throws Exception {
   var room=rooms.findById(photo.getRoomId()).orElseThrow();room.startCirculating();rooms.save(room);

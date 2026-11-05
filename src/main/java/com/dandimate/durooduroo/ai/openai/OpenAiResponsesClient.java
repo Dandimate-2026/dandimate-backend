@@ -84,6 +84,10 @@ public class OpenAiResponsesClient {
         } catch (IOException e) {
             throw new AiFailure(AiFailure.Code.INVALID_INPUT, false, "AI 입력을 만들지 못했습니다.");
         }
+        if ("chat-v2".equals(promptVersion)) {
+            body = new java.util.LinkedHashMap<>(body);
+            body.put("reasoning", Map.of("effort", "medium"));
+        }
         long started = System.nanoTime();
         try {
             var response = client.post().uri("/responses").header("Authorization", "Bearer " + apiKey)

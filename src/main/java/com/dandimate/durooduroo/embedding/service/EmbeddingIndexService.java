@@ -26,7 +26,7 @@ public class EmbeddingIndexService {
         this.index=index;this.entries=entries;this.ai=ai;this.tx=tx;this.em=em;
     }
     @Transactional public void enqueue(MemoryEntry entry) {
-        if(entry.getKind()!=EntryKind.ADDON)return;
+        if(entry.getKind()!=EntryKind.ADDON && entry.getKind()!=EntryKind.FIRST)return;
         var row=index.locked(entry.getId()).orElse(null);
         if(row==null)index.save(new MemoryEmbedding(entry,ai.model()));
         else if(!row.matches(entry,ai.model()))row.reset(entry,ai.model());
@@ -39,7 +39,7 @@ public class EmbeddingIndexService {
     }
     public void backfill() {
         tx.executeWithoutResult(s->{
-            var old=em.createQuery("select e from MemoryEntry e where e.kind = com.dandimate.durooduroo.memory.domain.EntryKind.ADDON and not exists (select v.entryId from MemoryEmbedding v where v.entryId=e.id)",MemoryEntry.class)
+            var old=em.createQuery("select e from MemoryEntry e where (e.kind = com.dandimate.durooduroo.memory.domain.EntryKind.ADDON or e.kind = com.dandimate.durooduroo.memory.domain.EntryKind.FIRST) and not exists (select v.entryId from MemoryEmbedding v where v.entryId=e.id)",MemoryEntry.class)
                 .setMaxResults(50).getResultList();
             old.forEach(this::enqueue);
         });
