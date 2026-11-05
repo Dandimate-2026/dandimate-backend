@@ -74,6 +74,10 @@ class ScrollSummaryJobTest {
         String[] room = wovenRoom();
         assertThat(rooms.findById(room[0]).orElseThrow().getStatus()).isEqualTo(RoomStatus.GROWING);
         assertThat(summary(room[0])).isNull();
-        assertThat(jobs.findFirstByRoomIdAndTypeAndStatusInOrderByCreatedAtDesc(room[0], AiJob.SCROLL_SUMMARY, java.util.List.of("FAILED"))).isPresent();
+        // A scheduled worker can hold the job while drain() finds no queued work.
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() -> {
+            drain();
+            assertThat(jobs.findFirstByRoomIdAndTypeAndStatusInOrderByCreatedAtDesc(room[0], AiJob.SCROLL_SUMMARY, java.util.List.of("FAILED"))).isPresent();
+        });
     }
 }
