@@ -62,5 +62,12 @@ public class RoomCoverService {
         if(!permitted) throw new BusinessException(ErrorCode.FORBIDDEN,"대표 사진을 볼 권한이 없습니다.");
         return cover;
     }
+    public org.springframework.http.ResponseEntity<?> inviteImage(String id) {
+        if(id==null)throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND,"대표 사진이 없습니다.");
+        var cover=find(id);var url=storage.presignedGetUrl(cover.getLocation(),java.time.Duration.ofMinutes(5));
+        if(url.isPresent())return org.springframework.http.ResponseEntity.status(302).location(java.net.URI.create(url.get())).cacheControl(org.springframework.http.CacheControl.noStore()).build();
+        var resource=storage.open(cover.getLocation()).orElseThrow(()->new BusinessException(ErrorCode.RESOURCE_NOT_FOUND,"사진이 없습니다."));
+        return org.springframework.http.ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).contentType(org.springframework.http.MediaType.parseMediaType(cover.getContentType())).body(resource);
+    }
     private RoomCover find(String id) {return covers.findById(id).orElseThrow(()->new BusinessException(ErrorCode.RESOURCE_NOT_FOUND,"대표 사진이 없습니다."));}
 }

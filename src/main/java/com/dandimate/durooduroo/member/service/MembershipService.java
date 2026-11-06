@@ -62,6 +62,18 @@ public class MembershipService {
         events.toRoom(roomId, "member.left", Map.of("memberId", me.getId()));
     }
 
+    public void kick(String roomId, String memberId) {
+        Member host = active(roomId);
+        if (host.getRole() != MemberRole.HOST) throw new BusinessException("FORBIDDEN", "방장만 멤버를 내보낼 수 있습니다.");
+        Member target = members.findById(memberId).filter(m -> m.getRoomId().equals(roomId))
+                .orElseThrow(() -> new BusinessException("RESOURCE_NOT_FOUND", "참가자가 없습니다."));
+        if (target.getId().equals(host.getId()) || target.getRole() == MemberRole.HOST)
+            throw new BusinessException("FORBIDDEN", "방장 자신은 내보낼 수 없습니다.");
+        if (target.isKicked()) return;
+        target.kick();
+        events.toRoom(roomId, "member.left", Map.of("memberId", target.getId(), "reason", "KICKED"));
+    }
+
     public Map<String, Object> transferHost(String roomId, String memberId) {
         Member me = active(roomId);
         if (me.getRole() != MemberRole.HOST) throw new BusinessException("FORBIDDEN", "방장만 위임할 수 있습니다.");

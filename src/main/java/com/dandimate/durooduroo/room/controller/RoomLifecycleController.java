@@ -1,4 +1,4 @@
-/** 명세서 기준 방 홈·초대 토큰 재발급·방 마감 API입니다. */
+/** 명세서 기준 방 홈·고정 초대 링크 조회·방 마감 API입니다. */
 package com.dandimate.durooduroo.room.controller;
 
 import com.dandimate.durooduroo.job.dto.JobResponse;
@@ -28,7 +28,7 @@ public class RoomLifecycleController {
         return ApiResponse.success(roomHome.home(roomId,authorization));
     }
 
-    /** 방장: 이름·모임 날짜·마감 수정 (마감은 WEAVING 전 한 번, 생성 후 24~72시간). */
+    /** 방장: 이름·모임 날짜·마감 수정 (마감은 엮기 전 미래 시각으로 횟수 제한 없이 변경). */
     @PatchMapping("/{roomId}")
     public ApiResponse<?> update(@PathVariable String roomId,@RequestHeader(required=false) String authorization,@jakarta.validation.Valid @RequestBody com.dandimate.durooduroo.room.dto.RoomUpdateRequest body){
         var room=roomAdmin.update(roomId,authorization,body.name,body.meetingDate,body.deadlineAt,body.placePresent(),body.place(),body.coverPresent(),body.coverPhoto(),body.capacity);
@@ -48,11 +48,10 @@ public class RoomLifecycleController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{roomId}/invite-token/rotate") @Transactional
-    public ApiResponse<?> rotate(@PathVariable String roomId,@RequestHeader(required=false) String authorization){
-        var room=rooms.findById(roomId).orElseThrow(()->new BusinessException("ROOM_NOT_FOUND","존재하지 않는 방입니다.")); var me=members.findByRoomIdAndMemberToken(roomId,MemberTokenResolver.resolve(authorization)).orElseThrow(()->new BusinessException("MEMBER_FORBIDDEN","방 참여자만 사용할 수 있습니다."));
-        if(me.getRole()!=MemberRole.HOST) throw new BusinessException("HOST_ONLY","방장만 초대 토큰을 재발급할 수 있습니다.");
-        String inviteToken=room.rotateInviteToken(); rooms.save(room); return ApiResponse.success(Map.of("inviteToken",inviteToken));
+    @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.room.invite.RoomInviteService invites;
+    @GetMapping("/{roomId}/invite")
+    public ApiResponse<?> invite(@PathVariable String roomId,@RequestHeader(required=false) String authorization) {
+        return ApiResponse.success(Map.of("inviteToken",invites.get(roomId,authorization)));
     }
 
     /** 조기·데모 마감. body의 mode(EARLY/DEMO)는 필수이며, DEMO는 app.demo-enabled일 때만 허용한다. */

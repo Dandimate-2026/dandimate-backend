@@ -33,6 +33,9 @@ public class Photo {
     @Column(nullable = false) private int sourceRevision;
     @Column(nullable = false) private LocalDateTime createdAt;
     /** 업로더가 직접 입력한 장소. 좌표가 없으면 사진에만 표시되고 지도에는 나오지 않는다. */
+    @Column(length = 100) private String placeId;
+    public String getPlaceId() { return placeId; }
+    public void identifyPlace(String value) { placeId = value; }
     @Column(length = 60) private String placeName;
     @Column(length = 200) private String address;
     @Column(length = 30) private String city;
@@ -58,7 +61,7 @@ public class Photo {
     public void locate(String placeName, String address, String city, Double latitude, Double longitude) {
         this.placeName = placeName; this.address = address; this.city = city; this.latitude = latitude; this.longitude = longitude;
     }
-    public void clearLocation() { locate(null, null, null, null, null); }
+    public void clearLocation() { locate(null, null, null, null, null); placeId = null; }
     public void publish() { if (publishedAt == null) publishedAt = LocalDateTime.now(); }
     public void bumpSourceRevision() { sourceRevision++; }
     /** 업로드 주소가 만료될 때까지 완료되지 않은 사진. 실패한 업로드로 보고 한도에서 뺀다. */

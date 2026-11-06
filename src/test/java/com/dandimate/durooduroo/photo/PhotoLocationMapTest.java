@@ -31,7 +31,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 @AutoConfigureMockMvc
 class PhotoLocationMapTest {
     private static final String CONSENT = "\"consent\":{\"version\":\"v1\",\"terms\":true,\"mediaProcessing\":true,\"externalAiProcessing\":true}";
-    private static final String GYEONGJU = "{\"placeName\":\"황리단길 카페\",\"address\":\"경북 경주시 포석로 1080\",\"latitude\":35.80,\"longitude\":129.20}";
+    private static final String GYEONGJU = "{\"placeId\":\"123456\",\"placeName\":\"황리단길 카페\",\"address\":\"경북 경주시 포석로 1080\",\"latitude\":35.80,\"longitude\":129.20}";
 
     @Autowired MockMvc mvc;
     @Autowired KakaoAccountService accounts;
@@ -101,11 +101,12 @@ class PhotoLocationMapTest {
                 .andExpect(jsonPath("$.data.cities[0].photoCount").value(1))
                 .andExpect(jsonPath("$.data.cities[0].recordCount").value(1))
                 .andExpect(jsonPath("$.data.cities[0].bloomed").value(false))
-                .andExpect(jsonPath("$.data.cities[0].summary").isEmpty())
+                .andExpect(jsonPath("$.data.cities[0].summary").isNotEmpty())
                 .andExpect(jsonPath("$.data.cities[0].rooms[0].roomId").value(room[0]))
                 .andExpect(jsonPath("$.data.cities[0].rooms[0].scrollReady").value(false))
                 .andExpect(jsonPath("$.data.cities[0].places[0].photoId").value(published))
                 .andExpect(jsonPath("$.data.cities[0].places[0].placeName").value("황리단길 카페"))
+                .andExpect(jsonPath("$.data.cities[0].places[0].placeId").value("123456"))
                 .andExpect(jsonPath("$.data.cities[0].places[0].imageUrl").isNotEmpty())
                 .andExpect(jsonPath("$.data.cities[0].places[0].uploader.nickname").value("서연"))
                 .andExpect(jsonPath("$.data.cities[0].places[0].uploader.userId").isNotEmpty())
@@ -170,6 +171,7 @@ class PhotoLocationMapTest {
         photo.complete("hash"); photos.save(photo);
         send(put("/api/v1/photos/"+photo.getId()+"/location"),host,GYEONGJU).andExpect(status().isOk());
         photo=photos.findById(photo.getId()).orElseThrow(); photo.derived("derived.jpg");photo.publish();photos.save(photo);
-        mvc.perform(get("/api/v1/users/me/map").session(host)).andExpect(jsonPath("$.data.cities[0].places[0].placeName").value("황리단길 카페"));
+        mvc.perform(get("/api/v1/users/me/map").session(host)).andExpect(jsonPath("$.data.cities[0].places[0].placeName").value("황리단길 카페"))
+                .andExpect(jsonPath("$.data.cities[0].places[0].placeId").value("123456"));
     }
 }

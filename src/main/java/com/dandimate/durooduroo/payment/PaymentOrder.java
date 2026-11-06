@@ -12,8 +12,8 @@ public class PaymentOrder {
     @Id @Column(length = 36) private String id;
     @Column(nullable = false, length = 36) private String userId;
     @Column(length = 36) private String roomId;
-    @Enumerated(EnumType.STRING) @Column(nullable = false, columnDefinition = "varchar(10)") private RoomPlan fromPlan;
-    @Enumerated(EnumType.STRING) @Column(nullable = false, columnDefinition = "varchar(10)") private RoomPlan targetPlan;
+    @Enumerated(EnumType.STRING) @Column(columnDefinition = "varchar(10)") private RoomPlan fromPlan;
+    @Enumerated(EnumType.STRING) @Column(columnDefinition = "varchar(10)") private RoomPlan targetPlan;
     @Column(nullable = false) private int amount;
     @Column(nullable = false, length = 20) private String status;
     @Column(length = 200, unique = true) private String paymentKey;
@@ -21,6 +21,24 @@ public class PaymentOrder {
     @Column(nullable = false) private LocalDateTime createdAt;
     private LocalDateTime approvedAt;
 
+    @Column(nullable=false,length=16) private String orderType="ROOM";
+    @Column(length=16) private String packId;
+    private int creditAmount;
+    public String getOrderType() { return orderType; }
+    public String getPackId() { return packId; }
+    public int getCreditAmount() { return creditAmount; }
+    public boolean isCredit() { return "CREDIT".equals(orderType); }
+    public static PaymentOrder credit(String user,String pack) {
+        int[] values=switch(pack) {
+            case "light" -> new int[]{10,900};
+            case "basic" -> new int[]{30,1900};
+            case "plenty" -> new int[]{50,2900};
+            default -> throw new com.dandimate.durooduroo.common.exception.BusinessException("VALIDATION_ERROR","크레딧 상품을 확인해 주세요.");
+        };
+        PaymentOrder o=new PaymentOrder();o.id=UUID.randomUUID().toString();o.userId=user;
+        o.orderType="CREDIT";o.packId=pack;o.creditAmount=values[0];o.amount=values[1];
+        o.status="READY";o.createdAt=LocalDateTime.now();return o;
+    }
     protected PaymentOrder() {}
     public static PaymentOrder create(String user, String room, RoomPlan from, RoomPlan target, String request) {
         PaymentOrder o = new PaymentOrder();

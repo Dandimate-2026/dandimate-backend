@@ -76,6 +76,7 @@ public class Member implements Persistable<String> {
         this.activeFlowerCode = null;
     }
     public void rejoin(String nickname, FlowerCode flower) {
+        if(isKicked())throw new com.dandimate.durooduroo.common.exception.BusinessException("FORBIDDEN","내보내진 방에는 다시 참여할 수 없습니다.");
         this.nickname = nickname;
         this.flowerCode = flower;
         this.activeFlowerCode = flower.name();
@@ -135,6 +136,10 @@ public class Member implements Persistable<String> {
     public static Member join(String roomId, String nickname, FlowerCode flower, String userId) {
         Member member = join(roomId, nickname, flower); member.userId = userId; return member;
     }
+
+    private LocalDateTime kickedAt;
+    public boolean isKicked() { return kickedAt != null; }
+    public void kick() { leave(); kickedAt = LocalDateTime.now(); }
 
     public String getUserId() { return userId; }
 

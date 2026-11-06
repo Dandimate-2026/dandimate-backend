@@ -55,7 +55,7 @@ class CirculationFlowTest {
                 .andExpect(jsonPath("$.data.entry.member.flowerCode").value("AZALEA"))
                 .andExpect(jsonPath("$.data.askbackJobId").isNotEmpty());
         entry(photoA, a, "FIRST", "TEXT", "두 번째 첫 한마디").andExpect(status().isUnprocessableEntity());
-        entry(photoA, a, "ADDON", "TEXT", "내 사진에 덧붙임").andExpect(status().isForbidden());
+
         // 첫 한마디 "나중에"는 사진을 올린 사람만
         mockMvc.perform(post("/api/v1/photos/" + photoB + "/first-entry/skip").header("Authorization", "Bearer " + a))
                 .andExpect(status().isForbidden());
@@ -95,6 +95,10 @@ class CirculationFlowTest {
         String own = circulation(roomId, a);
         assertThat(JsonPath.<String>read(own, "$.data.cards[0].myResponse.status")).isEqualTo("OWN_PHOTO");
         assertThat(JsonPath.<List<?>>read(own, "$.data.cards[0].otherEntries")).hasSize(4);
+
+        entry(photoA, a, "ADDON", "TEXT", "내 사진에 덧붙임").andExpect(status().isCreated());
+        assertThat(JsonPath.<String>read(circulation(roomId,a), "$.data.cards[0].myResponse.status")).isEqualTo("OWN_PHOTO");
+        mockMvc.perform(put("/api/v1/photos/"+photoA+"/passes/me").header("Authorization","Bearer "+a)).andExpect(status().isForbidden());
 
         // 페이지
         mockMvc.perform(get("/api/v1/rooms/" + roomId + "/circulation").param("size", "1").header("Authorization", "Bearer " + a))

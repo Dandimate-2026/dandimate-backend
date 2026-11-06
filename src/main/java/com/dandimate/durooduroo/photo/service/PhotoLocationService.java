@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PhotoLocationService {
+    @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.scroll.service.ScrollSummaryService summaries;
     private final PhotoRepository photos;
     private final MemberRepository members;
     private final RoomStateService roomStates;
@@ -38,12 +39,15 @@ public class PhotoLocationService {
         if (request.latitude() != null && address == null)
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "좌표를 보내려면 주소도 함께 보내 주세요.");
         photo.locate(request.placeName().strip(), address, PlaceCity.of(address), request.latitude(), request.longitude());
+        photo.identifyPlace(request.placeId() == null || request.placeId().isBlank() ? null : request.placeId().strip());
+        if(photo.isPublished())summaries.enqueue(photo.getRoomId());
         return PhotoLocationView.of(photo);
     }
 
     @Transactional
     public void clear(String photoId, String authorization) {
-        editable(photoId, authorization).clearLocation();
+        var photo=editable(photoId, authorization);photo.clearLocation();
+        if(photo.isPublished())summaries.enqueue(photo.getRoomId());
     }
 
     private Photo editable(String photoId, String authorization) {

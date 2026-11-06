@@ -60,21 +60,20 @@ class TokenAuthTest {
     }
 
     @Test
-    void 초대_토큰을_재발급하면_기존_토큰은_즉시_무효가_된다() throws Exception {
+    void 초대_링크는_조회해도_바뀌지_않는다() throws Exception {
         String created = createRoom("서연");
         String roomId = JsonPath.read(created, "$.data.room.id");
         String host = JsonPath.read(created, "$.data.memberAccessToken");
         String oldInvite = JsonPath.read(created, "$.data.inviteToken");
 
-        String rotated = mockMvc.perform(post("/api/v1/rooms/" + roomId + "/invite-token/rotate").header("Authorization", "Bearer " + host))
+        String rotated = mockMvc.perform(get("/api/v1/rooms/" + roomId + "/invite").header("Authorization", "Bearer " + host))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         String newInvite = JsonPath.read(rotated, "$.data.inviteToken");
 
-        assertThat(newInvite).isNotEqualTo(oldInvite);
+        assertThat(newInvite).isEqualTo(oldInvite);
         mockMvc.perform(get("/api/v1/invites/" + oldInvite))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error.code").value("ROOM_NOT_FOUND"));
+                .andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/invites/" + newInvite))
                 .andExpect(status().isOk());
     }
