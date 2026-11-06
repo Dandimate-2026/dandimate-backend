@@ -25,6 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class ScrollSummaryService {
+    @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.memory.repository.MemoryEntryRepository entries;
     private final AiJobRepository jobs;
     private final RoomRepository rooms;
     private final ScrollRepository scrolls;
@@ -47,6 +48,7 @@ public class ScrollSummaryService {
     /** 이미 대기 중인 작업은 실행될 때 최신 문단을 읽으므로 새로 만들지 않는다. */
     @Transactional
     public void enqueue(String roomId) {
+        rooms.findById(roomId).ifPresent(room->room.summarizeScroll(null));
         if (jobs.findFirstByRoomIdAndTypeAndStatusInOrderByCreatedAtDesc(roomId, AiJob.SCROLL_SUMMARY, List.of("QUEUED")).isEmpty()) {
             jobs.save(AiJob.queued(roomId, AiJob.SCROLL_SUMMARY));
         }
@@ -57,6 +59,11 @@ public class ScrollSummaryService {
         ScrollSummaryCommand command = tx.execute(status -> command(roomId));
         String summary = command == null || command.paragraphs().isEmpty() ? null : valid(ai.summarize(command));
         tx.executeWithoutResult(status -> {
+            if(!java.util.Objects.equals(command,command(roomId))) {
+                jobs.findById(jobId).orElseThrow().succeed();
+                enqueue(roomId);
+                return;
+            }
             rooms.findById(roomId).ifPresent(room -> room.summarizeScroll(summary));
             jobs.findById(jobId).orElseThrow().succeed();
         });
@@ -66,7 +73,18 @@ public class ScrollSummaryService {
     private ScrollSummaryCommand command(String roomId) {
         var room = rooms.findById(roomId).orElse(null);
         var scroll = scrolls.findTopByRoomIdOrderByVersionDesc(roomId).orElse(null);
-        if (room == null || scroll == null) return null;
+        if (room == null) return null;
+        if (scroll == null) {
+            var published=photos.findAllByRoomId(roomId).stream().filter(p->p.isReady()&&p.isPublished()).sorted(java.util.Comparator.comparing(Photo::getId)).toList();
+            var inputs=published.stream().map(p-> {
+                // Room-level summary is shared: only publicly visible first entries, never locked addons.
+                String text=entries.findAllByPhotoId(p.getId()).stream()
+                  .filter(e->e.getKind()==com.dandimate.durooduroo.memory.domain.EntryKind.FIRST)
+                  .map(e->e.getTranscript()).collect(Collectors.joining(" "));
+                return new ScrollSummaryCommand.ParagraphInput(p.getPlaceName(),text);
+            }).filter(p->p.body()!=null&&!p.body().isBlank()).toList();
+            return new ScrollSummaryCommand(new ScrollSummaryCommand.RoomInput(room.getTitle(),room.getMeetingDate()==null?null:room.getMeetingDate().toString()),inputs);
+        }
         Map<String, Photo> photoById = photos.findAllByRoomId(roomId).stream().collect(Collectors.toMap(Photo::getId, Function.identity()));
         var inputs = paragraphs.findAllByScrollIdOrderByDisplayOrderAsc(scroll.getId()).stream()
                 .filter(paragraph -> photoById.containsKey(paragraph.getPhotoId()))

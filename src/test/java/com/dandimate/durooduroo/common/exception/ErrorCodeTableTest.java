@@ -45,6 +45,7 @@ class ErrorCodeTableTest {
         SPEC.put("AI_TIMEOUT", 504);
         SPEC.put("PAYMENT_NOT_CONFIGURED", 503);
         SPEC.put("PLACE_SEARCH_UNAVAILABLE", 503);
+        SPEC.put("CHAT_LIMIT_EXCEEDED", 429);
         SPEC.put("PAYMENT_IN_PROGRESS", 409);
         SPEC.put("PAYMENT_REJECTED", 422);
         SPEC.put("PAYMENT_UNCERTAIN", 503);

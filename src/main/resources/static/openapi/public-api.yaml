@@ -71,6 +71,78 @@ paths:
         '401': {description: 로그인 필요}
         '403': {description: 열람 권한 없음}
         '404': {description: 사진 없음}
+  /chat/quota:
+    get:
+      tags: [챗봇]
+      summary: 계정별 챗봇 남은 횟수
+      description: 무료 4회는 매일 0시 KST 초기화됩니다. 구매 크레딧은 이월되며 처리 중 예약 횟수는 제외합니다.
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: 남은 질문 횟수
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      freeLimit: {type: integer, const: 4}
+                      freeRemaining: {type: integer, minimum: 0, maximum: 4}
+                      credits: {type: integer, minimum: 0}
+                      resetsAt: {type: string, format: date-time}
+  /payments/credit-orders:
+    post:
+      tags: [결제]
+      summary: 챗봇 크레딧 구매 주문
+      description: light 10회 900원, basic 30회 1900원, plenty 50회 2900원. 기존 결제 승인 API에서 승인 후 구매 계정에 한 번만 적립합니다.
+      security: [{sessionCookie: [], csrfToken: []}]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [packId]
+              properties:
+                packId: {type: string, enum: [light, basic, plenty]}
+      responses:
+        '201':
+          description: 결제 주문
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/PaymentOrder'}
+        '503': {description: 결제 키 설정 필요}
+  /rooms/{roomId}/members/{memberId}:
+    delete:
+      tags: [모임방]
+      summary: 멤버 내보내기 (방장 전용)
+      description: 본인 강퇴 불가. 사진과 이야기는 보존하며 재입장은 차단합니다. 커밋 후 member.left 전송 및 해당 멤버 SSE 종료.
+      security: [{sessionCookie: [], csrfToken: []}]
+      parameters:
+        - $ref: '#/components/parameters/RoomId'
+        - {name: memberId, in: path, required: true, schema: {type: string}}
+      responses:
+        '204': {description: 내보내기 완료}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {description: 방 또는 참가자 없음}
+  /invites/{inviteToken}/cover:
+    get:
+      tags: [모임방]
+      summary: 초대 카드 대표 사진
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/InviteToken'
+      responses:
+        '200': {description: 로컬 대표 사진 파일}
+        '302': {description: 만료되는 대표 사진 URL로 이동}
+        '404': {description: 유효하지 않은 초대 또는 대표 사진 없음}
   /chat/messages:
     post:
       tags:
@@ -107,7 +179,16 @@ paths:
             example:
               message: 경주에서 어떤 추억이 있었지?
               conversationId: trip-chat-1
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: 16~128자 요청 식별자. 재시도 시 같은 키를 보내면 기록 질문의 중복 차감을 막습니다.
+          schema: {type: string, minLength: 16, maxLength: 128}
       responses:
+        '429':
+          description: CHAT_LIMIT_EXCEEDED. 무료 횟수와 크레딧 모두 소진. SMALL_TALK, OUT_OF_SCOPE는 무료이고 INSUFFICIENT, INVALID, 오류는 예약을 반환합니다.
+
         '200':
           description: 답변과 근거. 관련 기록이 없으면 sources는 빈 배열.
           content:
@@ -1054,19 +1135,17 @@ paths:
       responses:
         '204': {description: "삭제 완료"}
         '403': {$ref: '#/components/responses/Forbidden'}
-  /rooms/{roomId}/invite-token/rotate:
-    post:
-      security:
-        - sessionCookie: []
-          csrfToken: []
+  /rooms/{roomId}/invite:
+    get:
       tags: [모임방]
-      summary: "초대 토큰 재발급 (방장 전용)"
+      summary: 현재 고정 초대 토큰 조회 (활성 참가자)
+      description: 새 방은 생성 시 링크를 계속 반환합니다. 기존 방은 이전 링크도 유효하게 유지합니다. 재발급 API는 제거했습니다.
+      security: [{sessionCookie: []}]
       parameters:
         - $ref: '#/components/parameters/RoomId'
-        - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '200':
-          description: "새 초대 토큰 원문 (발급 시 한 번만 반환)"
+          description: 고정 초대 토큰
           content:
             application/json:
               schema:
@@ -1078,6 +1157,8 @@ paths:
                     required: [inviteToken]
                     properties:
                       inviteToken: {type: string}
+        '403': {$ref: '#/components/responses/Forbidden'}
+
   /rooms/{roomId}/close:
     post:
       security:
@@ -1183,6 +1264,7 @@ paths:
               type: object
               required: [placeName]
               properties:
+                placeId: {type: [string, "null"], maxLength: 100}
                 placeName: {type: string, minLength: 1, maxLength: 60}
                 address: {type: [string, 'null'], maxLength: 200}
                 latitude: {type: [number, 'null'], minimum: -90, maximum: 90}
@@ -2020,6 +2102,10 @@ components:
       - targetPlan
       - testMode
       properties:
+        orderType: {type: string, enum: [ROOM, CREDIT]}
+        packId: {type: [string, 'null'], enum: [light, basic, plenty, null]}
+        creditAmount: {type: integer, minimum: 0}
+
         orderId:
           type: string
         orderName:
@@ -2042,9 +2128,9 @@ components:
           - string
           - 'null'
         fromPlan:
-          $ref: '#/components/schemas/RoomPlan'
+          anyOf: [{$ref: '#/components/schemas/RoomPlan'}, {type: 'null'}]
         targetPlan:
-          $ref: '#/components/schemas/RoomPlan'
+          anyOf: [{$ref: '#/components/schemas/RoomPlan'}, {type: 'null'}]
         testMode:
           type: boolean
           const: true
@@ -2169,7 +2255,7 @@ components:
       required: [id, name, status, deadlineAt]
       properties:
         createdAt: {type: string, format: date-time}
-        deadlineChangedByHost: {type: boolean, description: "방장이 이미 마감을 변경했는지. 생성 후 24~72시간 범위에서 한 번만 변경 가능"}
+        deadlineChangedByHost: {type: boolean, description: "방장의 마감 변경 이력 여부. 엮기 전까지 미래 시각으로 횟수 제한 없이 변경 가능"}
         place: {$ref: '#/components/schemas/NullableRoomPlace'}
         coverPhoto: {$ref: '#/components/schemas/NullableCoverPhotoView'}
         coverImageUrl: {type: [string, "null"], description: "대표 사진 업로드 응답 imageUrl. 같은 서버의 /api/v1/room-covers/{id}/image 주소. 생략하면 유지, 수정 시 null은 삭제"}
@@ -2192,6 +2278,8 @@ components:
           required: [roomId, alreadyJoined, roomName, status, memberCount, capacity, flowers, canJoin]
           properties:
             roomId: {type: string, format: uuid, description: "초대 링크가 가리키는 방 ID. 방 상세 조회에는 참가자 인증이 필요합니다."}
+            inviterNickname: {type: [string, "null"], description: "고정 방 초대의 현재 방장 이름"}
+            coverImageUrl: {type: [string, "null"], description: "초대 토큰으로 접근하는 대표 사진 절대 URL"}
             alreadyJoined: {type: boolean, description: "현재 로그인 계정의 방 참여 여부. 방장 포함. 미로그인은 false이므로 로그인 후 다시 조회해야 합니다."}
             roomName: {type: string}
             meetingDate: {type: string, format: date}
@@ -2384,6 +2472,7 @@ components:
       type: object
       required: [placeName]
       properties:
+        placeId: {type: [string, "null"], maxLength: 100, description: "카카오 장소 ID. 직접 입력한 장소는 null"}
         placeName: {type: string, maxLength: 60}
         address: {type: [string, 'null']}
         city: {type: [string, 'null'], description: "주소에서 뽑은 도시 이름. 예: 경주"}
@@ -2393,6 +2482,7 @@ components:
       type: object
       required: [placeName, address, latitude, longitude]
       properties:
+        placeId: {type: [string, "null"], maxLength: 100, description: "카카오 장소 ID. 직접 입력한 장소는 null"}
         placeName: {type: string}
         address: {type: string}
         city: {type: [string, 'null']}
@@ -2414,7 +2504,7 @@ components:
               photoCount: {type: integer}
               recordCount: {type: integer}
               bloomed: {type: boolean}
-              summary: {type: [string, 'null'], maxLength: 80, description: "그 도시에서 가장 최근 방의 AI 한 줄 요약. 아직 없으면 null"}
+              summary: {type: [string, 'null'], maxLength: 200, description: "완성 전 방도 포함. 공개 첫 한마디 요약 또는 장소·기록 발췌. 잠긴 덧붙임은 제외"}
               rooms:
                 type: array
                 items:
@@ -2428,7 +2518,7 @@ components:
                     scrollReady: {type: boolean}
                     photoCount: {type: integer}
                     recordCount: {type: integer}
-                    summary: {type: [string, 'null'], maxLength: 80}
+                    summary: {type: [string, 'null'], maxLength: 200}
               places:
                 type: array
                 items:
@@ -2445,6 +2535,7 @@ components:
                         nickname: {type: string}
                         flowerCode: {type: string}
                     firstEntrySnippet: {type: [string, "null"], maxLength: 100, description: "첫 한마디 앞 100자. 없는 경우 null"}
+                    placeId: {type: [string, "null"]}
                     placeName: {type: string}
                     latitude: {type: number}
                     longitude: {type: number}

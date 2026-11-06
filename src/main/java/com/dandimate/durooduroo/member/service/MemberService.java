@@ -33,6 +33,7 @@ public class MemberService {
                 .orElseThrow(() -> new BusinessException("INVITE_NOT_FOUND", "유효하지 않은 초대 토큰입니다."));
         String userId = com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull();
         Member existing = userId == null ? null : memberRepository.findByRoomIdAndUserId(room.getId(), userId).orElse(null);
+        if (existing != null && existing.isKicked()) throw new BusinessException("FORBIDDEN", "내보내진 방에는 다시 참여할 수 없습니다.");
         if (existing != null && existing.isActive()) return SpecJoinRoomResponse.from(room, existing);
         if (memberRepository.countByRoomIdAndLeftAtIsNull(room.getId()) >= room.getCapacity()) {
             throw new BusinessException("ROOM_FULL", "방 정원이 가득 찼습니다.");

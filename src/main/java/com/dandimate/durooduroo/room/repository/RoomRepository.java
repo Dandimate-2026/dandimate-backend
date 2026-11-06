@@ -16,15 +16,16 @@ import org.springframework.data.repository.query.Param;
 
 public interface RoomRepository extends JpaRepository<Room, String> {
 
-    Optional<Room> findByInviteTokenHash(String inviteTokenHash);
+    @Query("select r from Room r where r.inviteTokenHash=:hash or r.retainedInviteHash=:hash")
+    Optional<Room> findByInviteTokenHash(@Param("hash") String inviteTokenHash);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select r from Room r where r.inviteTokenHash = :hash")
+    @Query("select r from Room r where r.inviteTokenHash = :hash or r.retainedInviteHash = :hash")
     Optional<Room> findByInviteTokenHashForUpdate(@Param("hash") String hash);
 
     List<Room> findAllByStatusInAndDeadlineAtLessThanEqual(Collection<RoomStatus> statuses, LocalDateTime now);
 
-    /** 초대 토큰 원문으로 방을 찾는다. 재발급 전 토큰은 해시가 달라 찾지 못한다. */
+    /** 초대 토큰 원문으로 방을 찾는다. 기존 방의 이전 링크도 계속 유효하다. */
     default Optional<Room> findByInviteToken(String rawInviteToken) {
         return findByInviteTokenHash(Tokens.hash(rawInviteToken));
     }

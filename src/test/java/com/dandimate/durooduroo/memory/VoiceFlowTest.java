@@ -78,6 +78,7 @@ class VoiceFlowTest {
         // 덧붙임 음성은 1~20초
         transcribe(photoId, other, "ADDON", "audio/wav", VoiceSamples.wav(31)).andExpect(status().isUnprocessableEntity());
         transcribe(photoId, other, "ADDON", "audio/wav", VoiceSamples.wav(3)).andExpect(status().isCreated());
+        transcribe(photoId, host, "ADDON", "audio/wav", VoiceSamples.wav(3)).andExpect(status().isCreated());
     }
 
     private ResultActions transcribe(String photoId, String token, String kind, String contentType, byte[] bytes) throws Exception {

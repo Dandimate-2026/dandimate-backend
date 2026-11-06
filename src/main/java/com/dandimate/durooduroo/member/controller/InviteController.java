@@ -27,8 +27,11 @@ public class InviteController {
         this.memberService = memberService;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.room.invite.RoomInviteService invites;
+    @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.room.cover.RoomCoverService covers;
     @GetMapping("/{inviteToken}")
     public ApiResponse<?> preview(@PathVariable String inviteToken) {
+        invites.remember(inviteToken);
         var room = rooms.findByInviteToken(inviteToken)
                 .orElseThrow(() -> new BusinessException("INVITE_NOT_FOUND", "유효하지 않은 초대 토큰입니다."));
         var roomMembers = members.findAllByRoomIdAndLeftAtIsNull(room.getId());
@@ -38,6 +41,8 @@ public class InviteController {
                 && roomMembers.stream().anyMatch(member -> userId.equals(member.getUserId()));
         var data = new java.util.LinkedHashMap<String, Object>();
         data.put("roomId", room.getId());
+        data.put("inviterNickname",roomMembers.stream().filter(m->m.getRole()==com.dandimate.durooduroo.member.domain.MemberRole.HOST).map(m->m.getNickname()).findFirst().orElse(null));
+        data.put("coverImageUrl",room.getCoverPhotoId()==null?null:org.springframework.web.servlet.support.ServletUriComponentsBuilder.fromCurrentContextPath().path("/api/v1/invites/").path(inviteToken).path("/cover").toUriString());
         data.put("alreadyJoined", alreadyJoined);
         data.put("roomName", room.getTitle());
         data.put("meetingDate", room.getMeetingDate());
@@ -45,10 +50,16 @@ public class InviteController {
         data.put("memberCount", count);
         data.put("flowers", roomMembers.stream().map(m -> m.getFlowerCode()).sorted().map(Enum::name).toList());
         data.put("capacity", room.getCapacity());
-        data.put("canJoin", count < room.getCapacity());
+        boolean kicked=userId!=null && members.findByRoomIdAndUserId(room.getId(),userId).map(m->m.isKicked()).orElse(false);
+        data.put("canJoin", !kicked && count < room.getCapacity());
         return ApiResponse.success(data);
     }
 
+    @GetMapping("/{inviteToken}/cover")
+    public ResponseEntity<?> cover(@PathVariable String inviteToken) {
+        var room=rooms.findByInviteToken(inviteToken).orElseThrow(()->new BusinessException("INVITE_NOT_FOUND","초대 링크가 없습니다."));
+        return covers.inviteImage(room.getCoverPhotoId());
+    }
     @PostMapping("/{inviteToken}/join")
     public ResponseEntity<ApiResponse<SpecJoinRoomResponse>> join(@PathVariable String inviteToken,
                                                                    @Valid @RequestBody SpecJoinRoomRequest request) {

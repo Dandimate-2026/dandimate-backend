@@ -243,7 +243,7 @@ X는 `WEAVING`이면 `409 ROOM_WEAVING`, 그 외에는 `409 INVALID_ROOM_STATE`�
 
 - 방 이름은 1~20자, 닉네임은 1~10자다.
 - 방 생성 시 방장과 첫 번째 꽃 색을 같은 트랜잭션에서 만든다.
-- 마감 시각 기본값은 방 생성 시각 + 48시간이다. 방장은 `WEAVING` 이전에 한 번, 생성 시각 기준 24~72시간 사이로 바꿀 수 있다 (FR-G4).
+- 마감 시각 기본값은 방 생성 시각 + 48시간이다. 방장은 `WEAVING` 이전에 미래 시각으로 횟수 제한 없이 바꿀 수 있다.
 - 방 정원은 8명이다.
 - 방 안에서 닉네임과 꽃 색이 중복되면 안 된다.
 - 첫 입장 때 약관·미디어 처리·외부 AI 전송에 동의해야 한다.
@@ -379,7 +379,7 @@ Authorization: Bearer {memberAccessToken}
 | Method | Endpoint | 권한 | 기능 |
 |---|---|---|---|
 | `PATCH` | `/api/v1/rooms/{roomId}` | 방장 | 이름·날짜·마감 수정 |
-| `POST` | `/api/v1/rooms/{roomId}/invite-token/rotate` | 방장 | 초대 링크 재발급 |
+| `GET` | `/api/v1/rooms/{roomId}/invite` | 활성 참가자 | 고정 초대 토큰 조회 |
 | `DELETE` | `/api/v1/rooms/{roomId}` | 방장 | 방과 모든 데이터 삭제 요청 |
 
 ## DB 규칙
@@ -410,7 +410,7 @@ members
 
 - `UNIQUE(room_id, nickname)`
 - `UNIQUE(room_id, flower_code)`
-- 토큰 원문은 응답에서 한 번만 보내고 DB에는 해시만 저장한다.
+- 초대 토큰은 조회용 원문을 암호화해 저장하고 해시로 검증한다.
 
 ## 예외
 
@@ -1915,7 +1915,7 @@ LLM 호출은 답변당 한 번이며 챗봇에만 medium 추론을 적용합니
 - 대표 사진은 이야기 사진 한도에서 제외한다. 사진 조회 주소는 업로더 또는 해당 방의 현재 참가자만 사용 가능하며 로그인 쿠키가 필요하다. 미사용 대표 사진은 자동 삭제하지 않는다.
 - 생성·수정 요청의 `place`는 `placeName,address,latitude,longitude`를 받는다. `place`와 `coverImageUrl`은 방 홈·내 방 목록에 포함된다. PATCH에서 생략은 유지, null은 삭제다.
 - 방 정원은 1~8명(혼자 여행 포함). PATCH `capacity`는 방장만 COLLECTING/CIRCULATING에서 변경 가능하고, 나간 사람을 제외한 현재 인원보다 적으면 422 INVALID_CAPACITY다. 성공 시 room.updated를 발행한다. 가득 차면 초대 canJoin=false 및 신규 입장 거절.
-- 방 홈 room의 `createdAt`, `deadlineChangedByHost`로 마감 변경 UI를 제어한다. 서버도 생성 시각 후 24~72시간 범위·미래 시각·한 번만 변경 규칙을 검사한다.
+- 방 홈 room의 `createdAt`, `deadlineChangedByHost`로 마감 변경 UI를 제어한다. 서버는 엮기 전 상태와 미래 시각을 검사한다. 횟수·24~72시간 제한은 없다.
 - 덧붙임의 사진당 개인 2개 제한을 없앴다. 타인의 공개된 사진, CIRCULATING 상태, 기존 글자 수·음성 총량 규칙은 유지한다. 마감 후에는 답가를 사용한다.
 - GET /users/me/map의 places에 imageUrl, uploader(userId/nickname/flowerCode), firstEntrySnippet(최대 100자)을 추가한다. 현재 참여 중인 방의 공개 사진만 반환한다.
 - PUT /photos/{id}/location은 PROCESSING에도 저장한다. 업로드 전/실패 상태는 409 PHOTO_NOT_READY다.
@@ -1923,3 +1923,17 @@ LLM 호출은 답변당 한 번이며 챗봇에만 medium 추론을 적용합니
 - 챗봇 outcome: ANSWER, CONFLICT, INSUFFICIENT, SMALL_TALK, INVALID, OUT_OF_SCOPE. 기존 answer/sources/citations/context/decision 필드는 유지한다. 잡담·범위 밖은 sources/citations가 빈 배열이며 기록 대화 상태를 덮어쓰지 않는다.
 - 경로 분류는 기록 없이 짧은 LLM 호출 1회, RAG는 기존 임베딩 검색과 답변 LLM 1회다. 답변 후 LLM 재검증 호출은 없다. 압축된 사전 참조로 중복 프로필·UUID·지침을 줄였지만 실제 응답 시간과 추론 토큰은 질문에 따라 달라진다.
 - DB는 새 Flyway V9__room_place_and_cover.sql로만 확장한다. 기존 원문·임베딩 저장 구조는 유지한다. 크레딧·테스트 HTML·더미 데이터는 포함하지 않는다.
+
+
+### 2026-11-07 추가 계약
+- `GET /chat/quota`: 계정당 일일 무료 4회(KST 0시), 구매 크레딧은 이월. 처리 중 예약도 잔여량에서 제외합니다.
+- `POST /chat/messages`: ANSWER/CONFLICT는 무료 → 크레딧 순으로 1회 사용합니다. SMALL_TALK/OUT_OF_SCOPE는 기록 검색과 차감 없이 답하며 INSUFFICIENT/INVALID/오류는 예약을 반환합니다. 소진 시 429 CHAT_LIMIT_EXCEEDED. 재시도에는 같은 `Idempotency-Key`(16~128자, 선택)를 보내세요. 기록 질문의 동일 키 결과는 약 24시간 보관하며 권한·원문 변경 시 재생하지 않습니다.
+- `POST /payments/credit-orders`: `packId=light|basic|plenty`, 각각 10회/900원, 30회/1900원, 50회/2900원. Idempotency-Key 필수. 기존 `/payments/confirm`으로 승인하면 구매 계정에 한 번만 적립. 응답에 orderType, packId, creditAmount 추가, 크레딧 주문의 roomId/fromPlan/targetPlan은 null입니다.
+- `GET /rooms/{roomId}/invite`: 활성 참가자에게 `{inviteToken}` 반환. 새 방 생성 링크가 고정됩니다. 재발급 API는 제거합니다. 기존 방은 원문을 복구할 수 없으므로 방문한 기존 링크를 우선 암호화 보관하고, 원문이 없는 방의 첫 조회에서 조회용 고정 링크를 한 번 만들되 기존 해시 링크도 계속 유효하게 유지합니다.
+- `GET /invites/{token}`: inviterNickname은 현재 방장 이름, coverImageUrl은 로그인 없이 초대 토큰으로 접근 가능한 대표 사진 URL입니다. 특정 공유자를 추적하지 않습니다.
+- `DELETE /rooms/{roomId}/members/{memberId}`: 방장만, 본인 불가. 사진·이야기를 보존하고 강퇴 계정의 재입장을 차단합니다. member.left 발행 및 해당 멤버 SSE 연결 종료.
+- 자기 사진에도 ADDON 허용. OWN_PHOTO 응답 및 자기 사진 패스 금지는 유지합니다.
+- `PATCH /rooms/{roomId}` 마감은 COLLECTING/CIRCULATING에서 미래 시각으로 횟수·24~72시간 제한 없이 변경 가능. deadlineChangedByHost는 변경 이력 표시일 뿐 변경 차단 조건이 아닙니다.
+- 장소 검색·사진 장소 저장/조회·지도 places에 선택적 placeId 추가. 카카오가 다른 ID를 부여한 장소는 자동으로 같은 장소로 합치지 않습니다.
+- 지도에는 완성 전 방도 요약을 제공합니다. 공개 첫 한마디로 AI 요약하며 준비 중에는 장소/첫 한마디 발췌를 반환합니다. 잠긴 덧붙임은 공용 요약에 넣지 않습니다. scrollReady/bloomed는 실제 완성 여부 그대로입니다.
+- DB 변경은 V10 신규 Flyway migration만 적용합니다. 운영에는 영구 보관할 `INVITE_TOKEN_SECRET`을 설정하고 키를 임의 교체하지 마세요. 로컬 테스트 화면·더미 데이터는 배포하지 않습니다.

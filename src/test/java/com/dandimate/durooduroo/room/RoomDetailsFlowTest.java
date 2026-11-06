@@ -39,6 +39,28 @@ class RoomDetailsFlowTest {
   var ctx=SecurityContextHolder.createEmptyContext();ctx.setAuthentication(new OAuth2AuthenticationToken(p,p.getAuthorities(),"kakao"));
   var session=new MockHttpSession();session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,ctx);return new Actor(id,session);
  }
+ @Test void invitePreviewCoverIsPublicAndStoredTokenIsEncrypted() throws Exception {
+  var host=actor();String cover=upload(host);
+  String result=mvc.perform(post("/api/v1/rooms").session(host.session()).with(csrf()).header("Idempotency-Key",UUID.randomUUID().toString()).contentType("application/json").content(body("FREE",cover)))
+    .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+  String room=JsonPath.read(result,"$.data.room.id"),token=JsonPath.read(result,"$.data.inviteToken");
+  assertThat(rooms.findById(room).orElseThrow().getEncryptedInviteToken()).isNotBlank().doesNotContain(token);
+  mvc.perform(get("/api/v1/invites/"+token)).andExpect(status().isOk())
+    .andExpect(jsonPath("$.data.inviterNickname").value("방장")).andExpect(jsonPath("$.data.coverImageUrl").value("http://localhost/api/v1/invites/"+token+"/cover"));
+  mvc.perform(get("/api/v1/invites/"+token+"/cover")).andExpect(status().isOk()).andExpect(content().contentType("image/png"));
+  mvc.perform(get("/api/v1/invites/invalid/cover")).andExpect(status().isNotFound());
+ }
+ @Test void legacyInviteRemainsUsableAfterRetrievableLinkIsEstablished() throws Exception {
+  var host=actor();var legacy=com.dandimate.durooduroo.room.domain.Room.create("이전 방");
+  String old=legacy.getIssuedInviteToken();rooms.saveAndFlush(legacy);
+  members.saveAndFlush(Member.host(legacy.getId(),"방장",host.id()));
+  String path="/api/v1/rooms/"+legacy.getId()+"/invite";
+  String token=JsonPath.read(mvc.perform(get(path).session(host.session())).andExpect(status().isOk()).andReturn().getResponse().getContentAsString(),"$.data.inviteToken");
+  mvc.perform(get(path).session(host.session())).andExpect(status().isOk()).andExpect(jsonPath("$.data.inviteToken").value(token));
+  mvc.perform(get("/api/v1/invites/"+old)).andExpect(status().isOk());
+  mvc.perform(get("/api/v1/invites/"+token)).andExpect(status().isOk());
+  mvc.perform(get(path).session(actor().session())).andExpect(status().isForbidden());
+ }
  @BeforeEach void setup(){when(gateway.configured()).thenReturn(true);}
  private static final String PLACE="{\"placeName\":\"경주역\",\"address\":\"경주시\",\"latitude\":35.84,\"longitude\":129.21}";
  private String body(String plan,String cover){return "{\"name\":\"여행\",\"meetingDate\":\"2026-11-06\",\"hostNickname\":\"방장\",\"planType\":\""+plan+"\",\"consent\":{\"version\":\"v1\",\"terms\":true,\"mediaProcessing\":true,\"externalAiProcessing\":true},\"place\":"+PLACE+",\"coverPhoto\":{\"id\":\""+cover+"\"}}";}
@@ -112,7 +134,7 @@ class RoomDetailsFlowTest {
     .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code").value("INVALID_CAPACITY"));
   mvc.perform(patch("/api/v1/rooms/"+room).session(a.session()).with(csrf()).contentType("application/json").content("{\"capacity\":2}"))
     .andExpect(status().isOk()).andExpect(jsonPath("$.data.room.capacity").value(2));
-  String token=JsonPath.read(mvc.perform(post("/api/v1/rooms/"+room+"/invite-token/rotate").session(a.session()).with(csrf()))
+  String token=JsonPath.read(mvc.perform(get("/api/v1/rooms/"+room+"/invite").session(a.session()).with(csrf()))
     .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(),"$.data.inviteToken");
   mvc.perform(get("/api/v1/invites/"+token)).andExpect(jsonPath("$.data.canJoin").value(false));
   mvc.perform(post("/api/v1/invites/"+token+"/join").session(actor().session()).with(csrf())
@@ -151,7 +173,7 @@ class RoomDetailsFlowTest {
   mvc.perform(patch("/api/v1/rooms/"+room).session(a.session()).with(csrf()).contentType("application/json").content("{\"deadlineAt\":\""+deadline+"\"}"))
     .andExpect(status().isOk()).andExpect(jsonPath("$.data.room.deadlineChangedByHost").value(true));
   mvc.perform(patch("/api/v1/rooms/"+room).session(a.session()).with(csrf()).contentType("application/json").content("{\"deadlineAt\":\""+deadline.plusHours(1)+"\"}"))
-    .andExpect(status().isConflict());
+    .andExpect(status().isOk());
   mvc.perform(patch("/api/v1/rooms/"+room).session(a.session()).with(csrf()).contentType("application/json").content("{\"coverImageUrl\":null}"))
     .andExpect(status().isOk()).andExpect(jsonPath("$.data.room.coverImageUrl").isEmpty());
   mvc.perform(patch("/api/v1/rooms/"+room).session(a.session()).with(csrf()).contentType("application/json").content("{\"coverImageUrl\":\"https://evil.test/photo\"}"))

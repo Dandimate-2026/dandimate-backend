@@ -8,5 +8,6 @@ import jakarta.validation.constraints.Size;
 
 public record PhotoLocationRequest(@NotBlank @Size(max = 60) String placeName, @Size(max = 200) String address,
                                    @DecimalMin("-90") @DecimalMax("90") Double latitude,
-                                   @DecimalMin("-180") @DecimalMax("180") Double longitude) {
+                                   @DecimalMin("-180") @DecimalMax("180") Double longitude, @Size(max = 100) String placeId) {
+    public PhotoLocationRequest(String name,String address,Double lat,Double lng) { this(name,address,lat,lng,null); }
 }

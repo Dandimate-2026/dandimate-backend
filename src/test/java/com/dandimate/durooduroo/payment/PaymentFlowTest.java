@@ -51,6 +51,24 @@ class PaymentFlowTest {
         return post("/api/v1"+path).session(a.session()).with(csrf()).header("Idempotency-Key", UUID.randomUUID().toString())
             .contentType("application/json").content(body);
     }
+    @Autowired com.dandimate.durooduroo.chat.quota.ChatQuotaService quota;
+    @Test void creditPacksApproveExactlyOnceForBuyer() throws Exception {
+        Actor buyer=actor(),other=actor();int total=0;
+        String[] packs={"light","basic","plenty"};int[] amounts={900,1900,2900},counts={10,30,50};
+        for(int i=0;i<packs.length;i++) {
+            String requestBody=new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(java.util.Map.of("packId",packs[i]));
+            String id=JsonPath.read(mvc.perform(request("/payments/credit-orders",buyer,requestBody)).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.amount").value(amounts[i])).andExpect(jsonPath("$.data.creditAmount").value(counts[i]))
+                .andReturn().getResponse().getContentAsString(),"$.data.orderId");
+            String confirm=new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(java.util.Map.of("orderId",id,"paymentKey","credit-"+id,"amount",amounts[i]));
+            mvc.perform(request("/payments/confirm",other,confirm)).andExpect(status().isNotFound());
+            for(int n=0;n<2;n++)mvc.perform(request("/payments/confirm",buyer,confirm)).andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("DONE"));
+            total+=counts[i];assertThat(quota.get(buyer.id()).credits()).isEqualTo(total);
+            verify(gateway,times(1)).approve("credit-"+id,id,amounts[i]);
+        }
+        assertThat(quota.get(other.id()).credits()).isZero();
+    }
+
     private String body(String plan) {
         return "{\"name\":\"여행\",\"meetingDate\":\"2026-11-04\",\"hostNickname\":\"방장\",\"capacity\":4,\"planType\":\""+plan+"\",\"consent\":{\"version\":\"v1\",\"terms\":true,\"mediaProcessing\":true,\"externalAiProcessing\":true}}";
     }

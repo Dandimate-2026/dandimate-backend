@@ -43,6 +43,27 @@ class AccountSecurityTest {
             .andExpect(status().isCreated()).andExpect(jsonPath("$.data.memberAccessToken").doesNotExist())
             .andReturn().getResponse().getContentAsString();
     }
+    @Test void onlyHostCanKickAndFixedInviteCannotRejoin() throws Exception {
+        String hostId=account(),guestId=account();var host=session(hostId);var guest=session(guestId);var outsider=session(account());
+        String created=create(host,UUID.randomUUID().toString());
+        String room=JsonPath.read(created,"$.data.room.id"),invite=JsonPath.read(created,"$.data.inviteToken");
+        String joinBody=new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(java.util.Map.of("nickname","친구","consent",java.util.Map.of("version","v1","terms",true,"mediaProcessing",true,"externalAiProcessing",true)));
+        postJson("/api/v1/invites/"+invite+"/join",guest,joinBody);
+        String target=members.findByRoomIdAndUserId(room,guestId).orElseThrow().getId();
+        String hostMember=members.findByRoomIdAndUserId(room,hostId).orElseThrow().getId();
+        String path="/api/v1/rooms/"+room+"/members/"+target;
+        mvc.perform(delete(path).session(guest).with(csrf())).andExpect(status().isForbidden());
+        mvc.perform(delete(path).session(outsider).with(csrf())).andExpect(status().isForbidden());
+        mvc.perform(delete("/api/v1/rooms/"+room+"/members/"+hostMember).session(host).with(csrf())).andExpect(status().isForbidden());
+        mvc.perform(delete(path).session(host).with(csrf())).andExpect(status().isNoContent());
+        mvc.perform(delete(path).session(host).with(csrf())).andExpect(status().isNoContent());
+        assertThat(members.findById(target).orElseThrow().isKicked()).isTrue();
+        mvc.perform(get("/api/v1/rooms/"+room).session(guest)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/invites/"+invite).session(guest)).andExpect(status().isOk()).andExpect(jsonPath("$.data.canJoin").value(false));
+        mvc.perform(post("/api/v1/invites/"+invite+"/join").session(guest).with(csrf()).header("Idempotency-Key",UUID.randomUUID().toString()).contentType("application/json").content(joinBody)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/rooms/"+room+"/invite").session(session(hostId))).andExpect(status().isOk()).andExpect(jsonPath("$.data.inviteToken").value(invite));
+    }
+
     @Test void sameKakaoIdentityReusesAccount() {
         String subject=UUID.randomUUID().toString();
         assertThat(accounts.findOrCreate(subject)).isEqualTo(accounts.findOrCreate(subject));
@@ -151,9 +172,9 @@ class AccountSecurityTest {
         mvc.perform(get("/api/v1/invites/"+invite).session(outsider)).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.alreadyJoined").value(false))
             .andExpect(jsonPath("$.data.canJoin").value(false));
-        String rotated=postJson("/api/v1/rooms/"+room+"/invite-token/rotate",host,"{}");
+        String rotated=mvc.perform(get("/api/v1/rooms/"+room+"/invite").session(host)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         String newInvite=JsonPath.read(rotated,"$.data.inviteToken");
-        mvc.perform(get("/api/v1/invites/"+invite).session(host)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/invites/"+invite).session(host)).andExpect(status().isOk());
         mvc.perform(get("/api/v1/invites/"+newInvite).session(host)).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.alreadyJoined").value(true));
     }
