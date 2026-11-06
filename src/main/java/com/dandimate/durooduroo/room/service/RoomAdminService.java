@@ -36,8 +36,10 @@ public class RoomAdminService {
     private final MemberRepository members;
     private final AiJobRepository jobs;
     private final EntityManager em;
+    private final com.dandimate.durooduroo.notification.service.RoomEvents events;
 
-    public RoomAdminService(RoomRepository rooms, MemberRepository members, AiJobRepository jobs, EntityManager em, com.dandimate.durooduroo.payment.PaymentOrderRepository paymentOrders) {
+    public RoomAdminService(RoomRepository rooms, MemberRepository members, AiJobRepository jobs, EntityManager em, com.dandimate.durooduroo.payment.PaymentOrderRepository paymentOrders, com.dandimate.durooduroo.notification.service.RoomEvents events) {
+        this.events = events;
         this.paymentOrders = paymentOrders;
         this.rooms = rooms;
         this.members = members;
@@ -57,6 +59,9 @@ public class RoomAdminService {
         if (meetingDate != null) room.changeMeetingDate(meetingDate);
         if (deadlineAt != null) {
             room.changeDeadline(deadlineAt.atZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(), LocalDateTime.now());
+        }
+        if (name != null || meetingDate != null || deadlineAt != null) {
+            events.toRoom(roomId, "room.updated", java.util.Map.of("roomId", roomId));
         }
         return room;
     }

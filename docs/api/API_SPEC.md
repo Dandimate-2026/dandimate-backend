@@ -1707,6 +1707,17 @@ AI 작업은 수초에서 수십 초 걸리므로 프론트가 진행 상태를 
 
 ## SSE 이벤트
 
+참가자·방 설정 이벤트는 DB 커밋 후 발행하며 실패·롤백 시 발행하지 않는다.
+
+| 이벤트 | 데이터 | 화면 처리 |
+|---|---|---|
+| `member.joined` | `memberId` | 신규 입장·탈퇴 후 재입장 시 참가자 목록/인원 재조회. 기존 참가자 재접속은 제외 |
+| `member.left` | `memberId` | 참가자 목록/인원 재조회 |
+| `member.updated` | `memberId`, 위임 시 `previousHostId` | 닉네임/방장 권한 재조회 |
+| `room.updated` | 설정 수정 시 `roomId`, 플랜 변경 시 `planType` | 방 정보 재조회 |
+| `askback.updated` | `askbackId` | 대상 참가자의 질문 상태 재조회 |
+
+
 | event | data | 수신 대상 |
 |---|---|---|
 | `photo.uploaded` | `photoId`, `roomId`, `status` | 업로더만 |
