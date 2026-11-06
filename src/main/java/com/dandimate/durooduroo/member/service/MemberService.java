@@ -18,8 +18,10 @@ public class MemberService {
 
     private final MemberRepository memberRepository;
     private final RoomRepository roomRepository;
+    private final com.dandimate.durooduroo.notification.service.RoomEvents events;
 
-    public MemberService(MemberRepository memberRepository, RoomRepository roomRepository) {
+    public MemberService(MemberRepository memberRepository, RoomRepository roomRepository, com.dandimate.durooduroo.notification.service.RoomEvents events) {
+        this.events = events;
         this.memberRepository = memberRepository;
         this.roomRepository = roomRepository;
     }
@@ -42,9 +44,12 @@ public class MemberService {
         }
         if (existing != null) {
             existing.rejoin(nickname, nextFlower(room.getId()));
+            events.toRoom(room.getId(), "member.joined", java.util.Map.of("memberId", existing.getId()));
             return SpecJoinRoomResponse.from(room, existing);
         }
-        return SpecJoinRoomResponse.from(room, memberRepository.save(Member.join(room.getId(), nickname, nextFlower(room.getId()), userId)));
+        Member joined = memberRepository.save(Member.join(room.getId(), nickname, nextFlower(room.getId()), userId));
+        events.toRoom(room.getId(), "member.joined", java.util.Map.of("memberId", joined.getId()));
+        return SpecJoinRoomResponse.from(room, joined);
     }
 
     /** 명세 1장: 닉네임이 겹치면 숫자를 붙인 추천 이름 2개(10자 이내, 이미 쓰는 이름 제외). 토큰을 잃은 사람도 기존 참여자로 복구하지 않고 새 이름을 쓴다. */

@@ -1659,6 +1659,13 @@ paths:
     get:
       tags: [알림]
       summary: "실시간 알림 수신 (SSE 연결을 사용할 수 없으면 5초 간격으로 조회)"
+      description: |
+        DB 커밋 후 해당 방 구독자에게 이벤트를 전달합니다. 이벤트 수신 시 REST API를 다시 조회합니다.
+        - member.joined: 신규 입장·탈퇴 후 재입장. 데이터 {memberId}. 기존 참가자의 재접속에는 발행하지 않습니다.
+        - member.left: 방 나가기. 데이터 {memberId}.
+        - member.updated: 닉네임 변경 {memberId}, 방장 위임 {memberId, previousHostId}.
+        - room.updated: 방 이름·모임 날짜·마감 수정 {roomId}, 결제 후 플랜 변경 {planType}.
+        - askback.updated: 질문 상태 변경 {askbackId}. 해당 질문 대상자에게만 전달합니다.
       security: []
       parameters:
         - $ref: '#/components/parameters/RoomId'

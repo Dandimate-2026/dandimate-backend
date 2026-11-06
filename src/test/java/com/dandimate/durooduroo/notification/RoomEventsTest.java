@@ -36,9 +36,13 @@ class RoomEventsTest {
         String roomId = JsonPath.read(created, "$.data.room.id");
         String host = JsonPath.read(created, "$.data.memberAccessToken");
         String invite = JsonPath.read(created, "$.data.inviteToken");
+        MockHttpServletResponse hostStream = subscribe(roomId, host);
+        String other = body(json(post("/api/v1/rooms"), null, "{\"name\":\"다른 방\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"다른 방장\"," + CONSENT + "}"));
+        MockHttpServletResponse otherStream = subscribe(JsonPath.read(other, "$.data.room.id"), JsonPath.read(other, "$.data.memberAccessToken"));
         String member = JsonPath.read(body(json(post("/api/v1/invites/" + invite + "/join"), null, "{\"nickname\":\"지수\"," + CONSENT + "}")), "$.data.memberAccessToken");
 
-        MockHttpServletResponse hostStream = subscribe(roomId, host);
+        assertThat(hostStream.getContentAsString()).contains("event:member.joined");
+        assertThat(otherStream.getContentAsString()).doesNotContain("event:member.joined");
         MockHttpServletResponse memberStream = subscribe(roomId, member);
 
         String photo = uploadPhoto(roomId, host);
