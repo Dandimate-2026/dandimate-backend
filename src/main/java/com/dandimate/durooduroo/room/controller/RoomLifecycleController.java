@@ -30,10 +30,14 @@ public class RoomLifecycleController {
 
     /** 방장: 이름·모임 날짜·마감 수정 (마감은 WEAVING 전 한 번, 생성 후 24~72시간). */
     @PatchMapping("/{roomId}")
-    public ApiResponse<?> update(@PathVariable String roomId,@RequestHeader(required=false) String authorization,@RequestBody Map<String,String> body){
-        var room=roomAdmin.update(roomId,authorization,body.get("name"),body.get("meetingDate")==null?null:java.time.LocalDate.parse(body.get("meetingDate")),
-                body.get("deadlineAt")==null?null:java.time.OffsetDateTime.parse(body.get("deadlineAt")));
+    public ApiResponse<?> update(@PathVariable String roomId,@RequestHeader(required=false) String authorization,@jakarta.validation.Valid @RequestBody com.dandimate.durooduroo.room.dto.RoomUpdateRequest body){
+        var room=roomAdmin.update(roomId,authorization,body.name,body.meetingDate,body.deadlineAt,body.placePresent(),body.place(),body.coverPresent(),body.coverPhoto(),body.capacity);
         var summary=new HashMap<String,Object>(); summary.put("id",room.getId()); summary.put("name",room.getTitle()); summary.put("meetingDate",room.getMeetingDate()); summary.put("status",room.getStatus().name()); summary.put("deadlineAt",room.getDeadlineAt());
+        summary.put("place",room.getPlace()); summary.put("coverPhoto",com.dandimate.durooduroo.room.dto.CoverPhotoView.from(room.getCoverPhotoId()));
+        summary.put("capacity", room.getCapacity());
+        summary.put("createdAt", room.getCreatedAt());
+        summary.put("deadlineChangedByHost", room.isDeadlineChangedByHost());
+        summary.put("coverImageUrl", room.getCoverImageUrl());
         return ApiResponse.success(Map.of("room",summary));
     }
 

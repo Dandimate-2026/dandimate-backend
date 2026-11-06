@@ -1,7 +1,7 @@
 /**
  * 첫 한마디·덧붙임 확정, 수정·삭제, 패스, 첫 한마디 "나중에"를 처리한다.
  * - 첫 한마디는 사진을 올린 사람만, 사진당 하나. 확정하면 사진이 돌려보기에 노출되고 방이 CIRCULATING이 된다.
- * - 덧붙임은 타인의 노출된 사진에만, 참여자·사진당 2개까지. 덧붙이면 같은 사진의 내 패스는 지워진다.
+ * - 덧붙임은 타인의 노출된 사진에만, 개수 제한 없이. 덧붙이면 같은 사진의 내 패스는 지워진다.
  */
 package com.dandimate.durooduroo.memory.service;
 
@@ -27,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class EntryService {
 
-    public static final int ADDON_LIMIT_PER_MEMBER = 2;
+
 
     private final com.dandimate.durooduroo.embedding.service.EmbeddingIndexService embeddingIndex;
 
@@ -95,9 +95,6 @@ public class EntryService {
                 if (own) throw new BusinessException(ErrorCode.FORBIDDEN, "내 사진에는 덧붙일 수 없어요.");
                 requirePublished(photo);
                 roomStates.require(photo.getRoomId(), RoomAction.ADDON_OR_PASS);
-                if (entries.countByPhotoIdAndMemberIdAndKind(photoId, me.getId(), EntryKind.ADDON) >= ADDON_LIMIT_PER_MEMBER) {
-                    throw new BusinessException(ErrorCode.LIMIT_REACHED, "덧붙임은 사진당 2개까지예요.");
-                }
             }
             case ASKBACK_ANSWER -> throw new BusinessException(ErrorCode.VALIDATION_ERROR, "되묻기 답변은 되묻기 답변 API를 사용해 주세요.");
         }

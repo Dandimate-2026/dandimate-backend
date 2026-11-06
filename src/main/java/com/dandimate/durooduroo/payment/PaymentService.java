@@ -24,10 +24,12 @@ public class PaymentService {
     private final ObjectMapper json;
     private final RoomEvents events;
     private final TransactionTemplate tx;
+    private final com.dandimate.durooduroo.room.service.RoomDetailsService details;
     @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
 
     public PaymentService(PaymentOrderRepository orders, RoomRepository rooms, MemberRepository members,
-            PaymentGateway gateway, ObjectMapper json, RoomEvents events, PlatformTransactionManager manager) {
+            PaymentGateway gateway, ObjectMapper json, RoomEvents events, PlatformTransactionManager manager, com.dandimate.durooduroo.room.service.RoomDetailsService details) {
+        this.details = details;
         this.orders = orders; this.rooms = rooms; this.members = members; this.gateway = gateway;
         this.json = json; this.events = events; this.tx = new TransactionTemplate(manager);
     }
@@ -44,6 +46,7 @@ public class PaymentService {
         try { request.consent().validate(); }
         catch (IllegalArgumentException ex) { throw new BusinessException(ErrorCode.CONSENT_REQUIRED, ex.getMessage()); }
         if (!request.planType().requiresPayment()) throw new BusinessException(ErrorCode.VALIDATION_ERROR, "무료 방은 방 생성 API를 이용해 주세요.");
+        details.validateCover(request.selectedCover(), user);
         // Validate domain constraints before charging anything.
         Room.create(request.name().strip(), request.meetingDate(), request.selectedCapacity(), request.planType());
         if (request.name().isBlank() || request.hostNickname().isBlank()) throw new BusinessException(ErrorCode.VALIDATION_ERROR, "이름을 입력해 주세요.");
@@ -103,6 +106,7 @@ public class PaymentService {
                 try {
                     var request = json.readValue(o.getRoomRequest(), SpecCreateRoomRequest.class);
                     room = rooms.save(Room.create(request.name().strip(), request.meetingDate(), request.selectedCapacity(), o.getTargetPlan()));
+                    details.apply(room, request.place(), request.selectedCover(), user);
                     members.save(Member.host(room.getId(), request.hostNickname().strip(), user));
                 } catch (com.fasterxml.jackson.core.JsonProcessingException ex) { throw new IllegalStateException(ex); }
             } else {

@@ -10,8 +10,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class ChatService {
  private final ChatRecordAccess access;private final ChatRetrievalService retrieval;private final ChatAiService ai;
+ private ChatIntentRouter router;
  private final Semaphore capacity=new Semaphore(4);
  public ChatService(ChatRecordAccess access,ChatRetrievalService retrieval,ChatAiService ai){this.access=access;this.retrieval=retrieval;this.ai=ai;}
+ @org.springframework.beans.factory.annotation.Autowired
+ public ChatService(ChatRecordAccess access,ChatRetrievalService retrieval,ChatAiService ai,ChatIntentRouter router){
+  this(access,retrieval,ai);this.router=router;
+ }
  public ChatMessageResponse answer(String userId,String question){
   return answer(userId,question,List.of());
  }
@@ -22,6 +27,10 @@ public class ChatService {
   finally{capacity.release();}
  }
  private ChatMessageResponse respond(String userId,String question,List<ChatCommand.Turn> history){
+  if(router!=null){
+   var route=router.route(question,!history.isEmpty());
+   if(!route.kind().equals("RECORD"))return new ChatMessageResponse(route.reply(),List.of()).withOutcome(route.kind());
+  }
   var allowed=access.load(userId,false);if(allowed.isEmpty())return insufficient();
   // Conversation is a reference, never an authorization source. Recheck all old IDs.
   var safeHistory=history.stream().skip(Math.max(0,history.size()-8))
@@ -99,7 +108,7 @@ public class ChatService {
       relevant.quote().strip().length()<2||!after.get(relevant.entryId()).entry().text().contains(relevant.quote()))return invalidEvidence(result);
   }
   String answer=String.join("\n\n",sentences);if(answer.length()>6000)return invalidEvidence(result);
-  return new ChatMessageResponse(answer,List.copyOf(sources.values()),citations,stateOf(result),decision);
+  return new ChatMessageResponse(answer,List.copyOf(sources.values()),citations,stateOf(result),decision).withOutcome(result.outcome());
  }
  private static void unchanged(List<ChatRecordAccess.Record> original,Map<String,ChatRecordAccess.Record> current){
   for(var r:original){var now=current.get(r.entryId());if(now==null||!now.photoVersion().equals(r.photoVersion()))
@@ -112,11 +121,11 @@ public class ChatService {
     meaning.getOrDefault("criterion",result.context().criterion()),meaning.getOrDefault("direction","NONE"),result.decision().rankPosition());
  }
  private ChatMessageResponse insufficient(ChatResult result){
-  return new ChatMessageResponse(insufficient().answer(),List.of(),List.of(),stateOf(result),ChatCommand.Decision.empty());
+  return new ChatMessageResponse(insufficient().answer(),List.of(),List.of(),stateOf(result),ChatCommand.Decision.empty()).withOutcome("INSUFFICIENT");
  }
  private ChatMessageResponse invalidEvidence(ChatResult result){
-  return new ChatMessageResponse("답변을 정리하는 과정에서 근거 연결에 문제가 생겼어요. 방금 질문의 맥락은 유지하고 있어요. 다시 말씀해 주시면 그 질문을 기준으로 답할게요.",List.of(),List.of(),stateOf(result),ChatCommand.Decision.empty());
+  return new ChatMessageResponse("답변을 정리하는 과정에서 근거 연결에 문제가 생겼어요. 방금 질문의 맥락은 유지하고 있어요. 다시 말씀해 주시면 그 질문을 기준으로 답할게요.",List.of(),List.of(),stateOf(result),ChatCommand.Decision.empty()).withOutcome("INVALID");
  }
- private ChatMessageResponse insufficient(){return new ChatMessageResponse("지금 확인할 수 있는 기록만으로는 답하기 어려워요. 어느 때나 어떤 사진의 이야기인지 조금 더 알려주시겠어요?",List.of());}
- private ChatMessageResponse invalidEvidence(){return new ChatMessageResponse("답변을 뒷받침하는 원문을 정확히 확인하지 못했어요. 추측해서 말씀드리기보다는, 질문을 조금 더 구체적으로 받아볼게요.",List.of());}
+ private ChatMessageResponse insufficient(){return new ChatMessageResponse("지금 확인할 수 있는 기록만으로는 답하기 어려워요. 어느 때나 어떤 사진의 이야기인지 조금 더 알려주시겠어요?",List.of()).withOutcome("INSUFFICIENT");}
+ private ChatMessageResponse invalidEvidence(){return new ChatMessageResponse("답변을 뒷받침하는 원문을 정확히 확인하지 못했어요. 추측해서 말씀드리기보다는, 질문을 조금 더 구체적으로 받아볼게요.",List.of()).withOutcome("INVALID");}
 }

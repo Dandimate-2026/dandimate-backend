@@ -25,6 +25,7 @@ public class ChatConversationService {
             if (state == null || !state.userId.equals(userId)) state = new State(userId);
             List<ChatCommand.Turn> history = state.conversations.getOrDefault(request.conversationId(), List.of());
             ChatMessageResponse response = chat.answer(userId, request.message(), List.copyOf(history));
+            if (response.outcome().equals("SMALL_TALK") || response.outcome().equals("OUT_OF_SCOPE")) return response;
             List<ChatCommand.Turn> updated = new ArrayList<>(history);
             updated.add(new ChatCommand.Turn("judgment_" + UUID.randomUUID(), response.context(),
                     response.citations().stream().map(ChatMessageResponse.Citation::entryId).distinct().toList(), response.decision()));

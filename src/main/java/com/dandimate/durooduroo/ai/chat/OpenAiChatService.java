@@ -27,8 +27,7 @@ public class OpenAiChatService implements ChatAiService {
   Map<String,Object> fields=new LinkedHashMap<>();
   fields.put("interpretation",object(new LinkedHashMap<>(Map.of(
     "requestedFacets",Map.of("type","array","minItems",1,"items",facet),"subject",Map.of("type","string"),"criterion",Map.of("type","string"),
-    "direction",Map.of("type","string","enum",List.of("HIGH","LOW","NONE")),
-    "request",Map.of("type","string","maxLength",200)))));
+    "direction",Map.of("type","string","enum",List.of("HIGH","LOW","NONE"))))));
   fields.put("intent",Map.of("type","string","enum",List.of("FACT","OPINION","MIXED")));
   fields.put("outcome",Map.of("type","string","enum",List.of("ANSWER","CONFLICT","INSUFFICIENT")));
   Map<String,Object> decisionFields=new LinkedHashMap<>();
@@ -42,11 +41,11 @@ public class OpenAiChatService implements ChatAiService {
   decisionFields.put("summary",Map.of("type","string","maxLength",360));
   fields.put("decision",object(decisionFields));
   fields.put("statements",Map.of("type","array","items",statement));
-  fields.put("context",object(Map.of("topic",Map.of("type","string","maxLength",120),"target",Map.of("type","string","maxLength",120),"criterion",Map.of("type","string","maxLength",120))));
+  fields.put("context",object(Map.of("topic",Map.of("type","string","maxLength",120))));
   var schema=object(fields);
   // Short, request-local references avoid UUID transcription mistakes by the model.
   var input=ChatInputAssembler.assemble(command,aliases);
-  var output=client.call("chat-v2","memory_chat_grounded",schema,input).output();
+  var output=client.call("chat-v3","memory_chat_grounded",schema,input).output();
   List<ChatResult.Statement> statements=new ArrayList<>();
   if(!output.path("outcome").isTextual()||!output.path("statements").isArray())invalid();
   for(var item:output.path("statements")){
@@ -67,7 +66,7 @@ public class OpenAiChatService implements ChatAiService {
   var decisionNode=output.path("decision");List<String> ranking=new ArrayList<>();decisionNode.path("rankedTargets").forEach(x->ranking.add(x.asText()));
   var decision=new ChatCommand.Decision(decisionNode.path("criterion").asText(),decisionNode.path("scope").asText(),ranking,decisionNode.path("selectedTarget").asText(),decisionNode.path("direction").asText(),decisionNode.path("summary").asText(),decisionNode.path("revisesId").asText(),decisionNode.path("rankPosition").asInt(1));
   List<String> requestedFacets=new ArrayList<>();output.path("interpretation").path("requestedFacets").forEach(x->requestedFacets.add(x.asText()));
-  return new ChatResult(output.path("intent").asText(),output.path("outcome").asText(),statements,relevant,new ChatCommand.Context(output.path("context").path("topic").asText(),output.path("context").path("target").asText(),output.path("context").path("criterion").asText()),Map.of("requestedFacets",String.join(",",requestedFacets),"subject",output.path("interpretation").path("subject").asText(),"criterion",output.path("interpretation").path("criterion").asText(),"direction",output.path("interpretation").path("direction").asText(),"request",output.path("interpretation").path("request").asText()),decision);
+  return new ChatResult(output.path("intent").asText(),output.path("outcome").asText(),statements,relevant,new ChatCommand.Context(output.path("context").path("topic").asText(),output.path("interpretation").path("subject").asText(),output.path("interpretation").path("criterion").asText()),Map.of("requestedFacets",String.join(",",requestedFacets),"subject",output.path("interpretation").path("subject").asText(),"criterion",output.path("interpretation").path("criterion").asText(),"direction",output.path("interpretation").path("direction").asText()),decision);
  }
  private static void invalid(){throw new AiFailure(AiFailure.Code.INVALID_OUTPUT,true,"Invalid grounded response");}
 }

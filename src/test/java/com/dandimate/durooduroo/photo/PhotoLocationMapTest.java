@@ -36,6 +36,8 @@ class PhotoLocationMapTest {
     @Autowired MockMvc mvc;
     @Autowired KakaoAccountService accounts;
     @Autowired JobWorker worker;
+    @Autowired com.dandimate.durooduroo.photo.repository.PhotoRepository photos;
+    @Autowired com.dandimate.durooduroo.member.repository.MemberRepository members;
 
     private MockHttpSession login() {
         AccountPrincipal principal = new AccountPrincipal(accounts.findOrCreate(UUID.randomUUID().toString()));
@@ -103,7 +105,11 @@ class PhotoLocationMapTest {
                 .andExpect(jsonPath("$.data.cities[0].rooms[0].roomId").value(room[0]))
                 .andExpect(jsonPath("$.data.cities[0].rooms[0].scrollReady").value(false))
                 .andExpect(jsonPath("$.data.cities[0].places[0].photoId").value(published))
-                .andExpect(jsonPath("$.data.cities[0].places[0].placeName").value("황리단길 카페"));
+                .andExpect(jsonPath("$.data.cities[0].places[0].placeName").value("황리단길 카페"))
+                .andExpect(jsonPath("$.data.cities[0].places[0].imageUrl").isNotEmpty())
+                .andExpect(jsonPath("$.data.cities[0].places[0].uploader.nickname").value("서연"))
+                .andExpect(jsonPath("$.data.cities[0].places[0].uploader.userId").isNotEmpty())
+                .andExpect(jsonPath("$.data.cities[0].places[0].firstEntrySnippet").value("비 오던 날 다 같이 젖었어"));
         // 방에 없는 사람에게는 보이지 않는다.
         mvc.perform(get("/api/v1/users/me/map").session(stranger))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.cities", hasSize(0)));
@@ -152,5 +158,18 @@ class PhotoLocationMapTest {
         send(delete("/api/v1/photos/" + photo + "/location"), host, null).andExpect(status().isNoContent());
         mvc.perform(get("/api/v1/users/me/map").session(host)).andExpect(jsonPath("$.data.cities", hasSize(0)));
         mvc.perform(get("/api/v1/users/me/map")).andExpect(status().isUnauthorized());
+    }
+
+    @Test void processingPhotoKeepsLocationAfterDerivativeCompletes() throws Exception {
+        var host=login(); var room=createRoom(host,"2026-11-07");
+        var member=members.findAllByRoomIdAndLeftAtIsNull(room[0]).get(0);
+        var photo=com.dandimate.durooduroo.photo.domain.Photo.pending(UUID.randomUUID().toString(),room[0],member.getId(),"image.heic","image.heic","image/heic",1);
+        photos.save(photo);
+        send(put("/api/v1/photos/"+photo.getId()+"/location"),host,GYEONGJU).andExpect(status().isConflict())
+            .andExpect(jsonPath("$.error.code").value("PHOTO_NOT_READY"));
+        photo.complete("hash"); photos.save(photo);
+        send(put("/api/v1/photos/"+photo.getId()+"/location"),host,GYEONGJU).andExpect(status().isOk());
+        photo=photos.findById(photo.getId()).orElseThrow(); photo.derived("derived.jpg");photo.publish();photos.save(photo);
+        mvc.perform(get("/api/v1/users/me/map").session(host)).andExpect(jsonPath("$.data.cities[0].places[0].placeName").value("황리단길 카페"));
     }
 }

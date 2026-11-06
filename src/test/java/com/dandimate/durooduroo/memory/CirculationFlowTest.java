@@ -83,19 +83,18 @@ class CirculationFlowTest {
         assertThat(JsonPath.<Boolean>read(passed, "$.data.cards[0].locked")).isFalse();
         assertThat(JsonPath.<List<String>>read(passed, "$.data.cards[0].otherEntries[*].transcript")).containsExactly("민호만 아는 비밀");
 
-        // 패스 후 덧붙이면 패스가 지워지고, 덧붙임은 2개까지
+        // 패스 후 덧붙이면 패스가 지워지고, 덧붙임은 개수 제한 없음
         entry(photoA, b, "ADDON", "TEXT", "나도 뛰었어").andExpect(status().isCreated());
         assertThat(JsonPath.<String>read(circulation(roomId, b), "$.data.cards[0].myResponse.status")).isEqualTo("ADDON");
         entry(photoA, b, "ADDON", "TEXT", "그날 비도 왔지").andExpect(status().isCreated());
-        entry(photoA, b, "ADDON", "TEXT", "세 번째").andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error.code").value("LIMIT_REACHED"));
+        entry(photoA, b, "ADDON", "TEXT", "세 번째").andExpect(status().isCreated());
         mockMvc.perform(put("/api/v1/photos/" + photoA + "/passes/me").header("Authorization", "Bearer " + b)).andExpect(status().isBadRequest());
         mockMvc.perform(put("/api/v1/photos/" + photoB + "/passes/me").header("Authorization", "Bearer " + b)).andExpect(status().isForbidden());
 
         // A는 자기 사진의 모든 이야기를 본다
         String own = circulation(roomId, a);
         assertThat(JsonPath.<String>read(own, "$.data.cards[0].myResponse.status")).isEqualTo("OWN_PHOTO");
-        assertThat(JsonPath.<List<?>>read(own, "$.data.cards[0].otherEntries")).hasSize(3);
+        assertThat(JsonPath.<List<?>>read(own, "$.data.cards[0].otherEntries")).hasSize(4);
 
         // 페이지
         mockMvc.perform(get("/api/v1/rooms/" + roomId + "/circulation").param("size", "1").header("Authorization", "Bearer " + a))
