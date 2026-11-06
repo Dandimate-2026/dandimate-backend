@@ -1,6 +1,8 @@
 package com.dandimate.durooduroo.chat.dto;
 import java.util.List;
-public record ChatMessageResponse(String answer,List<ChatSourceView> sources,List<Citation> citations,com.dandimate.durooduroo.ai.chat.ChatCommand.Context context,com.dandimate.durooduroo.ai.chat.ChatCommand.Decision decision) {
+public record ChatMessageResponse(String answer,List<ChatSourceView> sources,List<Citation> citations,com.dandimate.durooduroo.ai.chat.ChatCommand.Context context,com.dandimate.durooduroo.ai.chat.ChatCommand.Decision decision, String outcome) {
+ public ChatMessageResponse(String answer,List<ChatSourceView> sources,List<Citation> citations,com.dandimate.durooduroo.ai.chat.ChatCommand.Context context,com.dandimate.durooduroo.ai.chat.ChatCommand.Decision decision){this(answer,sources,citations,context,decision,"ANSWER");}
+ public ChatMessageResponse withOutcome(String value){return new ChatMessageResponse(answer,sources,citations,context,decision,value);}
  public ChatMessageResponse(String answer,List<ChatSourceView> sources,List<Citation> citations){this(answer,sources,citations,com.dandimate.durooduroo.ai.chat.ChatCommand.Context.empty());}
  public ChatMessageResponse(String answer,List<ChatSourceView> sources,List<Citation> citations,com.dandimate.durooduroo.ai.chat.ChatCommand.Context context){this(answer,sources,citations,context,com.dandimate.durooduroo.ai.chat.ChatCommand.Decision.empty());}
  public ChatMessageResponse {sources=List.copyOf(sources);citations=List.copyOf(citations);}

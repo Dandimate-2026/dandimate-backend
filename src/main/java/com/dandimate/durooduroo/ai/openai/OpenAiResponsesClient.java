@@ -84,9 +84,13 @@ public class OpenAiResponsesClient {
         } catch (IOException e) {
             throw new AiFailure(AiFailure.Code.INVALID_INPUT, false, "AI 입력을 만들지 못했습니다.");
         }
-        if ("chat-v2".equals(promptVersion)) {
+        if ("chat-v2".equals(promptVersion) || "chat-v3".equals(promptVersion)) {
             body = new java.util.LinkedHashMap<>(body);
             body.put("reasoning", Map.of("effort", "medium"));
+        }
+        if ("chat-route-v1".equals(promptVersion)) {
+            body = new java.util.LinkedHashMap<>(body);
+            body.put("reasoning", Map.of("effort", "low"));
         }
         long started = System.nanoTime();
         try {
@@ -94,6 +98,12 @@ public class OpenAiResponsesClient {
                     .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().toEntity(JsonNode.class);
             String requestId = response.getHeaders().getFirst("x-request-id");
             log.info("AI {} done model={} requestId={} latencyMs={}", promptVersion, model, requestId, (System.nanoTime() - started) / 1_000_000);
+            if (promptVersion.startsWith("chat-")) {
+                var usage = response.getBody() == null ? json.createObjectNode() : response.getBody().path("usage");
+                log.info("AI {} usage inputTokens={} outputTokens={} reasoningTokens={}", promptVersion,
+                        usage.path("input_tokens").asInt(-1), usage.path("output_tokens").asInt(-1),
+                        usage.path("output_tokens_details").path("reasoning_tokens").asInt(-1));
+            }
             return new Result(json.readTree(outputText(response.getBody())), model, requestId);
         } catch (RestClientResponseException e) {
             int status = e.getStatusCode().value();

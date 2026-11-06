@@ -67,6 +67,11 @@ class ChatFlowTest {
   photo.complete("hash");photo.publish();photos.save(photo);
   first=entries.save(MemoryEntry.confirm(room.getId(),photo.getId(),guest.getId(),EntryKind.ADDON,"TEXT",null,null,"경주에서 함께 웃었어"));
   second=entries.save(MemoryEntry.confirm(room.getId(),photo.getId(),guest.getId(),EntryKind.ADDON,"TEXT",null,null,"밤에는 달을 봤어"));
+  // Windows clock may assign equal timestamps; fixture explicitly models two ordered writes.
+  var fixtureTime=java.time.LocalDateTime.now().minusMinutes(1);
+  org.springframework.test.util.ReflectionTestUtils.setField(first,"createdAt",fixtureTime);
+  org.springframework.test.util.ReflectionTestUtils.setField(second,"createdAt",fixtureTime.plusSeconds(1));
+  first=entries.save(first);second=entries.save(second);
   worker.enqueue(first);worker.enqueue(second);worker.runNext();worker.runNext();
   when(ai.answer(any())).thenReturn(grounded(first.getId(),"민주는 경주에서 함께 웃었다고 했어요."));
  }
