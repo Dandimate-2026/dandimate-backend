@@ -66,7 +66,10 @@ class ScrollSummaryJobTest {
         // 사진이 하나도 안 남으면 지운 내용이 지도에 남지 않게 요약을 비운다.
         mvc.perform(delete("/api/v1/photos/" + room[2]).header("Authorization", "Bearer " + room[1]));
         drain();
-        assertThat(summary(room[0])).isNull();
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() -> {
+            drain();
+            assertThat(summary(room[0])).isNull();
+        });
     }
 
     @Test void 요약이_너무_길거나_실패해도_두루마리는_완성된다() throws Exception {

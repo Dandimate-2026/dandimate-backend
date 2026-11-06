@@ -15,6 +15,8 @@ public record PhotoMapView(List<CityPin> cities) {
                            int photoCount, int recordCount, String summary) {
     }
 
-    public record PlaceItem(String photoId, String roomId, String placeName, double latitude, double longitude) {
+    public record Uploader(String userId, String nickname, String flowerCode) {}
+
+    public record PlaceItem(String photoId, String roomId, String placeName, double latitude, double longitude, String imageUrl, Uploader uploader, String firstEntrySnippet) {
     }
 }

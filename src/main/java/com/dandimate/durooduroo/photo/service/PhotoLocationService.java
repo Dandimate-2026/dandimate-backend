@@ -30,7 +30,8 @@ public class PhotoLocationService {
     @Transactional
     public PhotoLocationView set(String photoId, String authorization, PhotoLocationRequest request) {
         Photo photo = editable(photoId, authorization);
-        if (!photo.isReady()) throw new BusinessException(ErrorCode.VALIDATION_ERROR, "업로드가 끝난 사진에만 장소를 넣을 수 있습니다.");
+        if (!photo.isReady() && !Photo.PROCESSING.equals(photo.getStatus()))
+            throw new BusinessException(ErrorCode.PHOTO_NOT_READY, "업로드 완료 후 장소를 저장해 주세요.");
         if ((request.latitude() == null) != (request.longitude() == null))
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "위도와 경도는 함께 보내 주세요.");
         String address = request.address() == null || request.address().isBlank() ? null : request.address().strip();
