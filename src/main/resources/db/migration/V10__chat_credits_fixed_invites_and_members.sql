@@ -22,6 +22,7 @@ CREATE TABLE chat_usage (
  user_id VARCHAR(36) NOT NULL,
  request_hash VARCHAR(64) NOT NULL,
  status VARCHAR(16) NOT NULL,
+ attempt_id VARCHAR(36) NULL,
  free BIT NOT NULL,
  usage_date DATE NULL,
  expires_at DATETIME(6) NULL,

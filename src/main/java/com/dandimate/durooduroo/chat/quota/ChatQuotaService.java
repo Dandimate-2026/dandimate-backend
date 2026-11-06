@@ -35,7 +35,7 @@ public class ChatQuotaService {
  }
  public Quota get(String user) {return tx.execute(s->{var w=wallet(user);return new Quota(FREE_LIMIT,Math.max(0,FREE_LIMIT-w.freeUsed),w.credits,
    w.freeDate.plusDays(1).atStartOfDay(KST).toOffsetDateTime());});}
- private record Ticket(String id,ChatMessageResponse replay) {}
+ private record Ticket(String id,String attemptId,ChatMessageResponse replay) {}
  public ChatMessageResponse execute(String user,String key,String fingerprint,Supplier<ChatMessageResponse> answer) {
   if(key!=null&&(key.length()<16||key.length()>128)) throw new BusinessException(ErrorCode.VALIDATION_ERROR,"Idempotency-Key는 16~128자입니다.");
   String id=Tokens.hash(user+":"+(key==null?UUID.randomUUID():key));
@@ -44,15 +44,15 @@ public class ChatQuotaService {
    var w=wallet(user);var previous=em.find(ChatUsage.class,id);
    if(previous!=null) {
     if(!hash.equals(previous.requestHash))throw new BusinessException(ErrorCode.IDEMPOTENCY_KEY_REUSED,"다른 질문에 사용된 요청 키입니다.");
-    if(previous.response!=null) return new Ticket(id,read(previous.response));
+    if(previous.response!=null) return new Ticket(id,null,read(previous.response));
     if(previous.status.equals("PENDING"))throw new BusinessException(ErrorCode.IDEMPOTENCY_KEY_REUSED,"질문을 처리 중입니다.");
     em.remove(previous);em.flush();
    }
    if(w.freeUsed>=FREE_LIMIT && w.credits<=0)throw new BusinessException(ErrorCode.CHAT_LIMIT_EXCEEDED,"무료 질문과 크레딧을 모두 사용했어요.");
    var u=new ChatUsage();u.id=id;u.userId=user;u.requestHash=hash;u.status="PENDING";u.usageDate=w.freeDate;
-   u.free=w.freeUsed<FREE_LIMIT;u.expiresAt=Instant.now().plusSeconds(600);
+   u.attemptId=UUID.randomUUID().toString();u.free=w.freeUsed<FREE_LIMIT;u.expiresAt=Instant.now().plusSeconds(600);
    if(u.free)w.freeUsed++;else w.credits--;
-   em.persist(u);return new Ticket(id,null);
+   em.persist(u);return new Ticket(id,u.attemptId,null);
   });
   if(ticket.replay()!=null) {
    var current=access.load(user,false);
@@ -70,14 +70,14 @@ public class ChatQuotaService {
    var response=answer.get();
    tx.executeWithoutResult(s->{
     var w=wallet(user);var u=em.find(ChatUsage.class,id);
-    if(!u.status.equals("PENDING"))throw new BusinessException(ErrorCode.AI_TEMPORARILY_UNAVAILABLE,"질문 처리 시간이 초과되었습니다. 다시 시도해 주세요.");
+    if(!u.status.equals("PENDING")||!ticket.attemptId().equals(u.attemptId))throw new BusinessException(ErrorCode.AI_TEMPORARILY_UNAVAILABLE,"질문 처리 시간이 초과되었습니다. 다시 시도해 주세요.");
     if(!Set.of("ANSWER","CONFLICT").contains(response.outcome())) release(w,u);
     else u.status="CHARGED";
     if(key!=null)u.response=write(response);
    });
    return response;
   } catch(RuntimeException failure) {
-   tx.executeWithoutResult(s->{var w=wallet(user);var u=em.find(ChatUsage.class,id);if(u!=null&&u.status.equals("PENDING"))release(w,u);});
+   tx.executeWithoutResult(s->{var w=wallet(user);var u=em.find(ChatUsage.class,id);if(u!=null&&u.status.equals("PENDING")&&ticket.attemptId().equals(u.attemptId))release(w,u);});
    throw failure;
   }
  }

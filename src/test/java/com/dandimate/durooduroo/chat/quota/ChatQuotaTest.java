@@ -55,6 +55,16 @@ class ChatQuotaTest {
   var balance=quota.get(user);assertThat(balance.freeRemaining()).isEqualTo(4);assertThat(balance.credits()).isEqualTo(10);
   assertThat(balance.resetsAt().getOffset()).isEqualTo(ZoneOffset.ofHours(9));assertThat(balance.resetsAt().getHour()).isZero();
  }
+ @Test void staleAttemptCannotSettleOrRefundNewAttempt() {
+  String key=UUID.randomUUID().toString();
+  assertThatThrownBy(()->quota.execute(user,key,"질문",()->{
+    tx.executeWithoutResult(s->em.createQuery("update ChatUsage u set u.expiresAt=:time where u.userId=:user")
+      .setParameter("time",Instant.now().minusSeconds(1)).setParameter("user",user).executeUpdate());
+    quota.execute(user,key,"질문",()->response("ANSWER"));
+    return response("ANSWER");
+  })).isInstanceOf(BusinessException.class);
+  assertThat(quota.get(user).freeRemaining()).isEqualTo(3);
+ }
  @Test void expiredReservationReleasesBudget() {
   quota.get(user);
   tx.executeWithoutResult(s->{var w=em.find(ChatWallet.class,user);w.freeUsed=1;var u=new ChatUsage();u.id="expired";u.userId=user;u.requestHash="hash";u.status="PENDING";u.free=true;u.usageDate=w.freeDate;u.expiresAt=Instant.now().minusSeconds(1);em.persist(u);});
