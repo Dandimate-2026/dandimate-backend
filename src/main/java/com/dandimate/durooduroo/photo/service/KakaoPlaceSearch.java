@@ -51,7 +51,7 @@ public class KakaoPlaceSearch {
                 String road = place.path("road_address_name").asText("");
                 String lot = place.path("address_name").asText("");
                 places.add(new PlaceView(place.path("place_name").asText(), road.isBlank() ? lot : road,
-                        PlaceCity.of(lot.isBlank() ? road : lot), place.path("y").asDouble(), place.path("x").asDouble()));
+                        PlaceCity.of(lot.isBlank() ? road : lot), place.path("y").asDouble(), place.path("x").asDouble(), place.path("id").asText(null)));
             }
             return places;
         } catch (RestClientResponseException ex) {

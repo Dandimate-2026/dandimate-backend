@@ -80,7 +80,7 @@ public class TranscriptionService {
         this.stt = stt;
     }
 
-    /** kind: FIRST(사진을 올린 사람) 또는 ADDON(돌려보기에 노출된 타인 사진). */
+    /** kind: FIRST(사진을 올린 사람) 또는 ADDON(돌려보기에 공개된 사진, 본인 사진 포함). */
     public DraftView forPhoto(String photoId, String authorization, String kind, MultipartFile file, String requestKey) {
         Photo photo = photos.findById(photoId).orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "사진이 없습니다."));
         Member me = member(photo.getRoomId(), authorization);
@@ -89,7 +89,6 @@ public class TranscriptionService {
             if (!own) throw new BusinessException(ErrorCode.FORBIDDEN, "첫 한마디는 사진을 올린 사람만 남길 수 있어요.");
             roomStates.require(photo.getRoomId(), RoomAction.UPLOAD_OR_FIRST_ENTRY);
         } else if ("ADDON".equals(kind)) {
-            if (own) throw new BusinessException(ErrorCode.FORBIDDEN, "내 사진에는 덧붙일 수 없어요.");
             if (!photo.isPublished()) throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "사진이 없습니다.");
             roomStates.require(photo.getRoomId(), RoomAction.ADDON_OR_PASS);
         } else {

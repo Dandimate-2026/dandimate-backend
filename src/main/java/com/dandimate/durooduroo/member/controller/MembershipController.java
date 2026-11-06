@@ -37,6 +37,12 @@ public class MembershipController {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping("/members/{memberId}")
+    public ResponseEntity<Void> kick(@PathVariable String roomId, @PathVariable String memberId) {
+        service.kick(roomId, memberId);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/plan-requests")
     public ResponseEntity<ApiResponse<?>> requestPlan(@PathVariable String roomId, @Valid @RequestBody PlanRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(service.requestPlan(roomId, request.reason())));

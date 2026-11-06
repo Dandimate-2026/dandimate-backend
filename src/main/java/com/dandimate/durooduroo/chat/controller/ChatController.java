@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.*;
 public class ChatController {
     private final ChatConversationService conversations;
     public ChatController(ChatConversationService conversations){this.conversations=conversations;}
+    @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.chat.quota.ChatQuotaService quota;
+    @GetMapping("/quota")
+    public ApiResponse<?> quota() { return ApiResponse.success(quota.get(CurrentUser.requireId())); }
     @PostMapping("/messages")
     public ApiResponse<ChatMessageResponse> message(@Valid @RequestBody ChatMessageRequest request, HttpSession session) {
         return ApiResponse.success(conversations.answer(CurrentUser.requireId(), request, session));

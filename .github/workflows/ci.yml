@@ -58,6 +58,7 @@ jobs:
           MYSQL_PASSWORD: ci-password
           STT_PROVIDER: fake
           MEDIA_SIGNING_SECRET: ci-signing-secret-0123456789abcdef
+          INVITE_TOKEN_SECRET: ci-invite-secret-not-production
         run: |
           java -jar build/libs/durooduroo-backend-*.jar > app.log 2>&1 &
           for i in $(seq 1 60); do curl -fs http://127.0.0.1:8080/api/v1/health && exit 0; sleep 2; done

@@ -63,12 +63,12 @@ public class PhotoMapService {
 
     private PhotoMapView.CityPin cityPin(String city, List<Photo> cityPhotos, Map<String, Room> roomById, Map<String, Long> recordsByPhoto, Map<String,String> firstByPhoto, Map<String,Member> uploaders) {
         List<PhotoMapView.RoomItem> roomItems = cityPhotos.stream().collect(Collectors.groupingBy(Photo::getRoomId)).entrySet().stream()
-                .map(room -> roomItem(roomById.get(room.getKey()), room.getValue(), recordsByPhoto))
+                .map(room -> roomItem(roomById.get(room.getKey()), room.getValue(), recordsByPhoto, firstByPhoto))
                 .sorted(Comparator.comparing(PhotoMapView.RoomItem::meetingDate).reversed())
                 .toList();
         List<PhotoMapView.PlaceItem> places = cityPhotos.stream()
                 .map(photo -> new PhotoMapView.PlaceItem(photo.getId(), photo.getRoomId(), photo.getPlaceName(), photo.getLatitude(), photo.getLongitude(),
-                    mediaUrls.imageUrl(photo), uploader(uploaders.get(photo.getMemberId())), snippet(firstByPhoto.get(photo.getId()))))
+                    mediaUrls.imageUrl(photo), uploader(uploaders.get(photo.getMemberId())), snippet(firstByPhoto.get(photo.getId())), photo.getPlaceId()))
                 .toList();
         return new PhotoMapView.CityPin(city,
                 cityPhotos.stream().mapToDouble(Photo::getLatitude).average().orElseThrow(),
@@ -78,9 +78,17 @@ public class PhotoMapService {
                 roomItems.stream().map(PhotoMapView.RoomItem::summary).filter(Objects::nonNull).findFirst().orElse(null), roomItems, places);
     }
 
-    private PhotoMapView.RoomItem roomItem(Room room, List<Photo> roomPhotos, Map<String, Long> recordsByPhoto) {
+    private PhotoMapView.RoomItem roomItem(Room room, List<Photo> roomPhotos, Map<String, Long> recordsByPhoto, Map<String,String> firstByPhoto) {
+        String summary=room.getScrollSummary();
+        if(summary==null) {
+            String places=roomPhotos.stream().map(Photo::getPlaceName).filter(Objects::nonNull).distinct().sorted().collect(Collectors.joining(", "));
+            String text=roomPhotos.stream().sorted(Comparator.comparing(Photo::getCreatedAt).thenComparing(Photo::getId))
+              .map(p->firstByPhoto.get(p.getId())).filter(Objects::nonNull).collect(Collectors.joining(" · "));
+            summary=places+(text.isBlank()?"에서 사진 "+roomPhotos.size()+"장의 추억을 모으고 있어요.":" · "+text);
+            if(summary.codePointCount(0,summary.length())>200)summary=summary.substring(0,summary.offsetByCodePoints(0,199))+"…";
+        }
         return new PhotoMapView.RoomItem(room.getId(), room.getTitle(), room.getMeetingDate(), room.getStatus().name(),
-                room.getStatus() == RoomStatus.GROWING, roomPhotos.size(), records(roomPhotos, recordsByPhoto), room.getScrollSummary());
+                room.getStatus() == RoomStatus.GROWING, roomPhotos.size(), records(roomPhotos, recordsByPhoto), summary);
     }
 
     private int records(List<Photo> photos, Map<String, Long> recordsByPhoto) {

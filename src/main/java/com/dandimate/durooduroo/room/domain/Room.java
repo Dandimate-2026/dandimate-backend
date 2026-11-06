@@ -130,8 +130,15 @@ public class Room implements Persistable<String> {
     /** 초대 토큰 원문은 저장하지 않고 SHA-256 해시만 저장한다. */
     @Column(name = "invite_token_hash", nullable = false, length = 64)
     private String inviteTokenHash;
+    @Column(length=500) private String encryptedInviteToken;
+    @Column(length=64,unique=true) private String retainedInviteHash;
+    public String getEncryptedInviteToken(){return encryptedInviteToken;}
+    public void retainInviteToken(String encrypted,String hash){
+        if(encryptedInviteToken!=null)throw new IllegalStateException("Invite link already retained");
+        encryptedInviteToken=encrypted;retainedInviteHash=hash;
+    }
 
-    /** 생성·재발급 직후 응답에 한 번만 내보낼 원문. DB에는 저장되지 않는다. */
+    /** 생성 직후 응답용 원문. 별도 encryptedInviteToken 필드에 암호화해 영구 보관한다. */
     @Transient
     private String issuedInviteToken;
 
@@ -149,7 +156,7 @@ public class Room implements Persistable<String> {
     @Column(nullable = false)
     private boolean deadlineExtended;
 
-    /** 방장이 마감 시각을 바꾼 적이 있는지. WEAVING 전에 한 번만 바꿀 수 있다 (FR-G4). */
+    /** 방장의 마감 변경 이력 표시. 변경 횟수 제한에 사용하지 않는다. */
     @Column(nullable = false)
     private boolean deadlineChangedByHost;
 
@@ -177,7 +184,7 @@ public class Room implements Persistable<String> {
     private Room(String title, LocalDate meetingDate) {
         this.id = UUID.randomUUID().toString();
         this.title = title;
-        rotateInviteToken();
+        initializeInviteToken();
         this.meetingDate = meetingDate;
         this.status = RoomStatus.COLLECTING;
         this.createdAt = LocalDateTime.now();
@@ -225,14 +232,10 @@ public class Room implements Persistable<String> {
         this.meetingDate = meetingDate;
     }
 
-    /** 방장 마감 변경: WEAVING 전, 한 번만, 생성 시각 기준 24~72시간 사이의 미래 시각. */
+    /** 방장 마감 변경: 엮기 전까지 횟수 제한 없이 미래 시각으로 변경. */
     public void changeDeadline(LocalDateTime newDeadline, LocalDateTime now) {
         if (status == RoomStatus.WEAVING) throw new BusinessException(ErrorCode.ROOM_WEAVING, "엮는 중에는 마감을 바꿀 수 없어요.");
         if (status == RoomStatus.GROWING) throw new BusinessException(ErrorCode.INVALID_ROOM_STATE, "이미 마감된 방이에요.");
-        if (deadlineChangedByHost) throw new BusinessException(ErrorCode.INVALID_ROOM_STATE, "마감 시각은 한 번만 바꿀 수 있어요.");
-        if (newDeadline.isBefore(createdAt.plusHours(24)) || newDeadline.isAfter(createdAt.plusHours(72))) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "마감 시각은 방을 만든 뒤 24~72시간 사이여야 해요.");
-        }
         if (!newDeadline.isAfter(now)) throw new BusinessException(ErrorCode.VALIDATION_ERROR, "마감 시각은 지금보다 뒤여야 해요.");
         this.deadlineAt = newDeadline;
         this.deadlineChangedByHost = true;
@@ -277,8 +280,8 @@ public class Room implements Persistable<String> {
         throw new BusinessException(ErrorCode.INVALID_ROOM_STATE, "지금 방 상태에서는 마감할 수 없어요.");
     }
 
-    /** 새 초대 토큰을 발급한다. 기존 토큰은 해시가 바뀌므로 즉시 무효가 된다. */
-    public String rotateInviteToken() {
+    /** 방 생성 시 한 번만 초대 토큰을 발급한다. */
+    private String initializeInviteToken() {
         this.issuedInviteToken = Tokens.generate();
         this.inviteTokenHash = Tokens.hash(issuedInviteToken);
         return issuedInviteToken;

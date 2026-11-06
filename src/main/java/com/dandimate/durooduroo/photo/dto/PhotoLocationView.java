@@ -3,10 +3,10 @@ package com.dandimate.durooduroo.photo.dto;
 
 import com.dandimate.durooduroo.photo.domain.Photo;
 
-public record PhotoLocationView(String placeName, String address, String city, Double latitude, Double longitude) {
+public record PhotoLocationView(String placeName, String address, String city, Double latitude, Double longitude, String placeId) {
 
     public static PhotoLocationView of(Photo photo) {
         if (photo.getPlaceName() == null) return null;
-        return new PhotoLocationView(photo.getPlaceName(), photo.getAddress(), photo.getCity(), photo.getLatitude(), photo.getLongitude());
+        return new PhotoLocationView(photo.getPlaceName(), photo.getAddress(), photo.getCity(), photo.getLatitude(), photo.getLongitude(), photo.getPlaceId());
     }
 }

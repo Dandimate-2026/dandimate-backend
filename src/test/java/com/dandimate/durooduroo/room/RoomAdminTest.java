@@ -38,7 +38,7 @@ class RoomAdminTest {
     @Autowired private JobWorker worker;
 
     @Test
-    void 방장은_이름_날짜를_바꾸고_마감은_한_번만_24에서_72시간_사이로_바꾼다() throws Exception {
+    void 방장은_이름_날짜를_바꾸고_마감은_미래로_여러_번_바꾼다() throws Exception {
         String created = body(json(post("/api/v1/rooms"), null, "{\"name\":\"경주\",\"meetingDate\":\"2026-10-24\",\"planType\":\"FREE\",\"hostNickname\":\"서연\"," + CONSENT + "}"));
         String roomId = JsonPath.read(created, "$.data.room.id");
         String host = JsonPath.read(created, "$.data.memberAccessToken");
@@ -47,14 +47,14 @@ class RoomAdminTest {
 
         json(patch("/api/v1/rooms/" + roomId), member, "{\"name\":\"부산\"}").andExpect(status().isForbidden());
         json(patch("/api/v1/rooms/" + roomId), host, "{\"name\":\"" + "가".repeat(21) + "\"}").andExpect(status().isBadRequest());
-        json(patch("/api/v1/rooms/" + roomId), host, "{\"deadlineAt\":\"" + OffsetDateTime.now().plusHours(10) + "\"}").andExpect(status().isBadRequest());
+        json(patch("/api/v1/rooms/" + roomId), host, "{\"deadlineAt\":\"" + OffsetDateTime.now().minusHours(1) + "\"}").andExpect(status().isBadRequest());
 
-        json(patch("/api/v1/rooms/" + roomId), host, "{\"name\":\"부산 여행\",\"meetingDate\":\"2026-11-01\",\"deadlineAt\":\"" + OffsetDateTime.now().plusHours(60) + "\"}")
+        json(patch("/api/v1/rooms/" + roomId), host, "{\"name\":\"부산 여행\",\"meetingDate\":\"2026-11-01\",\"deadlineAt\":\"" + OffsetDateTime.now().plusHours(10) + "\"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.room.name").value("부산 여행"))
                 .andExpect(jsonPath("$.data.room.meetingDate").value("2026-11-01"));
-        json(patch("/api/v1/rooms/" + roomId), host, "{\"deadlineAt\":\"" + OffsetDateTime.now().plusHours(50) + "\"}")
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("INVALID_ROOM_STATE"));
+        json(patch("/api/v1/rooms/" + roomId), host, "{\"deadlineAt\":\"" + OffsetDateTime.now().plusHours(100) + "\"}")
+                .andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/invites/" + invite)).andExpect(jsonPath("$.data.roomName").value("부산 여행"));
     }
 

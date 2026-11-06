@@ -34,13 +34,18 @@ public class PaymentService {
         this.json = json; this.events = events; this.tx = new TransactionTemplate(manager);
     }
 
+    @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.chat.quota.ChatQuotaService quota;
     public record OrderView(String orderId, String orderName, int amount, String currency, String status,
-                            String roomId, RoomPlan fromPlan, RoomPlan targetPlan, boolean testMode) {}
+                            String roomId, RoomPlan fromPlan, RoomPlan targetPlan, boolean testMode, String orderType, String packId, int creditAmount) {}
     private OrderView view(PaymentOrder o) {
-        return new OrderView(o.getId(), "두루두루 " + o.getTargetPlan().name() + " 방 플랜", o.getAmount(), "KRW",
-                o.getStatus(), o.getRoomId(), o.getFromPlan(), o.getTargetPlan(), true);
+        return new OrderView(o.getId(), o.isCredit() ? "두루두루 챗봇 " + o.getCreditAmount() + "회" : "두루두루 " + o.getTargetPlan().name() + " 방 플랜", o.getAmount(), "KRW",
+                o.getStatus(), o.getRoomId(), o.getFromPlan(), o.getTargetPlan(), true, o.getOrderType(), o.getPackId(), o.getCreditAmount());
     }
 
+    public OrderView createCreditOrder(String pack) {
+        String user=CurrentUser.requireId();configured();
+        return tx.execute(s->view(orders.save(PaymentOrder.credit(user,pack))));
+    }
     public OrderView createRoomOrder(SpecCreateRoomRequest request) {
         String user = CurrentUser.requireId(); configured();
         try { request.consent().validate(); }
@@ -102,6 +107,11 @@ public class PaymentService {
             PaymentOrder o = own(id, user, true);
             if ("DONE".equals(o.getStatus())) return view(o);
             gateway.approve(key, id, o.getAmount());
+            if(o.isCredit()) {
+                quota.grant(user,o.getCreditAmount());
+                o.succeed(null);
+                return view(o);
+            }
             if (o.getRoomRequest() != null) {
                 try {
                     var request = json.readValue(o.getRoomRequest(), SpecCreateRoomRequest.class);

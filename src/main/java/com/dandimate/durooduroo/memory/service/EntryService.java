@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class EntryService {
+    @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.scroll.service.ScrollSummaryService summaries;
 
 
 
@@ -92,7 +93,7 @@ public class EntryService {
                 }
             }
             case ADDON -> {
-                if (own) throw new BusinessException(ErrorCode.FORBIDDEN, "내 사진에는 덧붙일 수 없어요.");
+
                 requirePublished(photo);
                 roomStates.require(photo.getRoomId(), RoomAction.ADDON_OR_PASS);
             }
@@ -104,6 +105,7 @@ public class EntryService {
         MemoryEntry entry = entries.save(MemoryEntry.confirm(photo.getRoomId(), photoId, me.getId(), request.kind(),
                 request.inputMode(), request.transcriptionId(), audioLocation, transcript));
         embeddingIndex.enqueue(entry);
+        if(entry.getKind()==EntryKind.FIRST)summaries.enqueue(entry.getRoomId());
         if (request.kind() == EntryKind.FIRST) {
             publish(photo);
         } else {
@@ -125,6 +127,7 @@ public class EntryService {
         requireLength(entry.getKind(), transcript.strip(), entry.getInputMode());
         entry.edit(transcript.strip());
         embeddingIndex.enqueue(entry);
+        if(entry.getKind()==EntryKind.FIRST)summaries.enqueue(entry.getRoomId());
         sourceChanged(entry.getPhotoId());
         return EntryView.of(entry, members.findById(entry.getMemberId()).orElseThrow(), mediaUrls.audioUrl(entry));
     }
@@ -134,6 +137,7 @@ public class EntryService {
         MemoryEntry entry = findOwnEntry(entryId, authorization);
         var room = roomStates.require(entry.getRoomId(), RoomAction.DELETE_CONTENT);
         entries.delete(entry);
+        if(entry.getKind()==EntryKind.FIRST)summaries.enqueue(entry.getRoomId());
         sourceChanged(entry.getPhotoId());
         if (room.getStatus() == com.dandimate.durooduroo.room.domain.RoomStatus.GROWING) replyService.rebuildForPhoto(entry.getRoomId(), entry.getPhotoId());
     }

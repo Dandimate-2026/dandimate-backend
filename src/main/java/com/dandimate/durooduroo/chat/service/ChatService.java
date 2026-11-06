@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 public class ChatService {
  private final ChatRecordAccess access;private final ChatRetrievalService retrieval;private final ChatAiService ai;
  private ChatIntentRouter router;
+ @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.chat.quota.ChatQuotaService quota;
  private final Semaphore capacity=new Semaphore(4);
  public ChatService(ChatRecordAccess access,ChatRetrievalService retrieval,ChatAiService ai){this.access=access;this.retrieval=retrieval;this.ai=ai;}
  @org.springframework.beans.factory.annotation.Autowired
@@ -31,6 +32,15 @@ public class ChatService {
    var route=router.route(question,!history.isEmpty());
    if(!route.kind().equals("RECORD"))return new ChatMessageResponse(route.reply(),List.of()).withOutcome(route.kind());
   }
+  if(quota!=null) {
+   var attrs=org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+   var request=attrs instanceof org.springframework.web.context.request.ServletRequestAttributes a?a.getRequest():null;
+   String key=request==null?null:request.getHeader("Idempotency-Key");
+   return quota.execute(userId,key,question,()->respondRecords(userId,question,history));
+  }
+  return respondRecords(userId,question,history);
+ }
+ private ChatMessageResponse respondRecords(String userId,String question,List<ChatCommand.Turn> history) {
   var allowed=access.load(userId,false);if(allowed.isEmpty())return insufficient();
   // Conversation is a reference, never an authorization source. Recheck all old IDs.
   var safeHistory=history.stream().skip(Math.max(0,history.size()-8))

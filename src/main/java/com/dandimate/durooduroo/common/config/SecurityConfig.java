@@ -28,7 +28,7 @@ public class SecurityConfig {
             org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher.withDefaults()
                 .matcher(HttpMethod.PUT, "/api/v1/photos/*/upload")))
             .authorizeHttpRequests(a -> a
-            .requestMatchers(HttpMethod.GET, "/api/v1/health", "/api/v1/plans", "/api/v1/auth/csrf", "/api/v1/invites/*",
+            .requestMatchers(HttpMethod.GET, "/api/v1/health", "/api/v1/plans", "/api/v1/auth/csrf", "/api/v1/invites/*", "/api/v1/invites/*/cover",
                 "/api/v1/rooms/*/events", "/api/v1/photos/*/image", "/api/v1/entries/*/audio").permitAll()
             .requestMatchers(HttpMethod.PUT, "/api/v1/photos/*/upload").permitAll()
             .requestMatchers("/swagger-ui.html", "/openapi/**", "/webjars/**", "/oauth2/**", "/login/**", "/error").permitAll()
