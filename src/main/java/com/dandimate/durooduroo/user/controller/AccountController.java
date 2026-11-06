@@ -33,8 +33,12 @@ public class AccountController {
             .collect(java.util.stream.Collectors.toMap(r -> r.getId(), r -> r));
         return ApiResponse.success(participation.stream().filter(m -> byId.containsKey(m.getRoomId())).map(m -> {
             var room = byId.get(m.getRoomId());
-            return Map.of("roomId", room.getId(), "name", room.getTitle(), "status", room.getStatus(),
-                "memberId", m.getId(), "nickname", m.getNickname(), "role", m.getRole());
+            var result = new java.util.LinkedHashMap<String,Object>(Map.of("roomId", room.getId(), "name", room.getTitle(), "status", room.getStatus(),
+                "memberId", m.getId(), "nickname", m.getNickname(), "role", m.getRole()));
+            result.put("place", room.getPlace());
+            result.put("coverImageUrl", room.getCoverImageUrl());
+            result.put("coverPhoto", com.dandimate.durooduroo.room.dto.CoverPhotoView.from(room.getCoverPhotoId()));
+            return result;
         }).toList());
     }
 }

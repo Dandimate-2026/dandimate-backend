@@ -104,4 +104,17 @@ class MemberJoinEventsTest {
         verify(hub, never()).send(any());
         assertThat(rooms.findById(room.getId()).orElseThrow().getTitle()).isEqualTo("updated");
     }
+
+    @Test void capacityOnlyUpdatePublishesAfterCommitButRejectedChangeDoesNot() {
+        members.save(Member.host(room.getId(), "host", userId));
+        tx.executeWithoutResult(status -> {
+            admin.update(room.getId(), null, null, null, null, false, null, false, null, 1);
+            verify(hub, never()).send(any());
+        });
+        verify(hub).send(RoomEvent.toRoom(room.getId(), "room.updated", Map.of("roomId", room.getId())));
+        clearInvocations(hub);
+        assertThatThrownBy(() -> admin.update(room.getId(), null, null, null, null, false, null, false, null, 0))
+            .isInstanceOf(BusinessException.class);
+        verify(hub, never()).send(any());
+    }
 }

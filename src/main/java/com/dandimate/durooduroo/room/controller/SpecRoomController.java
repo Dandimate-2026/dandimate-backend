@@ -20,8 +20,10 @@ import org.springframework.web.bind.annotation.*;
 public class SpecRoomController {
     private final RoomRepository rooms;
     private final MemberRepository members;
+    private final com.dandimate.durooduroo.room.service.RoomDetailsService details;
 
-    public SpecRoomController(RoomRepository rooms, MemberRepository members) {
+    public SpecRoomController(RoomRepository rooms, MemberRepository members, com.dandimate.durooduroo.room.service.RoomDetailsService details) {
+        this.details = details;
         this.rooms = rooms;
         this.members = members;
     }
@@ -40,6 +42,7 @@ public class SpecRoomController {
                     "유료 플랜 결제 기능이 아직 연결되지 않았습니다.");
         }
         Room room = rooms.save(Room.create(request.name().trim(), request.meetingDate(), request.selectedCapacity(), request.planType()));
+        details.apply(room, request.place(), request.selectedCover(), com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull());
         Member host = members.save(Member.host(room.getId(), request.hostNickname().trim(), com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull()));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(SpecCreateRoomResponse.from(room, host)));
     }

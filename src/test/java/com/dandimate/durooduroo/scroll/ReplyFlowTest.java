@@ -84,6 +84,10 @@ class ReplyFlowTest {
         mockMvc.perform(delete("/api/v1/replies/" + fact).header("Authorization", "Bearer " + member))
                 .andExpect(status().isAccepted()).andExpect(jsonPath("$.data.job.type").value("REPLY_REWEAVE"));
         drain();
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() -> {
+            drain();
+            assertThat(JsonPath.<Integer>read(scroll(roomId,host), "$.data.paragraphs[0].version")).isEqualTo(3);
+        });
         String restored = scroll(roomId, host);
         assertThat(JsonPath.<Integer>read(restored, "$.data.paragraphs[0].version")).isEqualTo(3);
         assertThat(JsonPath.<String>read(restored, "$.data.paragraphs[0].body")).doesNotContain("표를 잃어버렸어");

@@ -22,6 +22,55 @@ tags:
 security:
   - sessionCookie: []
 paths:
+  /room-covers:
+    post:
+      tags: [모임방]
+      summary: 방 생성 전 대표 사진 한 장 업로드
+      description: |
+        로그인 및 CSRF 필요. multipart/form-data의 file로 JPEG/PNG 2MB 이하, 1600만 화소 이하를 전송합니다.
+        presigned PUT 방식이 아니라 백엔드가 파일을 검증하고 S3(로컬 환경은 로컬 저장소)에 저장합니다.
+        응답 imageUrl을 방 생성·결제 주문·수정의 coverImageUrl에 넣습니다. coverPhoto.id도 호환 지원합니다. 이야기용 사진 한도에는 포함하지 않습니다.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        '201':
+          description: 업로드 완료. 파일 자체는 DB에 저장하지 않습니다.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: {$ref: '#/components/schemas/CoverPhotoView'}
+        '401': {description: 로그인 필요}
+        '403': {description: CSRF 오류}
+        '413': {description: 파일 용량 초과}
+        '415': {description: JPEG·PNG 외 형식 또는 MIME 불일치}
+        '422': {description: 손상된 이미지 또는 화소 제한 초과}
+  /room-covers/{coverId}/image:
+    get:
+      tags: [모임방]
+      summary: 대표 사진 보기 (업로더 또는 해당 방의 현재 참가자)
+      parameters:
+        - name: coverId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200': {description: 로컬 저장소의 이미지 바이트}
+        '302': {description: 권한 검사 후 유효기간 5분인 S3 GET URL로 이동}
+        '401': {description: 로그인 필요}
+        '403': {description: 열람 권한 없음}
+        '404': {description: 사진 없음}
   /chat/messages:
     post:
       tags:
@@ -758,6 +807,9 @@ paths:
                       type: object
                       required: [roomId, name, status, memberId, nickname, role]
                       properties:
+                        place: {$ref: '#/components/schemas/NullableRoomPlace'}
+                        coverPhoto: {$ref: '#/components/schemas/NullableCoverPhotoView'}
+                        coverImageUrl: {type: [string, "null"], description: "대표 사진 업로드 응답 imageUrl. 같은 서버의 /api/v1/room-covers/{id}/image 주소. 생략하면 유지, 수정 시 null은 삭제"}
                         roomId: {type: string, format: uuid}
                         name: {type: string}
                         status: {type: string}
@@ -968,12 +1020,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/RoomHomeResponse'
         '403': {$ref: '#/components/responses/Forbidden'}
+        '422': {description: 'INVALID_CAPACITY: 정원은 현재 참여 인원 이상, 1~8명이어야 함'}
     patch:
       security:
         - sessionCookie: []
           csrfToken: []
       tags: [모임방]
-      summary: "모임방 설정 수정 (방장 전용)"
+      summary: "모임방 설정·장소·대표 사진 수정 (방장 전용)"
+      description: "place·coverImageUrl 생략 시 유지, null이면 삭제. 본인이 업로드한 대표 사진만 지정 가능합니다. capacity는 방장만 COLLECTING/CIRCULATING 상태에서 현재 참여 인원 이상~8명까지 변경합니다. 정원 오류는 422 INVALID_CAPACITY이며 변경 시 room.updated 이벤트를 보냅니다."
       requestBody:
         required: true
         content:
@@ -981,9 +1035,13 @@ paths:
             schema:
               type: object
               properties:
+                capacity: {type: integer, minimum: 1, maximum: 8, description: "나간 사람을 제외한 현재 인원보다 줄일 수 없음"}
                 name: {type: string, minLength: 1, maxLength: 20}
                 meetingDate: {type: string, format: date}
                 deadlineAt: {type: string, format: date-time}
+                place: {$ref: '#/components/schemas/NullableRoomPlace'}
+                coverPhoto: {$ref: '#/components/schemas/NullableCoverPhotoRef'}
+                coverImageUrl: {type: [string, "null"], description: "대표 사진 업로드 응답 imageUrl. 같은 서버의 /api/v1/room-covers/{id}/image 주소. 생략하면 유지, 수정 시 null은 삭제"}
       responses:
         '200': {$ref: '#/components/responses/Ok'}
         '403': {$ref: '#/components/responses/Forbidden'}
@@ -1116,6 +1174,7 @@ paths:
       description: >-
         장소 이름만 보내면 사진에만 표시됩니다. 장소 검색 결과의 주소와 좌표까지 보내면 내 지도에도 나옵니다.
         도시 이름은 서버가 주소에서 정합니다. WEAVING 중에는 바꿀 수 없습니다.
+        READY와 PROCESSING에서 저장 가능하며 변환 후에도 유지합니다. UPLOADING/FAILED는 409 PHOTO_NOT_READY입니다.
       requestBody:
         required: true
         content:
@@ -1793,6 +1852,31 @@ components:
         application/json:
           schema: {$ref: '#/components/schemas/ErrorResponse'}
   schemas:
+    RoomPlace:
+      type: object
+      required: [placeName, address, latitude, longitude]
+      properties:
+        placeName: {type: string, minLength: 1, maxLength: 200}
+        address: {type: string, maxLength: 500}
+        latitude: {type: number, minimum: -90, maximum: 90}
+        longitude: {type: number, minimum: -180, maximum: 180}
+    NullableRoomPlace:
+      anyOf: [{$ref: '#/components/schemas/RoomPlace'}, {type: 'null'}]
+    CoverPhotoRef:
+      type: object
+      required: [id]
+      properties:
+        id: {type: string, format: uuid, description: "POST /room-covers에서 받은 본인 업로드 ID"}
+    NullableCoverPhotoRef:
+      anyOf: [{$ref: '#/components/schemas/CoverPhotoRef'}, {type: 'null'}]
+    CoverPhotoView:
+      type: object
+      required: [id, imageUrl]
+      properties:
+        id: {type: string, format: uuid}
+        imageUrl: {type: string, description: "API 서버 기준 상대 경로. 같은 도메인의 로그인 쿠키로 조회. S3 사용 시 권한 확인 후 서명 URL로 이동"}
+    NullableCoverPhotoView:
+      anyOf: [{$ref: '#/components/schemas/CoverPhotoView'}, {type: 'null'}]
     ChatAuthor:
       type: object
       required:
@@ -1883,8 +1967,9 @@ components:
       properties:
         data:
           type: object
-          required: [answer, sources, citations, context, decision]
+          required: [answer, sources, citations, context, decision, outcome]
           properties:
+            outcome: {type: string, enum: [ANSWER, CONFLICT, INSUFFICIENT, SMALL_TALK, INVALID, OUT_OF_SCOPE], description: "정상 기록 답변, 기록 충돌, 근거 부족, 잡담, 근거 검증 실패, 서비스 범위 밖"}
             answer: {type: string}
             sources:
               type: array
@@ -2059,6 +2144,9 @@ components:
       required: [name, meetingDate, hostNickname, consent, planType]
       description: "POST /rooms는 FREE 전용. LITE/PRO는 같은 본문으로 POST /payments/room-orders 호출 후 결제 승인을 완료해야 생성됩니다."
       properties:
+        place: {$ref: '#/components/schemas/NullableRoomPlace'}
+        coverPhoto: {$ref: '#/components/schemas/NullableCoverPhotoRef'}
+        coverImageUrl: {type: [string, "null"], description: "대표 사진 업로드 응답 imageUrl. 같은 서버의 /api/v1/room-covers/{id}/image 주소. 생략하면 유지, 수정 시 null은 삭제"}
         planType: {$ref: '#/components/schemas/RoomPlan'}
         capacity: {type: integer, minimum: 1, maximum: 8, default: 8, description: "방장 포함 정원. 생략 시 8명"}
         name: {type: string, minLength: 1, maxLength: 20}
@@ -2080,6 +2168,11 @@ components:
       type: object
       required: [id, name, status, deadlineAt]
       properties:
+        createdAt: {type: string, format: date-time}
+        deadlineChangedByHost: {type: boolean, description: "방장이 이미 마감을 변경했는지. 생성 후 24~72시간 범위에서 한 번만 변경 가능"}
+        place: {$ref: '#/components/schemas/NullableRoomPlace'}
+        coverPhoto: {$ref: '#/components/schemas/NullableCoverPhotoView'}
+        coverImageUrl: {type: [string, "null"], description: "대표 사진 업로드 응답 imageUrl. 같은 서버의 /api/v1/room-covers/{id}/image 주소. 생략하면 유지, 수정 시 null은 삭제"}
         id: {$ref: '#/components/schemas/Id'}
         capacity: {type: integer, minimum: 1, maximum: 8}
         planType: {$ref: '#/components/schemas/RoomPlan'}
@@ -2340,10 +2433,18 @@ components:
                 type: array
                 items:
                   type: object
-                  required: [photoId, roomId, placeName, latitude, longitude]
+                  required: [photoId, roomId, placeName, latitude, longitude, imageUrl, uploader, firstEntrySnippet]
                   properties:
                     photoId: {$ref: '#/components/schemas/Id'}
                     roomId: {$ref: '#/components/schemas/Id'}
+                    imageUrl: {type: [string, "null"], description: "만료되는 이미지 조회 URL"}
+                    uploader:
+                      type: object
+                      properties:
+                        userId: {type: [string, "null"]}
+                        nickname: {type: string}
+                        flowerCode: {type: string}
+                    firstEntrySnippet: {type: [string, "null"], maxLength: 100, description: "첫 한마디 앞 100자. 없는 경우 null"}
                     placeName: {type: string}
                     latitude: {type: number}
                     longitude: {type: number}

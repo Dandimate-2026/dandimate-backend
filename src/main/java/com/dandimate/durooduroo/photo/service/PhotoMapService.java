@@ -30,8 +30,10 @@ public class PhotoMapService {
     private final RoomRepository rooms;
     private final PhotoRepository photos;
     private final MemoryEntryRepository entries;
+    private final com.dandimate.durooduroo.storage.MediaUrls mediaUrls;
 
-    public PhotoMapService(MemberRepository members, RoomRepository rooms, PhotoRepository photos, MemoryEntryRepository entries) {
+    public PhotoMapService(MemberRepository members, RoomRepository rooms, PhotoRepository photos, MemoryEntryRepository entries, com.dandimate.durooduroo.storage.MediaUrls mediaUrls) {
+        this.mediaUrls = mediaUrls;
         this.members = members;
         this.rooms = rooms;
         this.photos = photos;
@@ -44,23 +46,29 @@ public class PhotoMapService {
         Map<String, Room> roomById = rooms.findAllById(roomIds).stream().collect(Collectors.toMap(Room::getId, Function.identity()));
         List<Photo> located = photos.findAllByRoomIdInAndPublishedAtIsNotNullAndLatitudeIsNotNull(roomById.keySet()).stream()
                 .filter(photo -> photo.isReady() && photo.getCity() != null).toList();
-        Map<String, Long> recordsByPhoto = entries.findAllByPhotoIdIn(located.stream().map(Photo::getId).toList()).stream()
+        var photoEntries = entries.findAllByPhotoIdIn(located.stream().map(Photo::getId).toList());
+        var firstByPhoto = photoEntries.stream().filter(entry -> entry.getKind() == com.dandimate.durooduroo.memory.domain.EntryKind.FIRST)
+                .collect(Collectors.toMap(MemoryEntry::getPhotoId, MemoryEntry::getTranscript, (a,b)->a));
+        var uploaders = members.findAllById(located.stream().map(Photo::getMemberId).distinct().toList()).stream()
+                .collect(Collectors.toMap(Member::getId, Function.identity()));
+        Map<String, Long> recordsByPhoto = photoEntries.stream()
                 .collect(Collectors.groupingBy(MemoryEntry::getPhotoId, Collectors.counting()));
 
         List<PhotoMapView.CityPin> cities = located.stream().collect(Collectors.groupingBy(Photo::getCity)).entrySet().stream()
-                .map(city -> cityPin(city.getKey(), city.getValue(), roomById, recordsByPhoto))
+                .map(city -> cityPin(city.getKey(), city.getValue(), roomById, recordsByPhoto, firstByPhoto, uploaders))
                 .sorted(Comparator.comparing((PhotoMapView.CityPin pin) -> latestMeeting(pin)).reversed().thenComparing(PhotoMapView.CityPin::city))
                 .toList();
         return new PhotoMapView(cities);
     }
 
-    private PhotoMapView.CityPin cityPin(String city, List<Photo> cityPhotos, Map<String, Room> roomById, Map<String, Long> recordsByPhoto) {
+    private PhotoMapView.CityPin cityPin(String city, List<Photo> cityPhotos, Map<String, Room> roomById, Map<String, Long> recordsByPhoto, Map<String,String> firstByPhoto, Map<String,Member> uploaders) {
         List<PhotoMapView.RoomItem> roomItems = cityPhotos.stream().collect(Collectors.groupingBy(Photo::getRoomId)).entrySet().stream()
                 .map(room -> roomItem(roomById.get(room.getKey()), room.getValue(), recordsByPhoto))
                 .sorted(Comparator.comparing(PhotoMapView.RoomItem::meetingDate).reversed())
                 .toList();
         List<PhotoMapView.PlaceItem> places = cityPhotos.stream()
-                .map(photo -> new PhotoMapView.PlaceItem(photo.getId(), photo.getRoomId(), photo.getPlaceName(), photo.getLatitude(), photo.getLongitude()))
+                .map(photo -> new PhotoMapView.PlaceItem(photo.getId(), photo.getRoomId(), photo.getPlaceName(), photo.getLatitude(), photo.getLongitude(),
+                    mediaUrls.imageUrl(photo), uploader(uploaders.get(photo.getMemberId())), snippet(firstByPhoto.get(photo.getId()))))
                 .toList();
         return new PhotoMapView.CityPin(city,
                 cityPhotos.stream().mapToDouble(Photo::getLatitude).average().orElseThrow(),
@@ -77,6 +85,13 @@ public class PhotoMapService {
 
     private int records(List<Photo> photos, Map<String, Long> recordsByPhoto) {
         return photos.stream().mapToInt(photo -> recordsByPhoto.getOrDefault(photo.getId(), 0L).intValue()).sum();
+    }
+
+    private PhotoMapView.Uploader uploader(Member member) {
+        return member == null ? null : new PhotoMapView.Uploader(member.getUserId(), member.getNickname(), member.getFlowerCode().name());
+    }
+    private String snippet(String text) {
+        return text == null ? null : text.substring(0, text.offsetByCodePoints(0, Math.min(100, text.codePointCount(0,text.length()))));
     }
 
     private LocalDate latestMeeting(PhotoMapView.CityPin pin) {

@@ -30,6 +30,20 @@ import org.springframework.data.domain.Persistable;
 )
 public class Room implements Persistable<String> {
 
+    @Column(length=200) private String placeName;
+    @Column(length=500) private String placeAddress;
+    private Double placeLatitude;
+    private Double placeLongitude;
+    @Column(length=36) private String coverPhotoId;
+    public com.dandimate.durooduroo.room.dto.RoomPlace getPlace() {
+        return placeName==null?null:new com.dandimate.durooduroo.room.dto.RoomPlace(placeName,placeAddress,placeLatitude,placeLongitude);
+    }
+    public void changePlace(com.dandimate.durooduroo.room.dto.RoomPlace p) {
+        placeName=p==null?null:p.placeName();placeAddress=p==null?null:p.address();
+        placeLatitude=p==null?null:p.latitude();placeLongitude=p==null?null:p.longitude();
+    }
+    public String getCoverPhotoId(){return coverPhotoId;}
+    public void changeCoverPhoto(String id){coverPhotoId=id;}
     public static final int CAPACITY = 8;
     @Column(nullable = false)
     @org.hibernate.annotations.ColumnDefault("8")
@@ -52,6 +66,17 @@ public class Room implements Persistable<String> {
     public void summarizeScroll(String summary) { this.scrollSummary = summary; }
 
     public int getCapacity() { return capacity; }
+    public boolean isDeadlineChangedByHost() { return deadlineChangedByHost; }
+    public String getCoverImageUrl() { return coverPhotoId == null ? null : "/api/v1/room-covers/" + coverPhotoId + "/image"; }
+    public void changeCapacity(int value, long activeMembers) {
+        if (status != RoomStatus.COLLECTING && status != RoomStatus.CIRCULATING)
+            throw new BusinessException(ErrorCode.INVALID_ROOM_STATE, "엮기 전까지만 정원을 바꿀 수 있어요.");
+        if (value < 1 || value > CAPACITY)
+            throw new BusinessException(ErrorCode.INVALID_CAPACITY, "정원은 1~8명이어야 해요.");
+        if (value < activeMembers)
+            throw new BusinessException(ErrorCode.INVALID_CAPACITY, "지금 들어온 " + activeMembers + "명보다 적게는 줄일 수 없어요.");
+        capacity = value;
+    }
     public RoomPlan getPlanType() { return planType; }
     public long getVoiceUsedMs() { return voiceUsedMs; }
     public long getVoiceReservedMs() { return voiceReservedMs; }
@@ -65,7 +90,7 @@ public class Room implements Persistable<String> {
     public static Room create(String title, LocalDate meetingDate, int capacity, RoomPlan planType) {
         java.util.Objects.requireNonNull(planType, "planType");
         if (capacity < 1 || capacity > CAPACITY)
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "정원은 방장 포함 1~8명이어야 합니다.");
+            throw new BusinessException(ErrorCode.INVALID_CAPACITY, "정원은 방장 포함 1~8명이어야 합니다.");
         Room room = new Room(title, meetingDate);
         room.capacity = capacity;
         room.planType = planType;

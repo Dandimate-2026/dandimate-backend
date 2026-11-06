@@ -8,6 +8,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+@org.hibernate.annotations.DynamicUpdate
 @Entity
 @Table(name = "photos")
 public class Photo {

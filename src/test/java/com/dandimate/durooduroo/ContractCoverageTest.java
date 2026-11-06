@@ -176,11 +176,12 @@ class ContractCoverageTest {
         all.removeAll(called);
         // 로그인·세션 API는 이 테스트(참가자 토큰 시나리오, LegacyWorkflowSecurity)에서 부를 수 없다.
         // 실제 보안 설정으로 user/AccountSecurityTest·OAuthCallbackTest, chat/ChatFlowTest가 검사한다.
+        // 대표 사진은 로그인 계정이 필요한 room/RoomDetailsFlowTest에서 업로드·권한·이미지 응답을 검사한다.
         all.removeAll(Set.of("POST /chat/messages", "GET /auth/csrf", "POST /auth/logout", "GET /users/me", "GET /users/me/rooms", "GET /users/me/map",
                 "GET /oauth2/authorization/kakao", "GET /login/oauth2/code/kakao",
                 "PATCH /rooms/{roomId}/members/me", "DELETE /rooms/{roomId}/members/me", "POST /rooms/{roomId}/plan-requests", "POST /rooms/{roomId}/host-transfer",
                 "POST /payments/room-orders", "POST /payments/confirm", "GET /payments/orders/{orderId}",
-                "POST /rooms/{roomId}/plan-orders"));
+                "POST /rooms/{roomId}/plan-orders", "POST /room-covers", "GET /room-covers/{coverId}/image"));
         assertThat(all).as("호출하지 않은 계약서 operation").isEmpty();
         assertThat(problems).as("계약서와 다른 응답").isEmpty();
     }

@@ -37,6 +37,8 @@ class ErrorCodeTableTest {
         SPEC.put("MAX_DURATION_EXCEEDED", 422);
         SPEC.put("UPLOAD_VERIFICATION_FAILED", 422);
         SPEC.put("LIMIT_REACHED", 422);
+        SPEC.put("INVALID_CAPACITY", 422);
+        SPEC.put("PHOTO_NOT_READY", 409);
         SPEC.put("STT_FAILED", 502);
         SPEC.put("AI_INVALID_OUTPUT", 502);
         SPEC.put("AI_TEMPORARILY_UNAVAILABLE", 503);
