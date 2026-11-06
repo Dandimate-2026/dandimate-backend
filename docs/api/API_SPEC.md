@@ -1886,3 +1886,40 @@ Spring 단일 애플리케이션을 먼저 배포하고 Web의 API 주소를 연
 첫 한마디와 덧붙임은 별도 임베딩으로 검색하며 기존 원문 저장은 유지됩니다. 기존 첫 한마디도 백그라운드에서 색인됩니다.
 LLM 호출은 답변당 한 번이며 챗봇에만 medium 추론을 적용합니다. 관련 자료가 작은 경우 전체 허용 기록, 큰 경우 상위 8개 사진을 최대 48,000자 예산으로 전달하므로 모든 기록을 항상 확인하는 것은 아닙니다.
 인용 일치·권한·순위 일관성 검증은 환각의 완전한 방지를 보장하지 않습니다. 신규 DB 마이그레이션은 없습니다.
+
+
+## 방 장소·대표 사진
+
+- `POST /api/v1/room-covers`: 방 생성 전 로그인 후 `multipart/form-data`의 `file` 한 장 업로드. CSRF 필요. JPEG/PNG, 2MB 이하, 1600만 화소 이하. presigned PUT이 아니라 서버에서 검증·메타데이터 정리 후 기존 ObjectStorage(S3/로컬)에 저장한다. 대표 사진은 이야기용 photos에 넣지 않고 플랜 사진 한도에도 포함하지 않는다.
+- 응답 `data: {id, imageUrl}`의 id를 아래 요청에 넣는다. URL이나 S3 key를 임의로 입력하지 않는다.
+- `POST /rooms`, `POST /payments/room-orders`, `PATCH /rooms/{roomId}`에 선택적 `place`, `coverPhoto` 추가. 유료 방은 주문 시 정보를 보관하고 승인 후 생성한 방에 동일하게 반영한다.
+
+```json
+{
+  "place": {"placeName": "경주역", "address": "경주시", "latitude": 35.84, "longitude": 129.21},
+  "coverPhoto": {"id": "업로드 응답의 id"}
+}
+```
+
+- `place`는 `/places/search` 결과의 placeName/address/latitude/longitude를 사용한다. 방 장소는 사진별 location 및 지도 집계와 독립적이다.
+- PATCH에서 두 필드 생략 시 유지, null이면 해제. 방장만 수정하며 대표 사진 교체에는 본인 업로드만 지정한다. 방장이 바뀌어도 이미 지정한 대표 사진은 유지된다.
+- 방 생성 응답·방 홈 `data.room`, 내 방 목록 `data[]`, 방 수정 응답 `data.room`에 `place`와 `coverPhoto: {id,imageUrl}` 반환. 미설정은 null.
+- imageUrl은 API 서버 기준 상대 경로 `/api/v1/room-covers/{id}/image`이다. 같은 도메인의 로그인 세션으로 요청한다. 업로더 또는 해당 사진을 대표 사진으로 사용하는 방의 현재 참가자만 열람 가능하다. S3에서는 5분짜리 서명 GET URL로 리다이렉트한다.
+- 방 수정 후 `room.updated` 이벤트 발행. DB 변경은 `V9__room_place_and_cover.sql`: rooms 장소 4개 컬럼·cover_photo_id, room_covers 업로드 메타데이터 테이블. 이미지 바이너리는 DB에 저장하지 않는다.
+- 대표 사진 업로드는 원본 덮어쓰기 없이 불변 ID로 보관한다. 여러 방에서 같은 본인 업로드를 선택할 수 있으며, 방 연결 해제/삭제는 업로드 파일 자체를 삭제하지 않는다. 미사용 업로드 정리 정책은 별도 운영 작업이다.
+
+
+## 방 정보·정원·지도·챗봇 연동 변경
+- 대표 사진: 로그인 후 CSRF 헤더와 multipart `file`로 `POST /api/v1/room-covers`에 JPEG/PNG(2MB, 1600만 화소 이하)를 업로드한다. 백엔드가 저장소에 저장하고 `{id,imageUrl}`을 반환한다. presigned PUT 방식이 아니다.
+- 반환된 상대 주소 `imageUrl`을 생성(`POST /rooms`, `POST /payments/room-orders`) 또는 수정(`PATCH /rooms/{roomId}`)의 `coverImageUrl`로 보낸다. `coverPhoto.id`도 지원하며 둘을 함께 보내면 일치해야 한다. 임의 외부 URL은 거절한다.
+- 대표 사진은 이야기 사진 한도에서 제외한다. 사진 조회 주소는 업로더 또는 해당 방의 현재 참가자만 사용 가능하며 로그인 쿠키가 필요하다. 미사용 대표 사진은 자동 삭제하지 않는다.
+- 생성·수정 요청의 `place`는 `placeName,address,latitude,longitude`를 받는다. `place`와 `coverImageUrl`은 방 홈·내 방 목록에 포함된다. PATCH에서 생략은 유지, null은 삭제다.
+- 방 정원은 1~8명(혼자 여행 포함). PATCH `capacity`는 방장만 COLLECTING/CIRCULATING에서 변경 가능하고, 나간 사람을 제외한 현재 인원보다 적으면 422 INVALID_CAPACITY다. 성공 시 room.updated를 발행한다. 가득 차면 초대 canJoin=false 및 신규 입장 거절.
+- 방 홈 room의 `createdAt`, `deadlineChangedByHost`로 마감 변경 UI를 제어한다. 서버도 생성 시각 후 24~72시간 범위·미래 시각·한 번만 변경 규칙을 검사한다.
+- 덧붙임의 사진당 개인 2개 제한을 없앴다. 타인의 공개된 사진, CIRCULATING 상태, 기존 글자 수·음성 총량 규칙은 유지한다. 마감 후에는 답가를 사용한다.
+- GET /users/me/map의 places에 imageUrl, uploader(userId/nickname/flowerCode), firstEntrySnippet(최대 100자)을 추가한다. 현재 참여 중인 방의 공개 사진만 반환한다.
+- PUT /photos/{id}/location은 PROCESSING에도 저장한다. 업로드 전/실패 상태는 409 PHOTO_NOT_READY다.
+- POST /chat/messages는 질문 의미를 분류한다. 잡담은 기록 조회 없이 짧게 답변, 서비스 밖 과제는 정중히 안내, 개인 기록·의견·혼합 요청은 권한 검사와 RAG를 통과해야 한다. 특정 인사 문구 목록으로 분기하지 않는다.
+- 챗봇 outcome: ANSWER, CONFLICT, INSUFFICIENT, SMALL_TALK, INVALID, OUT_OF_SCOPE. 기존 answer/sources/citations/context/decision 필드는 유지한다. 잡담·범위 밖은 sources/citations가 빈 배열이며 기록 대화 상태를 덮어쓰지 않는다.
+- 경로 분류는 기록 없이 짧은 LLM 호출 1회, RAG는 기존 임베딩 검색과 답변 LLM 1회다. 답변 후 LLM 재검증 호출은 없다. 압축된 사전 참조로 중복 프로필·UUID·지침을 줄였지만 실제 응답 시간과 추론 토큰은 질문에 따라 달라진다.
+- DB는 새 Flyway V9__room_place_and_cover.sql로만 확장한다. 기존 원문·임베딩 저장 구조는 유지한다. 크레딧·테스트 HTML·더미 데이터는 포함하지 않는다.
