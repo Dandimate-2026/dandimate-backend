@@ -85,7 +85,8 @@ class PhotoLocationMapTest {
         String published = upload(room[0], host), unpublished = upload(room[0], guest), nameOnly = upload(room[0], host);
 
         send(put("/api/v1/photos/" + published + "/location"), host, GYEONGJU)
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.city").value("경주"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.city").value("경주"))
+                .andExpect(jsonPath("$.data.adminAreaCode").value("4713000000"));
         send(put("/api/v1/photos/" + unpublished + "/location"), guest, "{\"placeName\":\"첨성대\",\"address\":\"경북 경주시 인왕동\",\"latitude\":35.84,\"longitude\":129.22}")
                 .andExpect(status().isOk());
         send(put("/api/v1/photos/" + nameOnly + "/location"), host, "{\"placeName\":\"우리집 앞\"}")
@@ -98,15 +99,20 @@ class PhotoLocationMapTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.cities", hasSize(1)))
                 .andExpect(jsonPath("$.data.cities[0].city").value("경주"))
+                .andExpect(jsonPath("$.data.cities[0].adminAreaCode").value("4713000000"))
                 .andExpect(jsonPath("$.data.cities[0].photoCount").value(1))
                 .andExpect(jsonPath("$.data.cities[0].recordCount").value(1))
                 .andExpect(jsonPath("$.data.cities[0].bloomed").value(false))
                 .andExpect(jsonPath("$.data.cities[0].summary").isNotEmpty())
+                .andExpect(jsonPath("$.data.cities[0].summaryStatus").value("READY"))
                 .andExpect(jsonPath("$.data.cities[0].rooms[0].roomId").value(room[0]))
                 .andExpect(jsonPath("$.data.cities[0].rooms[0].scrollReady").value(false))
                 .andExpect(jsonPath("$.data.cities[0].places[0].photoId").value(published))
                 .andExpect(jsonPath("$.data.cities[0].places[0].placeName").value("황리단길 카페"))
                 .andExpect(jsonPath("$.data.cities[0].places[0].placeId").value("123456"))
+                .andExpect(jsonPath("$.data.cities[0].places[0].placeGroupKey").value("kakao:123456"))
+                .andExpect(jsonPath("$.data.cities[0].places[0].recordCount").value(1))
+                .andExpect(jsonPath("$.data.cities[0].places[0].recordIds", hasSize(1)))
                 .andExpect(jsonPath("$.data.cities[0].places[0].imageUrl").isNotEmpty())
                 .andExpect(jsonPath("$.data.cities[0].places[0].uploader.nickname").value("서연"))
                 .andExpect(jsonPath("$.data.cities[0].places[0].uploader.userId").isNotEmpty())
@@ -114,6 +120,10 @@ class PhotoLocationMapTest {
         // 방에 없는 사람에게는 보이지 않는다.
         mvc.perform(get("/api/v1/users/me/map").session(stranger))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.cities", hasSize(0)));
+        mvc.perform(get("/api/v1/users/me/map").param("roomId", room[0]).session(stranger))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/users/me/map").param("roomId", room[0]).session(guest))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.cities", hasSize(1)));
 
         firstEntry(unpublished, guest);
         mvc.perform(get("/api/v1/users/me/map").session(host))

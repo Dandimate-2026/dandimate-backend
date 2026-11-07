@@ -86,21 +86,15 @@ public class WeaveJobService {
 
     /**
      * 마감 시각 도달(mode=SCHEDULED). 스케줄러가 호출하며, 잠근 뒤 상태와 시각을 다시 확인한다.
-     * CIRCULATING은 엮기를 시작하고, COLLECTING(공개 원문 없음)은 한 번 24시간 연장한 뒤 그래도 없으면 빈 두루마리로 끝낸다.
+     * CIRCULATING은 엮기를 시작하고, COLLECTING(공개 원문 없음)은 빈 두루마리 안내 상태로 끝낸다.
      */
     @Transactional
     public void closeIfDue(String roomId, LocalDateTime now) {
         Room room = lockRoom(roomId);
-        if (room.getDeadlineAt().isAfter(now)) return;
+        if (room.getDeadlineAt() == null || room.getDeadlineAt().isAfter(now)) return;
         switch (room.getStatus()) {
             case CIRCULATING -> startWeaving(room);
-            case COLLECTING -> {
-                if (room.extendDeadlineOnce()) {
-                    log.info("Room {} has no entries at deadline; extended once to {}", roomId, room.getDeadlineAt());
-                } else {
-                    room.completeWithoutScroll();
-                }
-            }
+            case COLLECTING -> room.completeWithoutScroll();
             default -> { }
         }
     }

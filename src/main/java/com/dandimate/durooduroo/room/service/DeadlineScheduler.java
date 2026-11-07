@@ -28,7 +28,7 @@ public class DeadlineScheduler {
     @Scheduled(fixedDelayString = "${app.jobs.deadline-check-interval-ms:60000}")
     public void closeDueRooms() {
         LocalDateTime now = LocalDateTime.now();
-        for (Room room : rooms.findAllByStatusInAndDeadlineAtLessThanEqual(List.of(RoomStatus.COLLECTING, RoomStatus.CIRCULATING), now)) {
+        for (Room room : rooms.findAllByStatusInAndDeadlineAtLessThanEqualAndDeadlineChangedByHostTrue(List.of(RoomStatus.COLLECTING, RoomStatus.CIRCULATING), now)) {
             try {
                 weaveJobs.closeIfDue(room.getId(), now);
             } catch (RuntimeException e) {

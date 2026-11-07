@@ -19,4 +19,10 @@ class PlaceCityTest {
         assertThat(PlaceCity.of(null)).isNull();
         assertThat(PlaceCity.of("  ")).isNull();
     }
+
+    @Test void 대구_경북_도시는_경계_연결용_행정구역_코드를_준다() {
+        assertThat(PlaceCity.adminAreaCode("경주")).isEqualTo("4713000000");
+        assertThat(PlaceCity.adminAreaCode("대구")).isEqualTo("2700000000");
+        assertThat(PlaceCity.adminAreaCode("제주")).isNull();
+    }
 }
