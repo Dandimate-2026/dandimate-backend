@@ -22,4 +22,11 @@ public class Notifier {
         events.toMember(roomId, memberId, "notification.created", Map.of("notificationId", notification.getId(), "type", type));
         return notification;
     }
+
+    public Notification notifyScheduled(String roomId, String memberId, String type, String resourceType, String resourceId,
+                                        String message, java.time.LocalDateTime scheduledFor) {
+        Notification notification = notifications.save(Notification.scheduled(memberId, type, resourceType, resourceId, message, scheduledFor));
+        events.toMember(roomId, memberId, "notification.created", Map.of("notificationId", notification.getId(), "type", type));
+        return notification;
+    }
 }

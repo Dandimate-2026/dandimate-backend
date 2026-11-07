@@ -141,18 +141,10 @@ class JobWorkerTest {
     }
 
     @Test
-    void 원문_없이_마감되면_한_번_24시간_연장하고_그래도_없으면_빈_두루마리로_끝낸다() {
+    void 원문_없이_방장이_정한_시각이_되면_자동_연장_없이_빈_두루마리로_끝낸다() {
         String roomId = rooms.save(Room.create("빈 방")).getId();
         moveDeadlineToPast(roomId);
-        LocalDateTime before = rooms.findById(roomId).orElseThrow().getDeadlineAt();
 
-        deadlineScheduler.closeDueRooms();
-        Room extended = rooms.findById(roomId).orElseThrow();
-        assertThat(extended.getStatus()).isEqualTo(RoomStatus.COLLECTING);
-        assertThat(extended.isDeadlineExtended()).isTrue();
-        assertThat(extended.getDeadlineAt()).isEqualTo(before.plusHours(24));
-
-        moveDeadlineToPast(roomId);
         deadlineScheduler.closeDueRooms();
         assertThat(rooms.findById(roomId).orElseThrow().getStatus()).isEqualTo(RoomStatus.GROWING);
         assertThat(jobs.findFirstByRoomIdAndTypeAndStatusInOrderByCreatedAtDesc(roomId, AiJob.WEAVE_SCROLL, AiJob.ACTIVE_STATUSES)).isEmpty();
@@ -173,6 +165,6 @@ class JobWorkerTest {
     }
 
     private void moveDeadlineToPast(String roomId) {
-        jdbc.update("update rooms set deadline_at = ? where id = ?", LocalDateTime.now().minusMinutes(1), roomId);
+        jdbc.update("update rooms set deadline_at = ?, deadline_changed_by_host = true where id = ?", LocalDateTime.now().minusMinutes(1), roomId);
     }
 }

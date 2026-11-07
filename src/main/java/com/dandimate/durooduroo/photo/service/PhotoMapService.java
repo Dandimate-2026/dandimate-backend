@@ -8,6 +8,10 @@ import com.dandimate.durooduroo.member.domain.Member;
 import com.dandimate.durooduroo.member.repository.MemberRepository;
 import com.dandimate.durooduroo.memory.domain.MemoryEntry;
 import com.dandimate.durooduroo.memory.repository.MemoryEntryRepository;
+import com.dandimate.durooduroo.common.exception.BusinessException;
+import com.dandimate.durooduroo.common.exception.ErrorCode;
+import com.dandimate.durooduroo.job.domain.AiJob;
+import com.dandimate.durooduroo.job.repository.AiJobRepository;
 import com.dandimate.durooduroo.photo.domain.Photo;
 import com.dandimate.durooduroo.photo.dto.PhotoMapView;
 import com.dandimate.durooduroo.photo.repository.PhotoRepository;
@@ -31,8 +35,10 @@ public class PhotoMapService {
     private final PhotoRepository photos;
     private final MemoryEntryRepository entries;
     private final com.dandimate.durooduroo.storage.MediaUrls mediaUrls;
+    private final AiJobRepository jobs;
 
-    public PhotoMapService(MemberRepository members, RoomRepository rooms, PhotoRepository photos, MemoryEntryRepository entries, com.dandimate.durooduroo.storage.MediaUrls mediaUrls) {
+    public PhotoMapService(MemberRepository members, RoomRepository rooms, PhotoRepository photos, MemoryEntryRepository entries, com.dandimate.durooduroo.storage.MediaUrls mediaUrls, AiJobRepository jobs) {
+        this.jobs = jobs;
         this.mediaUrls = mediaUrls;
         this.members = members;
         this.rooms = rooms;
@@ -41,8 +47,11 @@ public class PhotoMapService {
     }
 
     @Transactional(readOnly = true)
-    public PhotoMapView map(String userId) {
+    public PhotoMapView map(String userId, String roomId) {
         List<String> roomIds = members.findAllByUserIdAndLeftAtIsNull(userId).stream().map(Member::getRoomId).toList();
+        if (roomId != null && !roomIds.contains(roomId))
+            throw new BusinessException(ErrorCode.FORBIDDEN, "참여 중인 모임방만 지도에서 볼 수 있어요.");
+        if (roomId != null) roomIds = List.of(roomId);
         Map<String, Room> roomById = rooms.findAllById(roomIds).stream().collect(Collectors.toMap(Room::getId, Function.identity()));
         List<Photo> located = photos.findAllByRoomIdInAndPublishedAtIsNotNullAndLatitudeIsNotNull(roomById.keySet()).stream()
                 .filter(photo -> photo.isReady() && photo.getCity() != null).toList();
@@ -51,8 +60,8 @@ public class PhotoMapService {
                 .collect(Collectors.toMap(MemoryEntry::getPhotoId, MemoryEntry::getTranscript, (a,b)->a));
         var uploaders = members.findAllById(located.stream().map(Photo::getMemberId).distinct().toList()).stream()
                 .collect(Collectors.toMap(Member::getId, Function.identity()));
-        Map<String, Long> recordsByPhoto = photoEntries.stream()
-                .collect(Collectors.groupingBy(MemoryEntry::getPhotoId, Collectors.counting()));
+        Map<String, List<MemoryEntry>> recordsByPhoto = photoEntries.stream()
+                .collect(Collectors.groupingBy(MemoryEntry::getPhotoId));
 
         List<PhotoMapView.CityPin> cities = located.stream().collect(Collectors.groupingBy(Photo::getCity)).entrySet().stream()
                 .map(city -> cityPin(city.getKey(), city.getValue(), roomById, recordsByPhoto, firstByPhoto, uploaders))
@@ -61,24 +70,26 @@ public class PhotoMapService {
         return new PhotoMapView(cities);
     }
 
-    private PhotoMapView.CityPin cityPin(String city, List<Photo> cityPhotos, Map<String, Room> roomById, Map<String, Long> recordsByPhoto, Map<String,String> firstByPhoto, Map<String,Member> uploaders) {
+    private PhotoMapView.CityPin cityPin(String city, List<Photo> cityPhotos, Map<String, Room> roomById, Map<String, List<MemoryEntry>> recordsByPhoto, Map<String,String> firstByPhoto, Map<String,Member> uploaders) {
         List<PhotoMapView.RoomItem> roomItems = cityPhotos.stream().collect(Collectors.groupingBy(Photo::getRoomId)).entrySet().stream()
                 .map(room -> roomItem(roomById.get(room.getKey()), room.getValue(), recordsByPhoto, firstByPhoto))
                 .sorted(Comparator.comparing(PhotoMapView.RoomItem::meetingDate).reversed())
                 .toList();
         List<PhotoMapView.PlaceItem> places = cityPhotos.stream()
-                .map(photo -> new PhotoMapView.PlaceItem(photo.getId(), photo.getRoomId(), photo.getPlaceName(), photo.getLatitude(), photo.getLongitude(),
-                    mediaUrls.imageUrl(photo), uploader(uploaders.get(photo.getMemberId())), snippet(firstByPhoto.get(photo.getId())), photo.getPlaceId()))
+                .map(photo -> new PhotoMapView.PlaceItem(photo.getId(), photo.getRoomId(), photo.getPlaceName(), photo.getCity(), photo.getAdminAreaCode(), photo.getLatitude(), photo.getLongitude(),
+                    mediaUrls.imageUrl(photo), uploader(uploaders.get(photo.getMemberId())), snippet(firstByPhoto.get(photo.getId())), photo.getPlaceId(), placeGroupKey(photo),
+                    recordsByPhoto.getOrDefault(photo.getId(), List.of()).size(), recordsByPhoto.getOrDefault(photo.getId(), List.of()).stream().map(MemoryEntry::getId).toList()))
                 .toList();
-        return new PhotoMapView.CityPin(city,
+        String summary = roomItems.stream().map(PhotoMapView.RoomItem::summary).filter(Objects::nonNull).findFirst().orElse(null);
+        return new PhotoMapView.CityPin(city, cityPhotos.get(0).getAdminAreaCode(),
                 cityPhotos.stream().mapToDouble(Photo::getLatitude).average().orElseThrow(),
                 cityPhotos.stream().mapToDouble(Photo::getLongitude).average().orElseThrow(),
                 cityPhotos.size(), records(cityPhotos, recordsByPhoto),
                 roomItems.stream().anyMatch(PhotoMapView.RoomItem::scrollReady),
-                roomItems.stream().map(PhotoMapView.RoomItem::summary).filter(Objects::nonNull).findFirst().orElse(null), roomItems, places);
+                summary, citySummaryStatus(summary, roomItems), roomItems, places);
     }
 
-    private PhotoMapView.RoomItem roomItem(Room room, List<Photo> roomPhotos, Map<String, Long> recordsByPhoto, Map<String,String> firstByPhoto) {
+    private PhotoMapView.RoomItem roomItem(Room room, List<Photo> roomPhotos, Map<String, List<MemoryEntry>> recordsByPhoto, Map<String,String> firstByPhoto) {
         String summary=room.getScrollSummary();
         if(summary==null) {
             String places=roomPhotos.stream().map(Photo::getPlaceName).filter(Objects::nonNull).distinct().sorted().collect(Collectors.joining(", "));
@@ -88,11 +99,34 @@ public class PhotoMapService {
             if(summary.codePointCount(0,summary.length())>200)summary=summary.substring(0,summary.offsetByCodePoints(0,199))+"…";
         }
         return new PhotoMapView.RoomItem(room.getId(), room.getTitle(), room.getMeetingDate(), room.getStatus().name(),
-                room.getStatus() == RoomStatus.GROWING, roomPhotos.size(), records(roomPhotos, recordsByPhoto), summary);
+                room.getStatus() == RoomStatus.GROWING, roomPhotos.size(), records(roomPhotos, recordsByPhoto), summary, summaryStatus(room, summary));
     }
 
-    private int records(List<Photo> photos, Map<String, Long> recordsByPhoto) {
-        return photos.stream().mapToInt(photo -> recordsByPhoto.getOrDefault(photo.getId(), 0L).intValue()).sum();
+    private int records(List<Photo> photos, Map<String, List<MemoryEntry>> recordsByPhoto) {
+        return photos.stream().mapToInt(photo -> recordsByPhoto.getOrDefault(photo.getId(), List.of()).size()).sum();
+    }
+
+    private String summaryStatus(Room room, String summary) {
+        if (summary != null && !summary.isBlank()) return "READY";
+        if (room.getStatus() != RoomStatus.GROWING) return "NONE";
+        return jobs.findFirstByRoomIdAndTypeOrderByCreatedAtDesc(room.getId(), AiJob.SCROLL_SUMMARY)
+                .map(job -> switch (job.getStatus()) {
+                    case "QUEUED", "RUNNING" -> "GENERATING";
+                    case "FAILED" -> "FAILED";
+                    default -> "NONE";
+                }).orElse("NONE");
+    }
+
+    private String citySummaryStatus(String summary, List<PhotoMapView.RoomItem> rooms) {
+        if (summary != null) return "READY";
+        if (rooms.stream().anyMatch(room -> "GENERATING".equals(room.summaryStatus()))) return "GENERATING";
+        if (rooms.stream().anyMatch(room -> "FAILED".equals(room.summaryStatus()))) return "FAILED";
+        return "NONE";
+    }
+
+    private String placeGroupKey(Photo photo) {
+        if (photo.getPlaceId() != null && !photo.getPlaceId().isBlank()) return "kakao:" + photo.getPlaceId();
+        return "coord:" + Math.round(photo.getLatitude() * 100000) + ":" + Math.round(photo.getLongitude() * 100000);
     }
 
     private PhotoMapView.Uploader uploader(Member member) {
@@ -103,6 +137,6 @@ public class PhotoMapService {
     }
 
     private LocalDate latestMeeting(PhotoMapView.CityPin pin) {
-        return pin.rooms().get(0).meetingDate();
+        return pin.rooms().stream().map(PhotoMapView.RoomItem::meetingDate).filter(Objects::nonNull).max(LocalDate::compareTo).orElse(LocalDate.MIN);
     }
 }

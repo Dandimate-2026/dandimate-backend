@@ -34,4 +34,5 @@ public interface AiJobRepository extends JpaRepository<AiJob, String> {
     Optional<AiJob> findFirstByTypeAndTargetIdAndStatus(String type, String targetId, String status);
 
     Optional<AiJob> findFirstByTypeAndTargetIdOrderByCreatedAtDesc(String type, String targetId);
+    Optional<AiJob> findFirstByRoomIdAndTypeOrderByCreatedAtDesc(String roomId, String type);
 }

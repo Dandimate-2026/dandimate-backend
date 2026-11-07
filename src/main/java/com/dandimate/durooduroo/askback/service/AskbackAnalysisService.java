@@ -222,7 +222,7 @@ public class AskbackAnalysisService {
 
     /** 마감 24시간 전부터는 새 질문을 만들지 않는다. */
     private boolean pastQuestionCutoff(Room room) {
-        return !LocalDateTime.now().isBefore(room.getDeadlineAt().minusHours(24));
+        return room.getDeadlineAt() != null && !LocalDateTime.now().isBefore(room.getDeadlineAt().minusHours(24));
     }
 
     private void finish(String jobId) {
