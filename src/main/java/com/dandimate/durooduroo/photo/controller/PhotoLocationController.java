@@ -46,7 +46,7 @@ public class PhotoLocationController {
     }
 
     @GetMapping("/users/me/map")
-    public ApiResponse<PhotoMapView> map() {
-        return ApiResponse.success(maps.map(CurrentUser.requireId()));
+    public ApiResponse<PhotoMapView> map(@RequestParam(required = false) String roomId) {
+        return ApiResponse.success(maps.map(CurrentUser.requireId(), roomId));
     }
 }

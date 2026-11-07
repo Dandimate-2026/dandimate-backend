@@ -37,6 +37,7 @@ public class Photo {
     public String getPlaceId() { return placeId; }
     public void identifyPlace(String value) { placeId = value; }
     @Column(length = 60) private String placeName;
+    @Column(length = 10) private String adminAreaCode;
     @Column(length = 200) private String address;
     @Column(length = 30) private String city;
     private Double latitude;
@@ -59,7 +60,9 @@ public class Photo {
     /** 화면에 보여 줄 위치: 파생본이 있으면 파생본. */
     public String getDisplayLocation() { return derivedUrl != null ? derivedUrl : fileUrl; }
     public void locate(String placeName, String address, String city, Double latitude, Double longitude) {
-        this.placeName = placeName; this.address = address; this.city = city; this.latitude = latitude; this.longitude = longitude;
+        this.placeName = placeName; this.address = address; this.city = city;
+        this.adminAreaCode = PlaceCity.adminAreaCode(city);
+        this.latitude = latitude; this.longitude = longitude;
     }
     public void clearLocation() { locate(null, null, null, null, null); placeId = null; }
     public void publish() { if (publishedAt == null) publishedAt = LocalDateTime.now(); }
@@ -71,5 +74,5 @@ public class Photo {
     public String getId(){return id;} public String getRoomId(){return roomId;} public String getMemberId(){return memberId;}
     public String getFileUrl(){return fileUrl;} public String getStorageKey(){return storageKey;} public String getContentType(){return contentType;} public String getFileHash(){return fileHash;} public int getDisplayOrder(){return displayOrder;}
     public String getStatus(){return status;} public LocalDateTime getPublishedAt(){return publishedAt;} public int getSourceRevision(){return sourceRevision;} public LocalDateTime getCreatedAt(){return createdAt;}
-    public String getPlaceName(){return placeName;} public String getAddress(){return address;} public String getCity(){return city;} public Double getLatitude(){return latitude;} public Double getLongitude(){return longitude;}
+    public String getPlaceName(){return placeName;} public String getAddress(){return address;} public String getCity(){return city;} public String getAdminAreaCode(){return adminAreaCode;} public Double getLatitude(){return latitude;} public Double getLongitude(){return longitude;}
 }

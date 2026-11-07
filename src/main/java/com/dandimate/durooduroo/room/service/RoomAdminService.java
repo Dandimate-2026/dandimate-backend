@@ -92,6 +92,18 @@ public class RoomAdminService {
     public void delete(String roomId, String authorization) {
         requireHostRoom(roomId, authorization);
         com.dandimate.durooduroo.payment.PaymentGuard.requireIdle(paymentOrders, roomId);
+        deleteData(roomId);
+    }
+
+    /** 보존 기간 만료 방을 시스템이 삭제한다. 호출 전에 대상과 시각을 다시 확인해야 한다. */
+    @Transactional
+    public void deleteExpired(String roomId, LocalDateTime now) {
+        Room room = rooms.findByIdForUpdate(roomId).orElse(null);
+        if (room == null || room.getDeleteAt().isAfter(now)) return;
+        deleteData(roomId);
+    }
+
+    private void deleteData(String roomId) {
         for (String entity : PARAGRAPH_SCOPED) {
             em.createQuery("delete from " + entity + " x where x.paragraphId in (select p.id from Paragraph p where p.roomId = :roomId)")
                     .setParameter("roomId", roomId).executeUpdate();

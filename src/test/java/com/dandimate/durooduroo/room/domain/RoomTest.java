@@ -25,7 +25,7 @@ class RoomTest {
     }
 
     @Test
-    void 마감_시각_기본값은_생성_후_48시간이다() {
+    void 방장이_정하기_전_호환용_마감값은_생성_후_48시간이다() {
         Room room = Room.create("경주");
 
         assertThat(room.getStatus()).isEqualTo(RoomStatus.COLLECTING);

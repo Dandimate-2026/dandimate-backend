@@ -74,9 +74,9 @@ public class RoomHomeService {
         RoomHomeView.MemberStats myStats = stats.stream().filter(s -> s.id().equals(me.getId())).findFirst().orElseThrow();
 
         List<Member> allMembers = members.findAllByRoomId(roomId);
-        LocalDate today = LocalDate.now(SERVICE_ZONE);
+        // 이름은 이전 앱 호환 때문에 todayFlowers로 유지하지만, 정책상 날짜 제한 없이 모든 핀 꽃을 내려준다.
         List<RoomHomeView.TodayFlower> todayFlowers = roomEntries.stream()
-                .filter(e -> (e.getKind() == EntryKind.FIRST || e.getKind() == EntryKind.ADDON) && isOn(e.getCreatedAt(), today))
+                .filter(e -> e.getKind() == EntryKind.FIRST || e.getKind() == EntryKind.ADDON)
                 .map(e -> new RoomHomeView.TodayFlower(e.getMemberId(), flowerOf(e.getMemberId(), allMembers), e.getKind().name()))
                 .toList();
 
@@ -93,7 +93,7 @@ public class RoomHomeService {
 
         return new RoomHomeView(
                 new RoomHomeView.RoomSummary(room.getId(), room.getTitle(), room.getMeetingDate(), room.getStatus().name(), room.getDeadlineAt(), room.getCapacity(), room.getPlanType().name(),
-                        com.dandimate.durooduroo.room.dto.RoomQuotaView.from(room, roomPhotos.size(), myStats.photoCount()), room.getPlace(), com.dandimate.durooduroo.room.dto.CoverPhotoView.from(room.getCoverPhotoId()), room.getCoverImageUrl(), room.getCreatedAt(), room.isDeadlineChangedByHost()),
+                        com.dandimate.durooduroo.room.dto.RoomQuotaView.from(room, roomPhotos.size(), myStats.photoCount()), room.getPlace(), com.dandimate.durooduroo.room.dto.CoverPhotoView.from(room.getCoverPhotoId()), room.getCoverImageUrl(), room.getCreatedAt(), room.getDeleteAt(), room.isDeadlineChangedByHost()),
                 myStats, stats, todayFlowers, new RoomHomeView.MyTodo(needsFirstEntry, pending, topAskback),
                 notifications.countByMemberIdAndReadAtIsNull(me.getId()), allCompleted);
     }
@@ -129,9 +129,13 @@ public class RoomHomeService {
         int photoCount = (int) roomPhotos.stream().filter(p -> p.getMemberId().equals(member.getId())).count();
         int storyCount = (int) roomEntries.stream()
                 .filter(e -> e.getMemberId().equals(member.getId()) && (e.getKind() == EntryKind.FIRST || e.getKind() == EntryKind.ADDON)).count();
-        List<Photo> othersPublished = published.stream().filter(p -> !p.getMemberId().equals(member.getId())).toList();
-        long answered = othersPublished.stream().filter(p -> responded.contains(p.getId() + ":" + member.getId())).count();
-        double responseRate = othersPublished.isEmpty() ? 0.0 : (double) answered / othersPublished.size();
+        Set<String> participatedPhotoIds = new HashSet<>();
+        published.stream().filter(p -> p.getMemberId().equals(member.getId())).map(Photo::getId).forEach(participatedPhotoIds::add);
+        roomEntries.stream()
+                .filter(e -> e.getMemberId().equals(member.getId()) && (e.getKind() == EntryKind.FIRST || e.getKind() == EntryKind.ADDON))
+                .map(MemoryEntry::getPhotoId).forEach(participatedPhotoIds::add);
+        // 참여율 = 전체 공개 사진 중 이 사람이 사진을 올렸거나 이야기를 남긴 고유 사진의 비율. 패스는 참여로 세지 않는다.
+        double responseRate = published.isEmpty() ? 0.0 : (double) participatedPhotoIds.size() / published.size();
         return new RoomHomeView.MemberStats(member.getId(), member.getNickname(), member.getRole().name(), member.getFlowerCode().name(),
                 photoCount, storyCount, responseRate);
     }

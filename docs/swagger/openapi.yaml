@@ -905,6 +905,12 @@ paths:
       description: >-
         내가 참여 중인 방에서 공개된, 좌표가 있는 사진을 도시별로 묶어 돌려줍니다. 최근 모임 날짜 순입니다.
         bloomed는 완성된 두루마리가 있는지를 뜻합니다. recordCount는 첫 한마디·덧붙임·되묻기 답의 합입니다.
+        roomId를 보내면 현재 사용자가 참여 중인 해당 모임방 기록만 집계합니다.
+      parameters:
+        - name: roomId
+          in: query
+          required: false
+          schema: {type: string, format: uuid}
       responses:
         '200':
           description: 도시별 핀 (없으면 빈 배열)
@@ -2255,6 +2261,7 @@ components:
       required: [id, name, status, deadlineAt]
       properties:
         createdAt: {type: string, format: date-time}
+        deleteAt: {type: string, format: date-time, description: "방 생성 완료일로부터 1년 뒤 자동 삭제 예정 시각"}
         deadlineChangedByHost: {type: boolean, description: "방장의 마감 변경 이력 여부. 엮기 전까지 미래 시각으로 횟수 제한 없이 변경 가능"}
         place: {$ref: '#/components/schemas/NullableRoomPlace'}
         coverPhoto: {$ref: '#/components/schemas/NullableCoverPhotoView'}
@@ -2268,7 +2275,7 @@ components:
         name: {type: string}
         meetingDate: {type: string, format: date}
         status: {$ref: '#/components/schemas/RoomStatus'}
-        deadlineAt: {type: string, format: date-time}
+        deadlineAt: {type: string, format: date-time, description: "방장이 선택한 기록 마감·두루마리 생성 시작 시각. deadlineChangedByHost=false이면 아직 선택 전인 호환용 임시값"}
     InvitePreviewResponse:
       type: object
       required: [data]
@@ -2321,6 +2328,7 @@ components:
               type: array
               items: {$ref: '#/components/schemas/Member'}
             todayFlowers:
+              description: "이전 필드명 호환. 날짜 제한 없이 방에 핀 꽃 전체를 반환합니다."
               type: array
               items:
                 type: object
@@ -2476,6 +2484,7 @@ components:
         placeName: {type: string, maxLength: 60}
         address: {type: [string, 'null']}
         city: {type: [string, 'null'], description: "주소에서 뽑은 도시 이름. 예: 경주"}
+        adminAreaCode: {type: [string, 'null'], description: "시·군 단위 10자리 행정구역 코드"}
         latitude: {type: [number, 'null']}
         longitude: {type: [number, 'null']}
     Place:
@@ -2486,6 +2495,7 @@ components:
         placeName: {type: string}
         address: {type: string}
         city: {type: [string, 'null']}
+        adminAreaCode: {type: [string, 'null'], description: "시·군 단위 10자리 행정구역 코드. 현재 대구·경북만 제공"}
         latitude: {type: number}
         longitude: {type: number}
     PhotoMap:
@@ -2496,20 +2506,22 @@ components:
           type: array
           items:
             type: object
-            required: [city, latitude, longitude, photoCount, recordCount, bloomed, summary, rooms, places]
+            required: [city, adminAreaCode, latitude, longitude, photoCount, recordCount, bloomed, summary, summaryStatus, rooms, places]
             properties:
               city: {type: string}
+              adminAreaCode: {type: [string, 'null']}
               latitude: {type: number}
               longitude: {type: number}
               photoCount: {type: integer}
               recordCount: {type: integer}
               bloomed: {type: boolean}
               summary: {type: [string, 'null'], maxLength: 200, description: "완성 전 방도 포함. 공개 첫 한마디 요약 또는 장소·기록 발췌. 잠긴 덧붙임은 제외"}
+              summaryStatus: {type: string, enum: [NONE, GENERATING, READY, FAILED]}
               rooms:
                 type: array
                 items:
                   type: object
-                  required: [roomId, name, meetingDate, status, scrollReady, photoCount, recordCount, summary]
+                  required: [roomId, name, meetingDate, status, scrollReady, photoCount, recordCount, summary, summaryStatus]
                   properties:
                     roomId: {$ref: '#/components/schemas/Id'}
                     name: {type: string}
@@ -2519,11 +2531,12 @@ components:
                     photoCount: {type: integer}
                     recordCount: {type: integer}
                     summary: {type: [string, 'null'], maxLength: 200}
+                    summaryStatus: {type: string, enum: [NONE, GENERATING, READY, FAILED]}
               places:
                 type: array
                 items:
                   type: object
-                  required: [photoId, roomId, placeName, latitude, longitude, imageUrl, uploader, firstEntrySnippet]
+                  required: [photoId, roomId, placeName, city, adminAreaCode, latitude, longitude, imageUrl, uploader, firstEntrySnippet, placeGroupKey, recordCount, recordIds]
                   properties:
                     photoId: {$ref: '#/components/schemas/Id'}
                     roomId: {$ref: '#/components/schemas/Id'}
@@ -2536,9 +2549,16 @@ components:
                         flowerCode: {type: string}
                     firstEntrySnippet: {type: [string, "null"], maxLength: 100, description: "첫 한마디 앞 100자. 없는 경우 null"}
                     placeId: {type: [string, "null"]}
+                    placeGroupKey: {type: string, description: "같은 장소 묶음 기준. 카카오 장소 ID가 있으면 이를 우선 사용"}
                     placeName: {type: string}
+                    city: {type: string}
+                    adminAreaCode: {type: [string, 'null']}
                     latitude: {type: number}
                     longitude: {type: number}
+                    recordCount: {type: integer, minimum: 0}
+                    recordIds:
+                      type: array
+                      items: {$ref: '#/components/schemas/Id'}
     Askback:
       type: object
       required: [id, photo, gapType, question, evidenceNicknames, status, createdAt, expiresAt]
@@ -2686,9 +2706,11 @@ components:
       required: [id, type, resourceType, resourceId, createdAt]
       properties:
         id: {$ref: '#/components/schemas/Id'}
-        type: {type: string, enum: [ASKBACK_RECEIVED, SCROLL_READY, REPLY_APPLIED, PLAN_UPGRADE_REQUESTED]}
+        type: {type: string, enum: [ASKBACK_RECEIVED, SCROLL_READY, REPLY_APPLIED, PLAN_UPGRADE_REQUESTED, ROOM_DELETION_DUE_30D, ROOM_DELETION_DUE_7D, ROOM_DELETION_DUE_1D]}
         resourceType: {type: string}
         resourceId: {$ref: '#/components/schemas/Id'}
+        message: {type: [string, 'null']}
+        scheduledFor: {type: [string, 'null'], format: date-time, description: "자동 삭제 예정 시각"}
         readAt: {type: [string, 'null'], format: date-time}
         createdAt: {type: string, format: date-time}
     ErrorResponse:

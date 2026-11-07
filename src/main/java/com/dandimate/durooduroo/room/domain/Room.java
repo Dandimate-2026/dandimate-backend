@@ -116,8 +116,6 @@ public class Room implements Persistable<String> {
         if (success) voiceUsedMs += durationMs;
     }
     private static final int DEFAULT_DEADLINE_HOURS = 48;
-    private static final int AUTO_EXTENSION_HOURS = 24;
-
     @Id
     @Column(length = 36, nullable = false, updatable = false)
     private String id;
@@ -188,6 +186,7 @@ public class Room implements Persistable<String> {
         this.meetingDate = meetingDate;
         this.status = RoomStatus.COLLECTING;
         this.createdAt = LocalDateTime.now();
+        // 호환용 임시값. 방장이 날짜를 정하기 전에는 스케줄러가 이 값을 사용하지 않는다.
         this.deadlineAt = createdAt.plusHours(DEFAULT_DEADLINE_HOURS);
     }
 
@@ -241,12 +240,9 @@ public class Room implements Persistable<String> {
         this.deadlineChangedByHost = true;
     }
 
-    /** COLLECTING에서 마감 시각이 지났는데 공개 원문이 없으면 한 번만 24시간 연장한다. 이미 연장했으면 false. */
+    /** 예전 방의 호환을 위해 남겨 둔 상태. 새 방은 자동 연장하지 않는다. */
     public boolean extendDeadlineOnce() {
-        if (status != RoomStatus.COLLECTING || deadlineExtended) return false;
-        deadlineExtended = true;
-        deadlineAt = deadlineAt.plusHours(AUTO_EXTENSION_HOURS);
-        return true;
+        return false;
     }
 
     /** 연장 후에도 원문이 없으면 AI 작업 없이 빈 두루마리 안내 상태(GROWING)로 끝낸다. */
@@ -318,5 +314,10 @@ public class Room implements Persistable<String> {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    /** 방 생성 완료일 기준 1년 뒤 삭제 예정 시각. */
+    public LocalDateTime getDeleteAt() {
+        return createdAt.plusYears(1);
     }
 }

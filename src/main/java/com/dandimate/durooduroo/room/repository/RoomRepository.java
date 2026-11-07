@@ -24,6 +24,8 @@ public interface RoomRepository extends JpaRepository<Room, String> {
     Optional<Room> findByInviteTokenHashForUpdate(@Param("hash") String hash);
 
     List<Room> findAllByStatusInAndDeadlineAtLessThanEqual(Collection<RoomStatus> statuses, LocalDateTime now);
+    List<Room> findAllByStatusInAndDeadlineAtLessThanEqualAndDeadlineChangedByHostTrue(Collection<RoomStatus> statuses, LocalDateTime now);
+    List<Room> findAllByCreatedAtLessThanEqual(LocalDateTime cutoff);
 
     /** 초대 토큰 원문으로 방을 찾는다. 기존 방의 이전 링크도 계속 유효하다. */
     default Optional<Room> findByInviteToken(String rawInviteToken) {

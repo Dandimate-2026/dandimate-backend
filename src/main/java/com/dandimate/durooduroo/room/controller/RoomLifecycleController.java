@@ -36,6 +36,7 @@ public class RoomLifecycleController {
         summary.put("place",room.getPlace()); summary.put("coverPhoto",com.dandimate.durooduroo.room.dto.CoverPhotoView.from(room.getCoverPhotoId()));
         summary.put("capacity", room.getCapacity());
         summary.put("createdAt", room.getCreatedAt());
+        summary.put("deleteAt", room.getDeleteAt());
         summary.put("deadlineChangedByHost", room.isDeadlineChangedByHost());
         summary.put("coverImageUrl", room.getCoverImageUrl());
         return ApiResponse.success(Map.of("room",summary));
