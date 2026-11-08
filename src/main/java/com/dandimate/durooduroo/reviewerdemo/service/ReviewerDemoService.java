@@ -102,8 +102,12 @@ public class ReviewerDemoService {
         completedRoom.changeScrollTemplate("ANDONG");
         Member jiwon = members.save(Member.host(completedRoom.getId(), "지원"));
         Member completedReviewer = members.save(Member.join(completedRoom.getId(), "운영진", FlowerCode.CANOLA, userId));
-        Photo completedPhoto = seedPhoto(completedRoom, completedReviewer, "하회마을", "안동 하회마을", "안동", 36.5391, 128.5175,
-                "gyeongju-cafe.jpeg", "기와지붕 사이로 들어오는 햇빛이 포근해서, 오늘의 속도를 조금 늦추고 싶었어요.");
+        Photo completedPhoto = seedPhoto(completedRoom, completedReviewer, "하회탈 전시", "안동", "안동", 36.5391, 128.5175,
+                "andong-hahoe-mask.jpeg", "커다란 하회탈 앞에서 웃는 얼굴을 따라 해 보며 한참 장난쳤어요.");
+        seedPhoto(completedRoom, jiwon, "안동찜닭", "안동", "안동", 36.5668, 128.7294,
+                "andong-jjimdak.jpeg", "따끈한 안동찜닭을 앞에 두고, 각자 좋아하는 재료부터 골라 먹었어요.");
+        seedPhoto(completedRoom, completedReviewer, "월영교", "안동 월영교", "안동", 36.5737, 128.7210,
+                "andong-wolyeonggyo-night.jpeg", "월영교의 불빛이 물결 위에 번지는 모습을 보며 천천히 하루를 마무리했어요.");
         MemoryEntry support = entries.save(MemoryEntry.confirm(completedRoom.getId(), completedPhoto.getId(), jiwon.getId(),
                 EntryKind.ADDON, "TEXT", null, null, "골목 끝에서 다 같이 멈춰 서서 사진을 찍던 순간이 가장 기억나요."));
         completedRoom.startCirculating();
