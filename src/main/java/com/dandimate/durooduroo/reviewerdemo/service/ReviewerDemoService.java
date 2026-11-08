@@ -16,6 +16,7 @@ import com.dandimate.durooduroo.reviewerdemo.repository.ReviewerDemoSessionRepos
 import com.dandimate.durooduroo.room.domain.Room;
 import com.dandimate.durooduroo.room.domain.RoomPlan;
 import com.dandimate.durooduroo.room.repository.RoomRepository;
+import com.dandimate.durooduroo.room.service.RoomAdminService;
 import com.dandimate.durooduroo.scroll.domain.Paragraph;
 import com.dandimate.durooduroo.scroll.domain.ParagraphSource;
 import com.dandimate.durooduroo.scroll.domain.Scroll;
@@ -37,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class ReviewerDemoService {
+    private static final int CURRENT_SEED_VERSION = 2;
 
     private final ReviewerDemoSessionRepository sessions;
     private final RoomRepository rooms;
@@ -47,24 +49,34 @@ public class ReviewerDemoService {
     private final ParagraphRepository paragraphs;
     private final ParagraphSourceRepository sources;
     private final ObjectStorage storage;
+    private final RoomAdminService roomAdmin;
     private final boolean enabled;
 
     public ReviewerDemoService(ReviewerDemoSessionRepository sessions, RoomRepository rooms, MemberRepository members,
                                PhotoRepository photos, MemoryEntryRepository entries, ScrollRepository scrolls,
-                               ParagraphRepository paragraphs, ParagraphSourceRepository sources, ObjectStorage storage,
+                               ParagraphRepository paragraphs, ParagraphSourceRepository sources, ObjectStorage storage, RoomAdminService roomAdmin,
                                @Value("${app.reviewer-demo.enabled:false}") boolean enabled) {
         this.sessions = sessions; this.rooms = rooms; this.members = members; this.photos = photos; this.entries = entries;
-        this.scrolls = scrolls; this.paragraphs = paragraphs; this.sources = sources; this.storage = storage; this.enabled = enabled;
+        this.scrolls = scrolls; this.paragraphs = paragraphs; this.sources = sources; this.storage = storage; this.roomAdmin = roomAdmin; this.enabled = enabled;
     }
 
     @Transactional
     public ReviewerDemoView activate(String userId) {
         if (!enabled) throw new BusinessException(ErrorCode.FORBIDDEN, "심사용 데모는 아직 열려 있지 않아요.");
         var existing = sessions.findByUserId(userId);
-        if (existing.isPresent() && allRoomsExist(existing.get())) return view(existing.get());
-        // 데모 방을 관리자가 지운 경우에는 같은 사용자에게 새 묶음을 다시 만든다.
-        existing.ifPresent(sessions::delete);
+        if (existing.isPresent() && allRoomsExist(existing.get())
+                && existing.get().getSeedVersion() == CURRENT_SEED_VERSION) return view(existing.get());
+        // 사진/예시 내용이 바뀌었거나 데모 방을 관리자가 지운 경우 새 묶음으로 교체한다.
+        existing.ifPresent(this::removeExistingDemo);
         return create(userId);
+    }
+
+    private void removeExistingDemo(ReviewerDemoSession session) {
+        sessions.delete(session);
+        sessions.flush();
+        roomAdmin.deleteReviewerDemoRoom(session.getHostRoomId());
+        roomAdmin.deleteReviewerDemoRoom(session.getMemberRoomId());
+        roomAdmin.deleteReviewerDemoRoom(session.getCompletedRoomId());
     }
 
     private boolean allRoomsExist(ReviewerDemoSession session) {
@@ -120,7 +132,7 @@ public class ReviewerDemoService {
         sources.save(ParagraphSource.of(paragraph.getId(), support.getId(), jiwon.getId(), support.getTranscript(), 1));
 
         rooms.save(hostRoom); rooms.save(memberRoom); rooms.save(completedRoom);
-        ReviewerDemoSession session = sessions.save(ReviewerDemoSession.create(userId, hostRoom.getId(), memberRoom.getId(), completedRoom.getId()));
+        ReviewerDemoSession session = sessions.save(ReviewerDemoSession.create(userId, hostRoom.getId(), memberRoom.getId(), completedRoom.getId(), CURRENT_SEED_VERSION));
         return view(session);
     }
 

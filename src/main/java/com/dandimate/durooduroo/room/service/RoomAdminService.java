@@ -114,6 +114,12 @@ public class RoomAdminService {
         deleteData(roomId);
     }
 
+    /** 심사용 자동 생성 방만 다시 만들 때 사용한다. 외부 API에는 노출하지 않는다. */
+    @Transactional
+    public void deleteReviewerDemoRoom(String roomId) {
+        deleteData(roomId);
+    }
+
     private void deleteData(String roomId) {
         for (String entity : PARAGRAPH_SCOPED) {
             em.createQuery("delete from " + entity + " x where x.paragraphId in (select p.id from Paragraph p where p.roomId = :roomId)")
