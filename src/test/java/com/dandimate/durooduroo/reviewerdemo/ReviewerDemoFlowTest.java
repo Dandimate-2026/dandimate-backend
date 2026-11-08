@@ -98,6 +98,54 @@ class ReviewerDemoFlowTest {
         assertThat(rooms.findById(newHostRoomId)).isPresent();
     }
 
+    @Autowired com.dandimate.durooduroo.chat.repository.ChatMessageRepository chatMessages;
+    @Autowired com.dandimate.durooduroo.chat.service.ChatConversationService conversations;
+    @Autowired com.dandimate.durooduroo.chat.service.ChatRecordAccess access;
+    @Autowired com.dandimate.durooduroo.photo.repository.PhotoRepository photos;
+    @Autowired com.dandimate.durooduroo.memory.repository.MemoryEntryRepository entries;
+    @Autowired com.dandimate.durooduroo.embedding.service.EmbeddingIndexService embeddings;
+    @Autowired com.dandimate.durooduroo.embedding.repository.MemoryEmbeddingRepository vectors;
+    @Autowired com.dandimate.durooduroo.job.repository.AiJobRepository jobs;
+    @Autowired com.dandimate.durooduroo.reviewerdemo.service.ReviewerDemoService demos;
+
+    @Test
+    void toggleRemovesDemoAndDerivedDataButPreservesRealSameCityRecords() throws Exception {
+        String user=accounts.findOrCreate(UUID.randomUUID().toString());
+        var browser=session(user);
+        var real=rooms.save(com.dandimate.durooduroo.room.domain.Room.create("실제 경주",java.time.LocalDate.now(),4,com.dandimate.durooduroo.room.domain.RoomPlan.FREE));
+        real.summarizeScroll("실제 경주 기록만 있는 요약");rooms.save(real);
+        var host=members.save(com.dandimate.durooduroo.member.domain.Member.host(real.getId(),"나",user));
+        var photo=com.dandimate.durooduroo.photo.domain.Photo.pending(UUID.randomUUID().toString(),real.getId(),host.getId(),"real.jpeg","real.jpeg","image/jpeg",0);
+        photo.complete("real-hash");photo.locate("첨성대","경주","경주",35.8,129.2);photo.publish();photos.save(photo);
+        var realEntry=entries.save(com.dandimate.durooduroo.memory.domain.MemoryEntry.confirm(real.getId(),photo.getId(),host.getId(),com.dandimate.durooduroo.memory.domain.EntryKind.FIRST,"TEXT",null,null,"실제 여행 기록"));
+        var original=chatMessages.save(com.dandimate.durooduroo.chat.domain.ChatMessage.of(user,"same-conversation","ASSISTANT","실제 기록 답변"));
+        mvc.perform(get("/api/v1/reviewer-demo").session(browser)).andExpect(jsonPath("$.data.enabled").value(false));
+        String body=mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/reviewer-demo").session(browser).with(csrf()).contentType("application/json").content("{\"enabled\":true}"))
+          .andExpect(status().isOk()).andExpect(jsonPath("$.data.rooms.length()").value(3)).andReturn().getResponse().getContentAsString();
+        String demoHost=JsonPath.read(body,"$.data.hostRoomId");
+        String scope=demoSessions.findByUserId(user).orElseThrow().getId();
+        var mixed=com.dandimate.durooduroo.chat.domain.ChatMessage.of(user,"same-conversation","ASSISTANT","실제+데모 경주 답변");mixed.setDemoScope(scope);chatMessages.save(mixed);
+        assertThat(conversations.history(user,"same-conversation")).extracting(com.dandimate.durooduroo.chat.domain.ChatMessage::getContent).containsExactly("실제+데모 경주 답변");
+        var demoEntry=entries.findAllByPhotoId(photos.findAllByRoomId(demoHost).getFirst().getId()).getFirst();embeddings.enqueue(demoEntry);
+        assertThat(vectors.existsById(demoEntry.getId())).isTrue();
+        String other=accounts.findOrCreate(UUID.randomUUID().toString());var otherDemo=demos.activate(other);
+        assertThat(demos.activate(user).hostRoomId()).isEqualTo(demoHost);
+        mvc.perform(get("/api/v1/users/me/map").session(browser)).andExpect(status().isOk()).andExpect(jsonPath("$.data.cities.length()").value(3));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/reviewer-demo").session(browser).with(csrf()).contentType("application/json").content("{\"enabled\":false}"))
+          .andExpect(status().isOk()).andExpect(jsonPath("$.data.enabled").value(false)).andExpect(jsonPath("$.data.rooms.length()").value(0));
+        assertThat(rooms.existsById(demoHost)).isFalse();assertThat(vectors.existsById(demoEntry.getId())).isFalse();
+        assertThat(chatMessages.existsById(mixed.getId())).isFalse();assertThat(chatMessages.existsById(original.getId())).isTrue();
+        assertThat(access.load(user,false).keySet()).containsExactly(realEntry.getId());
+        assertThat(conversations.history(user,"same-conversation")).extracting(com.dandimate.durooduroo.chat.domain.ChatMessage::getContent).containsExactly("실제 기록 답변");
+        assertThat(rooms.existsById(otherDemo.hostRoomId())).isTrue();
+        assertThat(rooms.findById(real.getId()).orElseThrow().getScrollSummary()).isEqualTo("실제 경주 기록만 있는 요약");
+        mvc.perform(get("/api/v1/users/me/map").session(browser)).andExpect(status().isOk()).andExpect(jsonPath("$.data.cities.length()").value(1))
+          .andExpect(jsonPath("$.data.cities[0].summary").value("실제 경주 기록만 있는 요약"));
+        assertThat(jobs.findAll()).anyMatch(j->("reviewer-demo/"+demoHost+"/").equals(j.getTargetId()));
+        assertThat(demos.setEnabled(user,false).enabled()).isFalse();
+        assertThat(demos.setEnabled(user,true).hostRoomId()).isNotEqualTo(demoHost);
+    }
+
     private static MockHttpSession session(String userId) {
         AccountPrincipal principal = new AccountPrincipal(userId);
         var context = SecurityContextHolder.createEmptyContext();

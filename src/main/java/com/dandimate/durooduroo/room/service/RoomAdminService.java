@@ -117,7 +117,12 @@ public class RoomAdminService {
     /** 심사용 자동 생성 방만 다시 만들 때 사용한다. 외부 API에는 노출하지 않는다. */
     @Transactional
     public void deleteReviewerDemoRoom(String roomId) {
-        deleteData(roomId);
+        rooms.findByIdForUpdate(roomId).ifPresent(room -> {
+            events.toRoom(roomId,"room.deleted",java.util.Map.of("roomId",roomId));
+            for(var member:members.findAllByRoomId(roomId)) events.toMember(roomId,member.getId(),"member.left",java.util.Map.of("memberId",member.getId(),"roomId",roomId));
+            deleteData(roomId);
+            jobs.save(AiJob.queued(roomId, AiJob.MEDIA_DELETE, "reviewer-demo/" + roomId + "/"));
+        });
     }
 
     private void deleteData(String roomId) {

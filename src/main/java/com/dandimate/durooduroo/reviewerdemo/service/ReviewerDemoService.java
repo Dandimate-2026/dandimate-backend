@@ -38,6 +38,22 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class ReviewerDemoService {
+    @org.springframework.beans.factory.annotation.Autowired private DemoScopeService scopes;
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
+
+    @Transactional(readOnly=true)
+    public ReviewerDemoView state(String userId) {
+        return sessions.findByUserId(userId).map(this::view).orElseGet(ReviewerDemoView::off);
+    }
+
+    @Transactional
+    public ReviewerDemoView setEnabled(String userId, boolean active) {
+        scopes.lock(userId);
+        if(active) return activate(userId);
+        sessions.findByUserId(userId).ifPresent(this::removeExistingDemo);
+        return ReviewerDemoView.off();
+    }
+
     private static final int CURRENT_SEED_VERSION = 3;
 
     private final ReviewerDemoSessionRepository sessions;
@@ -62,6 +78,7 @@ public class ReviewerDemoService {
 
     @Transactional
     public ReviewerDemoView activate(String userId) {
+        scopes.lock(userId);
         if (!enabled) throw new BusinessException(ErrorCode.FORBIDDEN, "심사용 데모는 아직 열려 있지 않아요.");
         var existing = sessions.findByUserId(userId);
         if (existing.isPresent() && allRoomsExist(existing.get())
@@ -72,6 +89,8 @@ public class ReviewerDemoService {
     }
 
     private void removeExistingDemo(ReviewerDemoSession session) {
+        em.createQuery("delete from ChatMessage m where m.demoScope = :scope").setParameter("scope",session.getId()).executeUpdate();
+        em.createQuery("update ChatUsage u set u.response = null where u.demoScope = :scope").setParameter("scope",session.getId()).executeUpdate();
         sessions.delete(session);
         sessions.flush();
         roomAdmin.deleteReviewerDemoRoom(session.getHostRoomId());
@@ -172,6 +191,13 @@ public class ReviewerDemoService {
     private record SeededPhoto(Photo photo, MemoryEntry entry) { }
 
     private ReviewerDemoView view(ReviewerDemoSession session) {
-        return new ReviewerDemoView(session.getHostRoomId(), session.getMemberRoomId(), session.getCompletedRoomId());
+        var ids=java.util.List.of(session.getHostRoomId(),session.getMemberRoomId(),session.getCompletedRoomId());
+        var labels=java.util.List.of("HOST","MEMBER","COMPLETED");
+        var views=new java.util.ArrayList<ReviewerDemoView.DemoRoom>();
+        for(int i=0;i<ids.size();i++) {
+            var room=rooms.findById(ids.get(i)).orElse(null);
+            if(room!=null) views.add(new ReviewerDemoView.DemoRoom(room.getId(),room.getTitle(),room.getStatus().name(),i==0?"HOST":"MEMBER",labels.get(i)));
+        }
+        return new ReviewerDemoView(true,session.getHostRoomId(),session.getMemberRoomId(),session.getCompletedRoomId(),views);
     }
 }
