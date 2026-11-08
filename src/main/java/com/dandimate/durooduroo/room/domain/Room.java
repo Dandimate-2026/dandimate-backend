@@ -70,11 +70,14 @@ public class Room implements Persistable<String> {
     public String getScrollTemplateId() { return scrollTemplateId; }
     public void changeScrollTemplate(String templateId) {
         String normalized = templateId == null ? "" : templateId.strip().toUpperCase(java.util.Locale.ROOT);
-        java.util.Set<String> all = java.util.Set.of("CLASSIC", "DAEGU", "GYEONGJU", "ANDONG");
+        if ("MINIMAL".equals(normalized)) normalized = "CLASSIC";
+        java.util.Set<String> all = java.util.Set.of("CLASSIC", "DAEGU", "GYEONGJU", "ANDONG", "POHANG", "YEONGCHEON", "CHRISTMAS");
         if (!all.contains(normalized))
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "지원하지 않는 두루마리 템플릿입니다.");
         if (planType == RoomPlan.FREE && !"CLASSIC".equals(normalized))
             throw new BusinessException(ErrorCode.LIMIT_REACHED, "이 템플릿은 Lite 이상 플랜에서 사용할 수 있어요.");
+        if (planType == RoomPlan.LITE && "CHRISTMAS".equals(normalized))
+            throw new BusinessException(ErrorCode.LIMIT_REACHED, "이 템플릿은 Pro 플랜에서 사용할 수 있어요.");
         scrollTemplateId = normalized;
     }
 
@@ -128,7 +131,6 @@ public class Room implements Persistable<String> {
         voiceReservedMs -= durationMs;
         if (success) voiceUsedMs += durationMs;
     }
-    private static final int DEFAULT_DEADLINE_HOURS = 48;
     @Id
     @Column(length = 36, nullable = false, updatable = false)
     private String id;
@@ -157,7 +159,6 @@ public class Room implements Persistable<String> {
     @Column(nullable = false, length = 20)
     private RoomStatus status;
 
-    @Column(nullable = false)
     private LocalDateTime deadlineAt;
 
     @Column(nullable = false)
@@ -199,8 +200,8 @@ public class Room implements Persistable<String> {
         this.meetingDate = meetingDate;
         this.status = RoomStatus.COLLECTING;
         this.createdAt = LocalDateTime.now();
-        // 호환용 임시값. 방장이 날짜를 정하기 전에는 스케줄러가 이 값을 사용하지 않는다.
-        this.deadlineAt = createdAt.plusHours(DEFAULT_DEADLINE_HOURS);
+        // 방장이 직접 선택하기 전에는 마감·엮기 시각을 정하지 않는다.
+        this.deadlineAt = null;
     }
 
     public static Room create(String title) {

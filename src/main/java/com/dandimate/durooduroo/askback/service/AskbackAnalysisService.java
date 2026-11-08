@@ -159,8 +159,10 @@ public class AskbackAnalysisService {
             return;
         }
         Room room = rooms.findById(prepared.roomId).orElseThrow();
+        // 완성 시각을 정하기 전에도 되묻기는 가능하다. 이 경우 방 보존 만료 시각까지 유효하다.
+        var expiresAt = room.getDeadlineAt() == null ? room.getDeleteAt() : room.getDeadlineAt();
         Askback askback = askbacks.save(Askback.create(prepared.roomId, prepared.photoId, result.targetMemberId(), result.gapType(),
-                result.question().strip(), result.evidenceEntryIds(), room.getDeadlineAt()));
+                result.question().strip(), result.evidenceEntryIds(), expiresAt));
         notifier.notify(prepared.roomId, result.targetMemberId(), "ASKBACK_RECEIVED", "ASKBACK", askback.getId());
         roomEvents.toMember(prepared.roomId, result.targetMemberId(), "askback.created", Map.of("askbackId", askback.getId()));
         events.log(prepared.roomId, result.targetMemberId(), "askback_sent", Map.of("type", result.gapType(), "target", result.targetMemberId()));

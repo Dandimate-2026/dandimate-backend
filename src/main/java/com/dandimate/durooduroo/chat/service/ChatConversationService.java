@@ -25,26 +25,26 @@ public class ChatConversationService {
     public ChatConversationService(ChatService chat) { this.chat = chat; this.messages = null; }
 
     public ChatMessageResponse answer(String userId, ChatMessageRequest request, HttpSession session) {
-        if (request.conversationId() == null) return chat.answer(userId, request.message());
+        String conversationId = request.conversationId() == null || request.conversationId().isBlank() ? UUID.randomUUID().toString() : request.conversationId();
         synchronized (session) {
             State state = (State) session.getAttribute(ATTRIBUTE);
             if (state == null || !state.userId.equals(userId)) state = new State(userId);
-            List<ChatCommand.Turn> history = state.conversations.getOrDefault(request.conversationId(), List.of());
+            List<ChatCommand.Turn> history = state.conversations.getOrDefault(conversationId, List.of());
             ChatMessageResponse response = chat.answer(userId, request.message(), List.copyOf(history));
             if (messages != null) {
-                messages.save(ChatMessage.of(userId, request.conversationId(), "USER", request.message()));
-                messages.save(ChatMessage.of(userId, request.conversationId(), "ASSISTANT", response.answer()));
+                messages.save(ChatMessage.of(userId, conversationId, "USER", request.message()));
+                messages.save(ChatMessage.of(userId, conversationId, "ASSISTANT", response.answer()));
             }
-            if (response.outcome().equals("SMALL_TALK") || response.outcome().equals("OUT_OF_SCOPE")) return response;
+            if (response.outcome().equals("SMALL_TALK") || response.outcome().equals("OUT_OF_SCOPE")) return response.withConversationId(conversationId);
             List<ChatCommand.Turn> updated = new ArrayList<>(history);
             updated.add(new ChatCommand.Turn("judgment_" + UUID.randomUUID(), response.context(),
                     response.citations().stream().map(ChatMessageResponse.Citation::entryId).distinct().toList(), response.decision()));
             if (updated.size() > 8) updated = new ArrayList<>(updated.subList(updated.size() - 8, updated.size()));
-            state.conversations.remove(request.conversationId());
-            state.conversations.put(request.conversationId(), List.copyOf(updated));
+            state.conversations.remove(conversationId);
+            state.conversations.put(conversationId, List.copyOf(updated));
             while (state.conversations.size() > 4) state.conversations.remove(state.conversations.keySet().iterator().next());
             session.setAttribute(ATTRIBUTE, state);
-            return response;
+            return response.withConversationId(conversationId);
         }
     }
 

@@ -11,7 +11,8 @@ public record RoomHomeView(RoomSummary room, MemberStats me, List<MemberStats> m
     public record RoomSummary(String id, String name, LocalDate meetingDate, String status, LocalDateTime deadlineAt, int capacity, String planType, String scrollTemplateId, RoomQuotaView quota, RoomPlace place, CoverPhotoView coverPhoto, String coverImageUrl, LocalDateTime createdAt, LocalDateTime deleteAt, boolean deadlineChangedByHost) {
     }
 
-    public record MemberStats(String id, String nickname, String role, String flowerCode, int photoCount, int storyCount, double responseRate) {
+    public record MemberStats(String id, String nickname, String role, String flowerCode, int photoCount, int storyCount,
+                              int participatedPhotoCount, int totalPhotoCount, double responseRate) {
     }
 
     public record TodayFlower(String memberId, String flowerCode, String entryKind) {
