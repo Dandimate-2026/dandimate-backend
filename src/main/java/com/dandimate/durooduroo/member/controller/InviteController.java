@@ -20,15 +20,18 @@ public class InviteController {
     private final RoomRepository rooms;
     private final MemberRepository members;
     private final MemberService memberService;
+    private final com.dandimate.durooduroo.user.service.ConsentService consents;
 
-    public InviteController(RoomRepository rooms, MemberRepository members, MemberService memberService) {
+    public InviteController(RoomRepository rooms, MemberRepository members, MemberService memberService, com.dandimate.durooduroo.user.service.ConsentService consents) {
         this.rooms = rooms;
         this.members = members;
         this.memberService = memberService;
+        this.consents = consents;
     }
 
     @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.room.invite.RoomInviteService invites;
     @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.room.cover.RoomCoverService covers;
+    @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.reviewerdemo.repository.ReviewerDemoSessionRepository demoSessions;
     @GetMapping("/{inviteToken}")
     public ApiResponse<?> preview(@PathVariable String inviteToken) {
         invites.remember(inviteToken);
@@ -51,7 +54,7 @@ public class InviteController {
         data.put("flowers", roomMembers.stream().map(m -> m.getFlowerCode()).sorted().map(Enum::name).toList());
         data.put("capacity", room.getCapacity());
         boolean kicked=userId!=null && members.findByRoomIdAndUserId(room.getId(),userId).map(m->m.isKicked()).orElse(false);
-        data.put("canJoin", !kicked && count < room.getCapacity());
+        data.put("canJoin", !demoSessions.existsByDemoRoomId(room.getId()) && !kicked && count < room.getCapacity());
         return ApiResponse.success(data);
     }
 
@@ -68,6 +71,7 @@ public class InviteController {
         } catch (IllegalArgumentException e) {
             throw new BusinessException("CONSENT_REQUIRED", e.getMessage());
         }
+        consents.recordIfUser(CurrentUser.idOrNull(), request.consent());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(memberService.joinByInvite(inviteToken, request)));
     }

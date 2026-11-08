@@ -39,11 +39,22 @@ server:
   forward-headers-strategy: framework
 
 app:
+  reviewer-demo:
+    # 심사 기간에만 true로 켠다. 로그인한 사용자별 샘플 방을 한 번만 생성한다.
+    enabled: ${REVIEWER_DEMO_ENABLED:false}
+  consent:
+    # 이 값을 올리면 기존 로그인 사용자는 다음 방 생성·입장 때 최신 버전 동의를 다시 해야 한다.
+    current-version: ${CONSENT_VERSION:v1}
   embedding:
     initial-delay-ms: 60000
     poll-ms: 10000
   chat:
     similarity-threshold: 0.25
+  push:
+    # 웹 푸시를 보낼 때 쓰는 VAPID 공개키. 비우면 구독 API는 동작하되 브라우저 권한 요청은 하지 않는다.
+    vapid-public-key: ${VAPID_PUBLIC_KEY:}
+    vapid-private-key: ${VAPID_PRIVATE_KEY:}
+    vapid-subject: ${VAPID_SUBJECT:mailto:admin@example.com}
   # API 문서(/swagger-ui.html, /openapi/public-api.yaml) 공개 여부
   swagger:
     enabled: ${SWAGGER_ENABLED:true}

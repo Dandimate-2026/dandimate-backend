@@ -129,6 +129,7 @@ public class EntryService {
         embeddingIndex.enqueue(entry);
         if(entry.getKind()==EntryKind.FIRST)summaries.enqueue(entry.getRoomId());
         sourceChanged(entry.getPhotoId());
+        roomEvents.toRoom(entry.getRoomId(), "entry.updated", java.util.Map.of("photoId", entry.getPhotoId(), "entryId", entry.getId()));
         return EntryView.of(entry, members.findById(entry.getMemberId()).orElseThrow(), mediaUrls.audioUrl(entry));
     }
 
@@ -139,6 +140,7 @@ public class EntryService {
         entries.delete(entry);
         if(entry.getKind()==EntryKind.FIRST)summaries.enqueue(entry.getRoomId());
         sourceChanged(entry.getPhotoId());
+        roomEvents.toRoom(entry.getRoomId(), "entry.deleted", java.util.Map.of("photoId", entry.getPhotoId(), "entryId", entry.getId()));
         if (room.getStatus() == com.dandimate.durooduroo.room.domain.RoomStatus.GROWING) replyService.rebuildForPhoto(entry.getRoomId(), entry.getPhotoId());
     }
 

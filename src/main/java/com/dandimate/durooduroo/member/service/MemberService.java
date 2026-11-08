@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class MemberService {
 
+    @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.reviewerdemo.repository.ReviewerDemoSessionRepository demos;
     private final MemberRepository memberRepository;
     private final RoomRepository roomRepository;
     private final com.dandimate.durooduroo.notification.service.RoomEvents events;
@@ -31,6 +32,7 @@ public class MemberService {
     public SpecJoinRoomResponse joinByInvite(String inviteToken, SpecJoinRoomRequest request) {
         Room room = roomRepository.findByInviteTokenHashForUpdate(com.dandimate.durooduroo.common.auth.Tokens.hash(inviteToken))
                 .orElseThrow(() -> new BusinessException("INVITE_NOT_FOUND", "유효하지 않은 초대 토큰입니다."));
+        if(demos.existsByDemoRoomId(room.getId())) throw new BusinessException("FORBIDDEN","심사용 방에는 초대 링크로 참여할 수 없습니다.");
         String userId = com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull();
         Member existing = userId == null ? null : memberRepository.findByRoomIdAndUserId(room.getId(), userId).orElse(null);
         if (existing != null && existing.isKicked()) throw new BusinessException("FORBIDDEN", "내보내진 방에는 다시 참여할 수 없습니다.");

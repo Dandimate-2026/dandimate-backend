@@ -32,13 +32,14 @@ class ChatConversationTest {
         assertThat(count.get()).isZero();
     }
 
-    @Test void omittedIdPreservesStatelessApiAndOldConversationsAreEvicted() {
+    @Test void omittedIdAlsoGetsPersistentConversationAndOldConversationsAreEvicted() {
         ChatService chat = mock(ChatService.class);
         when(chat.answer(anyString(), anyString(), anyList())).thenReturn(new ChatMessageResponse("응답", List.of()));
         var service = new ChatConversationService(chat);
         var session = new MockHttpSession();
-        service.answer("user", new ChatMessageRequest("독립 질문"), session);
-        verify(chat).answer("user", "독립 질문");
+        var response=service.answer("user", new ChatMessageRequest("독립 질문"), session);
+        assertThat(response.conversationId()).isNotBlank();
+        verify(chat).answer("user", "독립 질문", List.of());
         for (int i = 0; i < 5; i++) service.answer("user", new ChatMessageRequest("질문", "conversation-" + i), session);
         service.answer("user", new ChatMessageRequest("다시 질문", "conversation-0"), session);
         verify(chat).answer("user", "다시 질문", List.of());

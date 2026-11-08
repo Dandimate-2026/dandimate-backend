@@ -70,7 +70,8 @@ public class RoomHomeService {
         List<MemoryEntry> roomEntries = entries.findAllByRoomIdOrderByCreatedAtAsc(roomId);
         Set<String> responded = responded(roomId, roomEntries);
 
-        List<RoomHomeView.MemberStats> stats = roomMembers.stream().map(m -> stats(m, roomPhotos, published, roomEntries, responded)).toList();
+        List<Photo> participationPhotos = roomPhotos.stream().filter(Photo::isReady).toList();
+        List<RoomHomeView.MemberStats> stats = roomMembers.stream().map(m -> stats(m, roomPhotos, participationPhotos, roomEntries, responded)).toList();
         RoomHomeView.MemberStats myStats = stats.stream().filter(s -> s.id().equals(me.getId())).findFirst().orElseThrow();
 
         List<Member> allMembers = members.findAllByRoomId(roomId);
@@ -92,7 +93,7 @@ public class RoomHomeService {
         boolean allCompleted = completed(roomMembers, published, responded);
 
         return new RoomHomeView(
-                new RoomHomeView.RoomSummary(room.getId(), room.getTitle(), room.getMeetingDate(), room.getStatus().name(), room.getDeadlineAt(), room.getCapacity(), room.getPlanType().name(),
+                new RoomHomeView.RoomSummary(room.getId(), room.getTitle(), room.getMeetingDate(), room.getStatus().name(), room.getDeadlineAt(), room.getCapacity(), room.getPlanType().name(), room.getScrollTemplateId(),
                         com.dandimate.durooduroo.room.dto.RoomQuotaView.from(room, roomPhotos.size(), myStats.photoCount()), room.getPlace(), com.dandimate.durooduroo.room.dto.CoverPhotoView.from(room.getCoverPhotoId()), room.getCoverImageUrl(), room.getCreatedAt(), room.getDeleteAt(), room.isDeadlineChangedByHost()),
                 myStats, stats, todayFlowers, new RoomHomeView.MyTodo(needsFirstEntry, pending, topAskback),
                 notifications.countByMemberIdAndReadAtIsNull(me.getId()), allCompleted);
@@ -124,20 +125,21 @@ public class RoomHomeService {
         return serverTime.atZone(java.time.ZoneId.systemDefault()).withZoneSameInstant(SERVICE_ZONE).toLocalDate().equals(koreanDate);
     }
 
-    private RoomHomeView.MemberStats stats(Member member, List<Photo> roomPhotos, List<Photo> published,
+    private RoomHomeView.MemberStats stats(Member member, List<Photo> roomPhotos, List<Photo> participationPhotos,
                                            List<MemoryEntry> roomEntries, Set<String> responded) {
         int photoCount = (int) roomPhotos.stream().filter(p -> p.getMemberId().equals(member.getId())).count();
         int storyCount = (int) roomEntries.stream()
                 .filter(e -> e.getMemberId().equals(member.getId()) && (e.getKind() == EntryKind.FIRST || e.getKind() == EntryKind.ADDON)).count();
         Set<String> participatedPhotoIds = new HashSet<>();
-        published.stream().filter(p -> p.getMemberId().equals(member.getId())).map(Photo::getId).forEach(participatedPhotoIds::add);
+        participationPhotos.stream().filter(p -> p.getMemberId().equals(member.getId())).map(Photo::getId).forEach(participatedPhotoIds::add);
         roomEntries.stream()
                 .filter(e -> e.getMemberId().equals(member.getId()) && (e.getKind() == EntryKind.FIRST || e.getKind() == EntryKind.ADDON))
                 .map(MemoryEntry::getPhotoId).forEach(participatedPhotoIds::add);
-        // 참여율 = 전체 공개 사진 중 이 사람이 사진을 올렸거나 이야기를 남긴 고유 사진의 비율. 패스는 참여로 세지 않는다.
-        double responseRate = published.isEmpty() ? 0.0 : (double) participatedPhotoIds.size() / published.size();
+        // 참여율 = 방의 완료된 전체 사진 중 이 사람이 올리거나 이야기를 남긴 고유 사진의 비율. 패스는 참여로 세지 않는다.
+        participatedPhotoIds.retainAll(participationPhotos.stream().map(Photo::getId).collect(java.util.stream.Collectors.toSet()));
+        double responseRate = participationPhotos.isEmpty() ? 0.0 : (double) participatedPhotoIds.size() / participationPhotos.size();
         return new RoomHomeView.MemberStats(member.getId(), member.getNickname(), member.getRole().name(), member.getFlowerCode().name(),
-                photoCount, storyCount, responseRate);
+                photoCount, storyCount, participatedPhotoIds.size(), participationPhotos.size(), responseRate);
     }
 
     private String flowerOf(String memberId, List<Member> roomMembers) {

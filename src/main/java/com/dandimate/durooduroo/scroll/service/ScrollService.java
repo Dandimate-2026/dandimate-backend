@@ -29,6 +29,8 @@ import com.dandimate.durooduroo.scroll.dto.ScrollView;
 import com.dandimate.durooduroo.scroll.repository.ParagraphRepository;
 import com.dandimate.durooduroo.scroll.repository.ParagraphSourceRepository;
 import com.dandimate.durooduroo.scroll.repository.ReplyRepository;
+import com.dandimate.durooduroo.scroll.repository.ParagraphReactionRepository;
+import com.dandimate.durooduroo.scroll.repository.ParagraphRatingRepository;
 import com.dandimate.durooduroo.scroll.repository.ScrollRepository;
 import java.util.HashMap;
 import java.util.List;
@@ -51,10 +53,12 @@ public class ScrollService {
     private final PhotoRepository photos;
     private final AiJobRepository jobs;
     private final MediaUrls mediaUrls;
+    private final ParagraphReactionRepository reactions;
+    private final ParagraphRatingRepository ratings;
 
     public ScrollService(RoomRepository rooms, MemberRepository members, ScrollRepository scrolls, ParagraphRepository paragraphs,
                          ParagraphSourceRepository sources, ReplyRepository replies, PhotoRepository photos, AiJobRepository jobs,
-                         MediaUrls mediaUrls) {
+                         MediaUrls mediaUrls, ParagraphReactionRepository reactions, ParagraphRatingRepository ratings) {
         this.rooms = rooms;
         this.members = members;
         this.scrolls = scrolls;
@@ -64,12 +68,14 @@ public class ScrollService {
         this.photos = photos;
         this.jobs = jobs;
         this.mediaUrls = mediaUrls;
+        this.reactions = reactions;
+        this.ratings = ratings;
     }
 
     @Transactional(readOnly = true)
     public ScrollView current(String roomId, String authorization) {
         Room room = rooms.findById(roomId).orElseThrow(() -> new BusinessException(ErrorCode.ROOM_NOT_FOUND, "존재하지 않는 방입니다."));
-        members.findByRoomIdAndMemberToken(roomId, MemberTokenResolver.resolve(authorization))
+        Member me = members.findByRoomIdAndMemberToken(roomId, MemberTokenResolver.resolve(authorization))
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "방 참여자만 조회할 수 있습니다."));
         if (room.getStatus() == RoomStatus.WEAVING) {
             Map<String, Object> details = new HashMap<>();
@@ -96,8 +102,14 @@ public class ScrollService {
                     List<ScrollView.SourceView> paragraphSources = sourcesByParagraph.getOrDefault(p.getId(), List.of()).stream()
                             .map(s -> new ScrollView.SourceView(s.getEntryId(), MemberView.from(roomMembers.get(s.getMemberId())), s.getQuote()))
                             .toList();
+                    var rating = ratings.findByParagraphIdAndMemberId(p.getId(), me.getId()).orElse(null);
+                    boolean reacted = reactions.findByParagraphIdAndMemberId(p.getId(), me.getId()).isPresent();
+                    List<ScrollView.ReplyView> replyViews = replies.findAllByParagraphIdAndStatusNotOrderByCreatedAtAsc(p.getId(), "DELETED").stream()
+                            .map(r -> new ScrollView.ReplyView(r.getId(), r.getMemberId(), roomMembers.containsKey(r.getMemberId()) ? roomMembers.get(r.getMemberId()).getNickname() : "알 수 없음", r.getTranscript(), r.getStatus(), r.getCreatedAt(), r.getMemberId().equals(me.getId())))
+                            .toList();
                     return new ScrollView.ParagraphView(p.getId(), PhotoView.of(photo, roomMembers.get(photo.getMemberId()), mediaUrls.imageUrl(photo)),
-                            p.getBody(), p.getVersion(), paragraphSources, replies.countByParagraphIdAndStatusIn(p.getId(), List.of("PENDING", "APPLIED", "REACTION")), p.getAhMatdaCount(), true);
+                            p.getBody(), p.getVersion(), paragraphSources, replyViews.size(), p.getAhMatdaCount(), true, reacted,
+                            rating == null ? null : rating.getScore(), rating == null ? null : rating.getParagraphVersion(), replyViews);
                 })
                 .toList();
         int participantCount = (int) sourcesByParagraph.values().stream().flatMap(List::stream).map(ParagraphSource::getMemberId)

@@ -18,4 +18,18 @@ public class ChatController {
     public ApiResponse<ChatMessageResponse> message(@Valid @RequestBody ChatMessageRequest request, HttpSession session) {
         return ApiResponse.success(conversations.answer(CurrentUser.requireId(), request, session));
     }
+    @GetMapping("/conversations")
+    public ApiResponse<?> conversationIds() { return ApiResponse.success(java.util.Map.of("conversationIds", conversations.conversations(CurrentUser.requireId()))); }
+    @GetMapping("/conversations/{conversationId}/messages")
+    public ApiResponse<?> history(@PathVariable String conversationId) {
+        var items = conversations.history(CurrentUser.requireId(), conversationId).stream()
+                .map(m -> new MessageView(m.getId(), m.getRole(), m.getContent(), m.getCreatedAt())).toList();
+        return ApiResponse.success(java.util.Map.of("messages", items));
+    }
+    @DeleteMapping("/conversations/{conversationId}")
+    public org.springframework.http.ResponseEntity<Void> deleteHistory(@PathVariable String conversationId) {
+        conversations.deleteHistory(CurrentUser.requireId(), conversationId);
+        return org.springframework.http.ResponseEntity.noContent().build();
+    }
+    public record MessageView(String id, String role, String content, java.time.LocalDateTime createdAt) {}
 }
