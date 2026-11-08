@@ -21,5 +21,9 @@ public class PushSubscription {
         value.p256dh = p256dh; value.auth = auth; value.createdAt = value.updatedAt = LocalDateTime.now(); return value;
     }
     public void refresh(String userId, String p256dh, String auth) { this.userId = userId; this.p256dh = p256dh; this.auth = auth; this.updatedAt = LocalDateTime.now(); }
+    public String getId() { return id; }
+    public String getUserId() { return userId; }
     public String getEndpoint() { return endpoint; }
+    public String getP256dh() { return p256dh; }
+    public String getAuth() { return auth; }
 }

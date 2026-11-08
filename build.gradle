@@ -27,6 +27,11 @@ dependencies {
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-mysql'
     implementation 'software.amazon.awssdk:s3:2.29.52'
+    // 브라우저 Web Push(VAPID 인증·암호화) 발송. 구독 저장만이 아니라 실제 알림 전달에 사용한다.
+    implementation 'nl.martijndwars:web-push:5.1.2'
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.80'
+    implementation 'org.apache.httpcomponents:httpclient:4.5.14'
+    implementation 'org.bitbucket.b_c:jose4j:0.7.9'
     // 계약서(static/openapi/public-api.yaml)를 /swagger-ui.html에서 보여 준다. 코드에서 문서를 생성하지는 않는다.
     implementation 'org.webjars:swagger-ui:5.17.14'
 
