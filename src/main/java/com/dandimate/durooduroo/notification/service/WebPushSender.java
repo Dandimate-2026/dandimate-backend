@@ -44,7 +44,7 @@ public class WebPushSender {
         Notification notification = event.notification();
         String userId = members.findById(notification.getMemberId()).map(m -> m.getUserId()).orElse(null);
         if (userId == null) return;
-        String payload = payload(notification);
+        String payload = payload(notification, event.roomId());
         for (PushSubscription subscription : subscriptions.findAllByUserId(userId)) {
             try {
                 int status = service().send(new nl.martijndwars.webpush.Notification(subscription.getEndpoint(), subscription.getP256dh(), subscription.getAuth(), payload.getBytes(StandardCharsets.UTF_8))).getStatusLine().getStatusCode();
@@ -67,14 +67,16 @@ public class WebPushSender {
         }
     }
 
-    private String payload(Notification notification) {
+    private String payload(Notification notification, String roomId) {
         String title = switch (notification.getType()) {
             case "SCROLL_READY" -> "두루마리가 완성되었어요";
             case "REPLY_APPLIED" -> "새 답가가 반영되었어요";
             default -> "두루두루 알림";
         };
         String body = notification.getMessage() == null ? title : notification.getMessage();
-        return "{\"title\":\"" + escape(title) + "\",\"body\":\"" + escape(body) + "\",\"type\":\"" + escape(notification.getType()) + "\",\"resourceType\":\"" + escape(notification.getResourceType()) + "\",\"resourceId\":\"" + escape(notification.getResourceId()) + "\"}";
+        String url = roomId == null || roomId.isBlank() ? "/" : "/rooms/" + roomId;
+        if ("SCROLL".equals(notification.getResourceType())) url += "/scroll";
+        return "{\"title\":\"" + escape(title) + "\",\"body\":\"" + escape(body) + "\",\"type\":\"" + escape(notification.getType()) + "\",\"resourceType\":\"" + escape(notification.getResourceType()) + "\",\"resourceId\":\"" + escape(notification.getResourceId()) + "\",\"roomId\":\"" + escape(roomId == null ? "" : roomId) + "\",\"url\":\"" + escape(url) + "\",\"tag\":\"notification-" + escape(notification.getId()) + "\"}";
     }
     private String escape(String value) { return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n"); }
 }

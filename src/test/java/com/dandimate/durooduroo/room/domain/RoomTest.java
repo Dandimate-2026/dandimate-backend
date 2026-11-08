@@ -25,11 +25,11 @@ class RoomTest {
     }
 
     @Test
-    void 방장이_정하기_전_호환용_마감값은_생성_후_48시간이다() {
+    void 방장이_정하기_전에는_두루마리_마감_시각이_없다() {
         Room room = Room.create("경주");
 
         assertThat(room.getStatus()).isEqualTo(RoomStatus.COLLECTING);
-        assertThat(room.getDeadlineAt()).isEqualTo(room.getCreatedAt().plusHours(48));
+        assertThat(room.getDeadlineAt()).isNull();
     }
 
     @Test

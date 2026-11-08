@@ -23,7 +23,7 @@ public class Notifier {
     public Notification notify(String roomId, String memberId, String type, String resourceType, String resourceId) {
         Notification notification = notifications.save(Notification.create(memberId, type, resourceType, resourceId));
         events.toMember(roomId, memberId, "notification.created", Map.of("notificationId", notification.getId(), "type", type));
-        publisher.publishEvent(new PushNotificationEvent(notification));
+        publisher.publishEvent(new PushNotificationEvent(notification, roomId));
         return notification;
     }
 
@@ -31,7 +31,7 @@ public class Notifier {
                                         String message, java.time.LocalDateTime scheduledFor) {
         Notification notification = notifications.save(Notification.scheduled(memberId, type, resourceType, resourceId, message, scheduledFor));
         events.toMember(roomId, memberId, "notification.created", Map.of("notificationId", notification.getId(), "type", type));
-        publisher.publishEvent(new PushNotificationEvent(notification));
+        publisher.publishEvent(new PushNotificationEvent(notification, roomId));
         return notification;
     }
 }

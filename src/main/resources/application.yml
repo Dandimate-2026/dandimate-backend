@@ -39,6 +39,9 @@ server:
   forward-headers-strategy: framework
 
 app:
+  consent:
+    # 이 값을 올리면 기존 로그인 사용자는 다음 방 생성·입장 때 최신 버전 동의를 다시 해야 한다.
+    current-version: ${CONSENT_VERSION:v1}
   embedding:
     initial-delay-ms: 60000
     poll-ms: 10000
