@@ -10,6 +10,8 @@ public class RoomUpdateRequest {
     public Integer capacity;
     public LocalDate meetingDate;
     public OffsetDateTime deadlineAt;
+    private String scrollTemplateId;
+    private boolean scrollTemplatePresent;
     @Valid private RoomPlace place;
     @Valid private CoverPhotoRef coverPhoto;
     private boolean placePresent, coverPresent;
@@ -18,6 +20,7 @@ public class RoomUpdateRequest {
     @JsonSetter("coverImageUrl") public void setCoverImageUrl(String value) { coverImageUrl=value; coverUrlPresent=true; }
     @JsonSetter("place") public void setPlace(RoomPlace value) { place=value; placePresent=true; }
     @JsonSetter("coverPhoto") public void setCoverPhoto(CoverPhotoRef value) { coverPhoto=value; coverPresent=true; }
+    @JsonSetter("scrollTemplateId") public void setScrollTemplateId(String value) { scrollTemplateId=value; scrollTemplatePresent=true; }
     public RoomPlace place() { return place; }
     public CoverPhotoRef coverPhoto() {
         if (!coverUrlPresent) return coverPhoto;
@@ -29,4 +32,6 @@ public class RoomUpdateRequest {
     }
     public boolean placePresent() { return placePresent; }
     public boolean coverPresent() { return coverPresent || coverUrlPresent; }
+    public String scrollTemplateId() { return scrollTemplateId; }
+    public boolean scrollTemplatePresent() { return scrollTemplatePresent; }
 }

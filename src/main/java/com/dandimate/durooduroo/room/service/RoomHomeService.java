@@ -92,7 +92,7 @@ public class RoomHomeService {
         boolean allCompleted = completed(roomMembers, published, responded);
 
         return new RoomHomeView(
-                new RoomHomeView.RoomSummary(room.getId(), room.getTitle(), room.getMeetingDate(), room.getStatus().name(), room.getDeadlineAt(), room.getCapacity(), room.getPlanType().name(),
+                new RoomHomeView.RoomSummary(room.getId(), room.getTitle(), room.getMeetingDate(), room.getStatus().name(), room.getDeadlineAt(), room.getCapacity(), room.getPlanType().name(), room.getScrollTemplateId(),
                         com.dandimate.durooduroo.room.dto.RoomQuotaView.from(room, roomPhotos.size(), myStats.photoCount()), room.getPlace(), com.dandimate.durooduroo.room.dto.CoverPhotoView.from(room.getCoverPhotoId()), room.getCoverImageUrl(), room.getCreatedAt(), room.getDeleteAt(), room.isDeadlineChangedByHost()),
                 myStats, stats, todayFlowers, new RoomHomeView.MyTodo(needsFirstEntry, pending, topAskback),
                 notifications.countByMemberIdAndReadAtIsNull(me.getId()), allCompleted);

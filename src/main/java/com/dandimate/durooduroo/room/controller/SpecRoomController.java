@@ -21,11 +21,13 @@ public class SpecRoomController {
     private final RoomRepository rooms;
     private final MemberRepository members;
     private final com.dandimate.durooduroo.room.service.RoomDetailsService details;
+    private final com.dandimate.durooduroo.user.service.ConsentService consents;
 
-    public SpecRoomController(RoomRepository rooms, MemberRepository members, com.dandimate.durooduroo.room.service.RoomDetailsService details) {
+    public SpecRoomController(RoomRepository rooms, MemberRepository members, com.dandimate.durooduroo.room.service.RoomDetailsService details, com.dandimate.durooduroo.user.service.ConsentService consents) {
         this.details = details;
         this.rooms = rooms;
         this.members = members;
+        this.consents = consents;
     }
 
     @PostMapping
@@ -44,6 +46,7 @@ public class SpecRoomController {
         Room room = rooms.save(Room.create(request.name().trim(), request.meetingDate(), request.selectedCapacity(), request.planType()));
         details.apply(room, request.place(), request.selectedCover(), com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull());
         Member host = members.save(Member.host(room.getId(), request.hostNickname().trim(), com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull()));
+        consents.recordIfUser(com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull(), request.consent());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(SpecCreateRoomResponse.from(room, host)));
     }
 }

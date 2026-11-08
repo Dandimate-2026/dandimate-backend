@@ -5,6 +5,11 @@ import com.dandimate.durooduroo.member.repository.MemberRepository;
 import com.dandimate.durooduroo.room.repository.RoomRepository;
 import com.dandimate.durooduroo.user.repository.UserAccountRepository;
 import com.dandimate.durooduroo.common.exception.BusinessException;
+import com.dandimate.durooduroo.notification.repository.NotificationRepository;
+import com.dandimate.durooduroo.photo.repository.PhotoRepository;
+import com.dandimate.durooduroo.memory.repository.MemoryEntryRepository;
+import com.dandimate.durooduroo.memory.repository.PhotoPassRepository;
+import com.dandimate.durooduroo.memory.domain.EntryKind;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.web.csrf.CsrfToken;
 import java.util.Map;
@@ -14,8 +19,12 @@ public class AccountController {
     private final UserAccountRepository users;
     private final MemberRepository members;
     private final RoomRepository rooms;
-    public AccountController(UserAccountRepository users, MemberRepository members, RoomRepository rooms) {
-        this.users=users; this.members=members; this.rooms=rooms;
+    private final NotificationRepository notifications;
+    private final PhotoRepository photos;
+    private final MemoryEntryRepository entries;
+    private final PhotoPassRepository passes;
+    public AccountController(UserAccountRepository users, MemberRepository members, RoomRepository rooms, NotificationRepository notifications, PhotoRepository photos, MemoryEntryRepository entries, PhotoPassRepository passes) {
+        this.users=users; this.members=members; this.rooms=rooms; this.notifications=notifications; this.photos=photos; this.entries=entries; this.passes=passes;
     }
     @GetMapping("/auth/csrf")
     public ApiResponse<?> csrf(CsrfToken token) {
@@ -38,6 +47,18 @@ public class AccountController {
             result.put("place", room.getPlace());
             result.put("coverImageUrl", room.getCoverImageUrl());
             result.put("coverPhoto", com.dandimate.durooduroo.room.dto.CoverPhotoView.from(room.getCoverPhotoId()));
+            result.put("meetingDate", room.getMeetingDate());
+            result.put("deadlineAt", room.getDeadlineAt());
+            result.put("unreadCount", notifications.countByMemberIdAndReadAtIsNull(m.getId()));
+            result.put("unreadReplyCount", notifications.countByMemberIdAndReadAtIsNullAndTypeStartingWith(m.getId(), "REPLY"));
+            var roomPhotos = photos.findAllByRoomId(room.getId());
+            var posted = roomPhotos.stream().filter(com.dandimate.durooduroo.photo.domain.Photo::isPublished).toList();
+            var responded = new java.util.HashSet<String>();
+            entries.findAllByRoomId(room.getId()).stream().filter(e -> e.getKind() == EntryKind.ADDON && m.getId().equals(e.getMemberId())).forEach(e -> responded.add(e.getPhotoId()));
+            passes.findAllByRoomIdAndMemberId(room.getId(), m.getId()).forEach(p -> responded.add(p.getPhotoId()));
+            boolean needsFirstEntry = roomPhotos.stream().anyMatch(p -> m.getId().equals(p.getMemberId()) && p.isReady() && !p.isPublished());
+            int pendingCirculationCount = (int) posted.stream().filter(p -> !m.getId().equals(p.getMemberId()) && !responded.contains(p.getId())).count();
+            result.put("myTodo", Map.of("needsFirstEntry", needsFirstEntry, "pendingCirculationCount", pendingCirculationCount));
             return result;
         }).toList());
     }

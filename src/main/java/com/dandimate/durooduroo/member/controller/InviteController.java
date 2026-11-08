@@ -20,11 +20,13 @@ public class InviteController {
     private final RoomRepository rooms;
     private final MemberRepository members;
     private final MemberService memberService;
+    private final com.dandimate.durooduroo.user.service.ConsentService consents;
 
-    public InviteController(RoomRepository rooms, MemberRepository members, MemberService memberService) {
+    public InviteController(RoomRepository rooms, MemberRepository members, MemberService memberService, com.dandimate.durooduroo.user.service.ConsentService consents) {
         this.rooms = rooms;
         this.members = members;
         this.memberService = memberService;
+        this.consents = consents;
     }
 
     @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.room.invite.RoomInviteService invites;
@@ -68,6 +70,7 @@ public class InviteController {
         } catch (IllegalArgumentException e) {
             throw new BusinessException("CONSENT_REQUIRED", e.getMessage());
         }
+        consents.recordIfUser(CurrentUser.idOrNull(), request.consent());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(memberService.joinByInvite(inviteToken, request)));
     }

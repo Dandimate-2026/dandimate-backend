@@ -10,9 +10,14 @@ public record ScrollView(String id, int version, int participantCount, int membe
                          List<ParagraphView> paragraphs) {
 
     public record ParagraphView(String id, PhotoView photo, String body, int version, List<SourceView> sources,
-                                long replyCount, int ahMatdaCount, boolean aiGenerated) {
+                                long replyCount, int ahMatdaCount, boolean aiGenerated, boolean myAhMatda,
+                                Integer myFidelityRating, Integer ratedParagraphVersion, List<ReplyView> replies) {
     }
 
     public record SourceView(String entryId, MemberView member, String quote) {
+    }
+
+    public record ReplyView(String id, String memberId, String nickname, String transcript, String status,
+                            LocalDateTime createdAt, boolean mine) {
     }
 }

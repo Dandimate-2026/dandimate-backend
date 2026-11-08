@@ -61,9 +61,22 @@ public class Room implements Persistable<String> {
     /** 지도에 보여 줄 두루마리 한 줄 요약. 엮기 전이나 요약 실패 시 null. */
     @Column(length = 200)
     private String scrollSummary;
+    /** 방의 모든 참여자가 공유하는 두루마리 꾸미기 선택값. */
+    @Column(nullable = false, length = 30)
+    private String scrollTemplateId = "CLASSIC";
 
     public String getScrollSummary() { return scrollSummary; }
     public void summarizeScroll(String summary) { this.scrollSummary = summary; }
+    public String getScrollTemplateId() { return scrollTemplateId; }
+    public void changeScrollTemplate(String templateId) {
+        String normalized = templateId == null ? "" : templateId.strip().toUpperCase(java.util.Locale.ROOT);
+        java.util.Set<String> all = java.util.Set.of("CLASSIC", "DAEGU", "GYEONGJU", "ANDONG");
+        if (!all.contains(normalized))
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "지원하지 않는 두루마리 템플릿입니다.");
+        if (planType == RoomPlan.FREE && !"CLASSIC".equals(normalized))
+            throw new BusinessException(ErrorCode.LIMIT_REACHED, "이 템플릿은 Lite 이상 플랜에서 사용할 수 있어요.");
+        scrollTemplateId = normalized;
+    }
 
     public int getCapacity() { return capacity; }
     public boolean isDeadlineChangedByHost() { return deadlineChangedByHost; }
