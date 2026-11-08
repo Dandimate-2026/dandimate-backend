@@ -38,7 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class ReviewerDemoService {
-    private static final int CURRENT_SEED_VERSION = 2;
+    private static final int CURRENT_SEED_VERSION = 3;
 
     private final ReviewerDemoSessionRepository sessions;
     private final RoomRepository rooms;
@@ -114,22 +114,28 @@ public class ReviewerDemoService {
         completedRoom.changeScrollTemplate("ANDONG");
         Member jiwon = members.save(Member.host(completedRoom.getId(), "지원"));
         Member completedReviewer = members.save(Member.join(completedRoom.getId(), "운영진", FlowerCode.CANOLA, userId));
-        Photo completedPhoto = seedPhoto(completedRoom, completedReviewer, "하회탈 전시", "안동", "안동", 36.5391, 128.5175,
+        SeededPhoto completedPhoto = seedPhoto(completedRoom, completedReviewer, "하회탈 전시", "안동", "안동", 36.5391, 128.5175,
                 "andong-hahoe-mask.jpeg", "커다란 하회탈 앞에서 웃는 얼굴을 따라 해 보며 한참 장난쳤어요.");
-        seedPhoto(completedRoom, jiwon, "안동찜닭", "안동", "안동", 36.5668, 128.7294,
+        SeededPhoto jjimdakPhoto = seedPhoto(completedRoom, jiwon, "안동찜닭", "안동", "안동", 36.5668, 128.7294,
                 "andong-jjimdak.jpeg", "따끈한 안동찜닭을 앞에 두고, 각자 좋아하는 재료부터 골라 먹었어요.");
-        seedPhoto(completedRoom, completedReviewer, "월영교", "안동 월영교", "안동", 36.5737, 128.7210,
+        SeededPhoto wolyeonggyoPhoto = seedPhoto(completedRoom, completedReviewer, "월영교", "안동 월영교", "안동", 36.5737, 128.7210,
                 "andong-wolyeonggyo-night.jpeg", "월영교의 불빛이 물결 위에 번지는 모습을 보며 천천히 하루를 마무리했어요.");
-        MemoryEntry support = entries.save(MemoryEntry.confirm(completedRoom.getId(), completedPhoto.getId(), jiwon.getId(),
+        MemoryEntry support = entries.save(MemoryEntry.confirm(completedRoom.getId(), completedPhoto.photo().getId(), jiwon.getId(),
                 EntryKind.ADDON, "TEXT", null, null, "골목 끝에서 다 같이 멈춰 서서 사진을 찍던 순간이 가장 기억나요."));
         completedRoom.startCirculating();
         completedRoom.startWeaving();
         completedRoom.completeWeaving();
         Scroll scroll = scrolls.save(Scroll.create(completedRoom.getId(), 1,
                 "안동의 오후는 천천히 걸을수록 더 오래 남았습니다."));
-        Paragraph paragraph = paragraphs.save(Paragraph.create(completedRoom.getId(), scroll.getId(), completedPhoto.getId(), 1,
-                "운영진은 ‘기와지붕 사이로 들어오는 햇빛이 포근해서’ 오늘의 속도를 조금 늦추고 싶었다고 떠올렸어요. 지원은 골목 끝에서 함께 멈춰 선 순간을 기억했어요."));
+        Paragraph paragraph = paragraphs.save(Paragraph.create(completedRoom.getId(), scroll.getId(), completedPhoto.photo().getId(), 1,
+                "운영진은 ‘커다란 하회탈 앞에서 웃는 얼굴을 따라 해 보며’ 한참 장난쳤다고 떠올렸어요. 지원은 함께 멈춰 선 순간을 기억했어요."));
         sources.save(ParagraphSource.of(paragraph.getId(), support.getId(), jiwon.getId(), support.getTranscript(), 1));
+        Paragraph jjimdakParagraph = paragraphs.save(Paragraph.create(completedRoom.getId(), scroll.getId(), jjimdakPhoto.photo().getId(), 2,
+                "지원은 ‘따끈한 안동찜닭을 앞에 두고’ 각자 좋아하는 재료부터 골라 먹었다고 떠올렸어요."));
+        sources.save(ParagraphSource.of(jjimdakParagraph.getId(), jjimdakPhoto.entry().getId(), jiwon.getId(), jjimdakPhoto.entry().getTranscript(), 1));
+        Paragraph wolyeonggyoParagraph = paragraphs.save(Paragraph.create(completedRoom.getId(), scroll.getId(), wolyeonggyoPhoto.photo().getId(), 3,
+                "운영진은 ‘월영교의 불빛이 물결 위에 번지는 모습’을 보며 천천히 하루를 마무리했다고 떠올렸어요."));
+        sources.save(ParagraphSource.of(wolyeonggyoParagraph.getId(), wolyeonggyoPhoto.entry().getId(), completedReviewer.getId(), wolyeonggyoPhoto.entry().getTranscript(), 1));
 
         rooms.save(hostRoom); rooms.save(memberRoom); rooms.save(completedRoom);
         ReviewerDemoSession session = sessions.save(ReviewerDemoSession.create(userId, hostRoom.getId(), memberRoom.getId(), completedRoom.getId(), CURRENT_SEED_VERSION));
@@ -142,8 +148,8 @@ public class ReviewerDemoService {
         return rooms.save(room);
     }
 
-    private Photo seedPhoto(Room room, Member author, String place, String address, String city, double latitude, double longitude,
-                            String imageAsset, String text) {
+    private SeededPhoto seedPhoto(Room room, Member author, String place, String address, String city, double latitude, double longitude,
+                                  String imageAsset, String text) {
         String key = "reviewer-demo/" + room.getId() + "/" + UUID.randomUUID() + ".jpeg";
         storage.putBytes(key, imageBytes(imageAsset), "image/jpeg");
         Photo photo = Photo.pending(UUID.randomUUID().toString(), room.getId(), author.getId(), key, storage.locationFor(key), "image/jpeg", 0);
@@ -151,8 +157,8 @@ public class ReviewerDemoService {
         photo.locate(place, address, city, latitude, longitude);
         photo.publish();
         Photo saved = photos.save(photo);
-        entries.save(MemoryEntry.confirm(room.getId(), saved.getId(), author.getId(), EntryKind.FIRST, "TEXT", null, null, text));
-        return saved;
+        MemoryEntry entry = entries.save(MemoryEntry.confirm(room.getId(), saved.getId(), author.getId(), EntryKind.FIRST, "TEXT", null, null, text));
+        return new SeededPhoto(saved, entry);
     }
 
     private byte[] imageBytes(String asset) {
@@ -162,6 +168,8 @@ public class ReviewerDemoService {
             throw new IllegalStateException("심사용 사진 리소스를 읽을 수 없어요: " + asset, exception);
         }
     }
+
+    private record SeededPhoto(Photo photo, MemoryEntry entry) { }
 
     private ReviewerDemoView view(ReviewerDemoSession session) {
         return new ReviewerDemoView(session.getHostRoomId(), session.getMemberRoomId(), session.getCompletedRoomId());
