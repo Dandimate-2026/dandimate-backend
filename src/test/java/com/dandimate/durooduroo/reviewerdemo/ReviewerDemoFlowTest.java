@@ -67,7 +67,7 @@ class ReviewerDemoFlowTest {
                 .andExpect(jsonPath("$.data.length()").value(3));
         mvc.perform(get("/api/v1/rooms/" + completedRoomId + "/scroll").session(session))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.paragraphs.length()").value(1));
+                .andExpect(jsonPath("$.data.paragraphs.length()").value(3));
 
         mvc.perform(post("/api/v1/reviewer-demo/activate").session(session).with(csrf()))
                 .andExpect(status().isOk())
