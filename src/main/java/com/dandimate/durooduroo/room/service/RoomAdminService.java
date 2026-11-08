@@ -52,20 +52,29 @@ public class RoomAdminService {
     /** name(1~20자)·meetingDate·deadlineAt 중 보낸 값만 바꾼다. */
     @Transactional
     public Room update(String roomId, String authorization, String name, LocalDate meetingDate, OffsetDateTime deadlineAt) {
-        return update(roomId, authorization, name, meetingDate, deadlineAt, false, null, false, null);
+        return update(roomId, authorization, name, meetingDate, deadlineAt, false, null, false, null, null, null, false);
     }
 
     @Transactional
     public Room update(String roomId, String authorization, String name, LocalDate meetingDate, OffsetDateTime deadlineAt,
             boolean placePresent, com.dandimate.durooduroo.room.dto.RoomPlace place,
             boolean coverPresent, com.dandimate.durooduroo.room.dto.CoverPhotoRef cover) {
-        return update(roomId, authorization, name, meetingDate, deadlineAt, placePresent, place, coverPresent, cover, null);
+        return update(roomId, authorization, name, meetingDate, deadlineAt, placePresent, place, coverPresent, cover, null, null, false);
+    }
+
+    /** 기존 정원 변경 호출부 호환용. */
+    @Transactional
+    public Room update(String roomId, String authorization, String name, LocalDate meetingDate, OffsetDateTime deadlineAt,
+            boolean placePresent, com.dandimate.durooduroo.room.dto.RoomPlace place,
+            boolean coverPresent, com.dandimate.durooduroo.room.dto.CoverPhotoRef cover, Integer capacity) {
+        return update(roomId, authorization, name, meetingDate, deadlineAt, placePresent, place, coverPresent, cover, capacity, null, false);
     }
 
     @Transactional
     public Room update(String roomId, String authorization, String name, LocalDate meetingDate, OffsetDateTime deadlineAt,
             boolean placePresent, com.dandimate.durooduroo.room.dto.RoomPlace place,
-            boolean coverPresent, com.dandimate.durooduroo.room.dto.CoverPhotoRef cover, Integer capacity) {
+            boolean coverPresent, com.dandimate.durooduroo.room.dto.CoverPhotoRef cover, Integer capacity,
+            String scrollTemplateId, boolean scrollTemplatePresent) {
         Room room = requireHostRoom(roomId, authorization);
         if (capacity != null) room.changeCapacity(capacity, members.countByRoomIdAndLeftAtIsNull(roomId));
         if (coverPresent) {
@@ -73,6 +82,7 @@ public class RoomAdminService {
             room.changeCoverPhoto(cover==null?null:cover.id());
         }
         if (placePresent) room.changePlace(place);
+        if (scrollTemplatePresent) room.changeScrollTemplate(scrollTemplateId);
         if (name != null) {
             String trimmed = name.strip();
             if (trimmed.isEmpty() || trimmed.length() > 20) throw new BusinessException(ErrorCode.VALIDATION_ERROR, "방 이름은 1~20자여야 해요.");
@@ -82,9 +92,10 @@ public class RoomAdminService {
         if (deadlineAt != null) {
             room.changeDeadline(deadlineAt.atZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(), LocalDateTime.now());
         }
-        if (name != null || meetingDate != null || deadlineAt != null || placePresent || coverPresent || capacity != null) {
+        if (name != null || meetingDate != null || deadlineAt != null || placePresent || coverPresent || capacity != null || scrollTemplatePresent) {
             events.toRoom(roomId, "room.updated", java.util.Map.of("roomId", roomId));
         }
+        if (scrollTemplatePresent) events.toRoom(roomId, "scroll.template.updated", java.util.Map.of("roomId", roomId, "scrollTemplateId", room.getScrollTemplateId()));
         return room;
     }
 

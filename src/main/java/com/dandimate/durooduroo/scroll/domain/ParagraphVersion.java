@@ -26,5 +26,5 @@ public class ParagraphVersion {
         return v;
     }
 
-    public String getParagraphId(){return paragraphId;} public int getVersion(){return version;} public String getBody(){return body;} public String getSources(){return sources;} public String getReason(){return reason;}
+    public String getParagraphId(){return paragraphId;} public int getVersion(){return version;} public String getBody(){return body;} public String getSources(){return sources;} public String getReason(){return reason;} public LocalDateTime getCreatedAt(){return createdAt;}
 }

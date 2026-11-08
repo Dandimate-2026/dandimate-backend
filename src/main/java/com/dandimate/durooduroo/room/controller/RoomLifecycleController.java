@@ -31,10 +31,11 @@ public class RoomLifecycleController {
     /** 방장: 이름·모임 날짜·마감 수정 (마감은 엮기 전 미래 시각으로 횟수 제한 없이 변경). */
     @PatchMapping("/{roomId}")
     public ApiResponse<?> update(@PathVariable String roomId,@RequestHeader(required=false) String authorization,@jakarta.validation.Valid @RequestBody com.dandimate.durooduroo.room.dto.RoomUpdateRequest body){
-        var room=roomAdmin.update(roomId,authorization,body.name,body.meetingDate,body.deadlineAt,body.placePresent(),body.place(),body.coverPresent(),body.coverPhoto(),body.capacity);
+        var room=roomAdmin.update(roomId,authorization,body.name,body.meetingDate,body.deadlineAt,body.placePresent(),body.place(),body.coverPresent(),body.coverPhoto(),body.capacity,body.scrollTemplateId(),body.scrollTemplatePresent());
         var summary=new HashMap<String,Object>(); summary.put("id",room.getId()); summary.put("name",room.getTitle()); summary.put("meetingDate",room.getMeetingDate()); summary.put("status",room.getStatus().name()); summary.put("deadlineAt",room.getDeadlineAt());
         summary.put("place",room.getPlace()); summary.put("coverPhoto",com.dandimate.durooduroo.room.dto.CoverPhotoView.from(room.getCoverPhotoId()));
         summary.put("capacity", room.getCapacity());
+        summary.put("scrollTemplateId", room.getScrollTemplateId());
         summary.put("createdAt", room.getCreatedAt());
         summary.put("deleteAt", room.getDeleteAt());
         summary.put("deadlineChangedByHost", room.isDeadlineChangedByHost());
