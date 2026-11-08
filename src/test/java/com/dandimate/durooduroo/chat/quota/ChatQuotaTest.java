@@ -70,4 +70,22 @@ class ChatQuotaTest {
   tx.executeWithoutResult(s->{var w=em.find(ChatWallet.class,user);w.freeUsed=1;var u=new ChatUsage();u.id="expired";u.userId=user;u.requestHash="hash";u.status="PENDING";u.free=true;u.usageDate=w.freeDate;u.expiresAt=Instant.now().minusSeconds(1);em.persist(u);});
   assertThat(quota.get(user).freeRemaining()).isEqualTo(4);assertThat(quota.get(user).freeRemaining()).isEqualTo(4);
  }
+ @Autowired com.dandimate.durooduroo.reviewerdemo.repository.ReviewerDemoSessionRepository demos;
+ @Test void modeChangeDuringAiCallRejectsLateResponseAndRefunds() {
+  assertThatThrownBy(()->quota.execute(user,null,"질문",()->{
+   demos.save(com.dandimate.durooduroo.reviewerdemo.domain.ReviewerDemoSession.create(user,"host","member","completed",3));
+   return response("ANSWER");
+  })).isInstanceOfSatisfying(BusinessException.class,e->assertThat(e.getErrorCode()).isEqualTo(ErrorCode.VERSION_CONFLICT));
+  assertThat(quota.get(user).freeRemaining()).isEqualTo(4);
+ }
+ @Test void sameRequestKeyDoesNotReplayRealResponseInDemoScope() {
+  String key=UUID.randomUUID().toString();var calls=new AtomicInteger();
+  quota.execute(user,key,"질문",()->{calls.incrementAndGet();return response("ANSWER");});
+  var demo=demos.save(com.dandimate.durooduroo.reviewerdemo.domain.ReviewerDemoSession.create(user,"host","member","completed",3));
+  quota.execute(user,key,"질문",()->{calls.incrementAndGet();return response("ANSWER");});
+  assertThat(calls.get()).isEqualTo(2);
+  demos.delete(demo);
+  quota.execute(user,key,"질문",()->{calls.incrementAndGet();return response("ANSWER");});
+  assertThat(calls.get()).isEqualTo(2);
+ }
 }

@@ -1948,3 +1948,16 @@ LLM 호출은 답변당 한 번이며 챗봇에만 medium 추론을 적용합니
 - 방장이 완성 시각을 정해야 예약 생성이 동작하며, 원문이 없으면 자동 24시간 연장하지 않고 빈 두루마리 상태로 끝냅니다.
 - 방 생성 완료 후 1년 뒤 자동 삭제합니다. `deleteAt`과 삭제 30·7·1일 전 알림의 `message`, `scheduledFor`를 제공합니다.
 - DB 변경은 `V11__map_and_retention_policy.sql`입니다.
+
+
+### 심사용 데모 ON/OFF
+- `GET /api/v1/reviewer-demo`: 계정의 상태와 방 목록 조회.
+- `PUT /api/v1/reviewer-demo {"enabled": true|false}`: 로그인/CSRF 필수. ON에서 방 생성, 체험 버튼은 반환 ID로 이동만 수행.
+- 기존 `POST /reviewer-demo/activate`는 ON 호환 별칭. `REVIEWER_DEMO_ENABLED`는 서버 허용 설정으로 유지. OFF 정리는 설정과 무관하게 허용.
+- 응답 data: `enabled`, `hostRoomId`, `memberRoomId`, `completedRoomId`, `rooms[{roomId,name,status,role,experience}]`.
+- 데모 방의 초대 링크 입장은 막고 초대 미리보기의 canJoin은 false로 준다. OFF는 개인 데모 세션과 해당 방의 원문/벡터/두루마리/알림을 삭제하고 방 SSE를 끊는다. 저장소의 일반 방 경로와 `reviewer-demo/{roomId}/` 경로는 재시도 가능한 MEDIA_DELETE 작업으로 정리한다.
+- 지도 요약은 방별 저장, 도시는 조회 때 방별 요약에서 구성된다. 도시별 혼합 요약 캐시는 없다. 삭제 후 GET 지도는 실제 방만 구성하므로 정상 요약을 재학습/덮어쓸 필요가 없다.
+- 챗봇 저장 대화와 세션 문맥, 멱등 응답 캐시는 REAL/데모 세션 ID별로 분리한다. ON 동안의 대화는 전체를 데모 영역으로 분리(간접 참조 포함). OFF는 데모 대화를 삭제하고 실제 대화 영역으로 돌아간다. 답변에 참고한 방 ID도 내부 저장한다.
+- AI 호출 중 ON/OFF가 바뀌면 결과 저장을 거절하고 미확정 질문 차감을 환불한다. 확정된 사용량과 구매 크레딧은 유지한다.
+- 기존 데이터에는 출처가 없으므로 V16은 활성 데모 생성 시각 이후의 대화를 데모 영역으로 분류하고 해당 계정의 기존 응답 캐시만 무효화한다. 생성 이전 대화는 보존한다.
+- 프론트는 OFF 성공 후 방 목록/지도/대화 재조회 및 데모 대화/지도 화면 캐시 삭제가 필요하다. 이미 렌더링한 화면을 백엔드만으로 지울 수는 없다.

@@ -31,6 +31,7 @@ public class InviteController {
 
     @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.room.invite.RoomInviteService invites;
     @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.room.cover.RoomCoverService covers;
+    @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.reviewerdemo.repository.ReviewerDemoSessionRepository demoSessions;
     @GetMapping("/{inviteToken}")
     public ApiResponse<?> preview(@PathVariable String inviteToken) {
         invites.remember(inviteToken);
@@ -53,7 +54,7 @@ public class InviteController {
         data.put("flowers", roomMembers.stream().map(m -> m.getFlowerCode()).sorted().map(Enum::name).toList());
         data.put("capacity", room.getCapacity());
         boolean kicked=userId!=null && members.findByRoomIdAndUserId(room.getId(),userId).map(m->m.isKicked()).orElse(false);
-        data.put("canJoin", !kicked && count < room.getCapacity());
+        data.put("canJoin", !demoSessions.existsByDemoRoomId(room.getId()) && !kicked && count < room.getCapacity());
         return ApiResponse.success(data);
     }
 

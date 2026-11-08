@@ -1,4 +1,6 @@
 package com.dandimate.durooduroo.reviewerdemo.dto;
-
-/** 심사 화면이 바로 열 수 있도록 각 체험 방 ID를 돌려준다. */
-public record ReviewerDemoView(String hostRoomId, String memberRoomId, String completedRoomId) { }
+import java.util.List;
+public record ReviewerDemoView(boolean enabled, String hostRoomId, String memberRoomId, String completedRoomId, List<DemoRoom> rooms) {
+    public record DemoRoom(String roomId,String name,String status,String role,String experience) {}
+    public static ReviewerDemoView off() { return new ReviewerDemoView(false,null,null,null,List.of()); }
+}

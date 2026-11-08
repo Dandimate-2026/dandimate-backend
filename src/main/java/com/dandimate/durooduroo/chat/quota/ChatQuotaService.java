@@ -15,6 +15,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /** Short account-locked transactions; never hold a database lock during AI calls. */
 @Service
 public class ChatQuotaService {
+ @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.reviewerdemo.service.DemoScopeService scopes;
  public static final int FREE_LIMIT=4;
  private static final ZoneId KST=ZoneId.of("Asia/Seoul");
  @PersistenceContext private EntityManager em;
@@ -38,10 +39,11 @@ public class ChatQuotaService {
  private record Ticket(String id,String attemptId,ChatMessageResponse replay) {}
  public ChatMessageResponse execute(String user,String key,String fingerprint,Supplier<ChatMessageResponse> answer) {
   if(key!=null&&(key.length()<16||key.length()>128)) throw new BusinessException(ErrorCode.VALIDATION_ERROR,"Idempotency-Key는 16~128자입니다.");
-  String id=Tokens.hash(user+":"+(key==null?UUID.randomUUID():key));
+  String scope=scopes.current(user);
+  String id=Tokens.hash(user+":"+scope+":"+(key==null?UUID.randomUUID():key));
   String hash=Tokens.hash(fingerprint);
   Ticket ticket=tx.execute(s->{
-   var w=wallet(user);var previous=em.find(ChatUsage.class,id);
+   var w=wallet(user);scopes.requireCurrent(user,scope);var previous=em.find(ChatUsage.class,id);
    if(previous!=null) {
     if(!hash.equals(previous.requestHash))throw new BusinessException(ErrorCode.IDEMPOTENCY_KEY_REUSED,"다른 질문에 사용된 요청 키입니다.");
     if(previous.response!=null) return new Ticket(id,null,read(previous.response));
@@ -49,7 +51,7 @@ public class ChatQuotaService {
     em.remove(previous);em.flush();
    }
    if(w.freeUsed>=FREE_LIMIT && w.credits<=0)throw new BusinessException(ErrorCode.CHAT_LIMIT_EXCEEDED,"무료 질문과 크레딧을 모두 사용했어요.");
-   var u=new ChatUsage();u.id=id;u.userId=user;u.requestHash=hash;u.status="PENDING";u.usageDate=w.freeDate;
+   var u=new ChatUsage();u.setDemoScope(scope);u.id=id;u.userId=user;u.requestHash=hash;u.status="PENDING";u.usageDate=w.freeDate;
    u.attemptId=UUID.randomUUID().toString();u.free=w.freeUsed<FREE_LIMIT;u.expiresAt=Instant.now().plusSeconds(600);
    if(u.free)w.freeUsed++;else w.credits--;
    em.persist(u);return new Ticket(id,u.attemptId,null);
@@ -69,7 +71,7 @@ public class ChatQuotaService {
   try {
    var response=answer.get();
    tx.executeWithoutResult(s->{
-    var w=wallet(user);var u=em.find(ChatUsage.class,id);
+    var w=wallet(user);scopes.requireCurrent(user,scope);var u=em.find(ChatUsage.class,id);
     if(!u.status.equals("PENDING")||!ticket.attemptId().equals(u.attemptId))throw new BusinessException(ErrorCode.AI_TEMPORARILY_UNAVAILABLE,"질문 처리 시간이 초과되었습니다. 다시 시도해 주세요.");
     if(!Set.of("ANSWER","CONFLICT").contains(response.outcome())) release(w,u);
     else u.status="CHARGED";

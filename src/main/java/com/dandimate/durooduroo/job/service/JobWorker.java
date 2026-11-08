@@ -112,13 +112,14 @@ public class JobWorker {
             // 요청·응답 원문은 남기지 않고 작업 ID와 예외 종류만 기록한다.
             log.warn("Job {} ({}) attempt {} failed: {}", claimed.getId(), claimed.getType(), claimed.getAttempts(), e.getClass().getSimpleName());
             tx.executeWithoutResult(status -> {
-                AiJob job = jobs.findById(claimed.getId()).orElseThrow();
-                String errorCode = ErrorCode.AI_TEMPORARILY_UNAVAILABLE.name();
-                if (job.getAttempts() >= MAX_ATTEMPTS) {
-                    job.fail(errorCode);
-                    if (AiJob.PHOTO_DERIVE.equals(job.getType())) photoDerive.onFinalFailure(job.getTargetId());
-                }
-                else job.retryAfter(job.getAttempts() == 1 ? Duration.ZERO : retryDelay, errorCode);
+                jobs.findById(claimed.getId()).ifPresent(job -> {
+                    String errorCode = ErrorCode.AI_TEMPORARILY_UNAVAILABLE.name();
+                    if (job.getAttempts() >= MAX_ATTEMPTS) {
+                        job.fail(errorCode);
+                        if (AiJob.PHOTO_DERIVE.equals(job.getType())) photoDerive.onFinalFailure(job.getTargetId());
+                    }
+                    else job.retryAfter(job.getAttempts() == 1 ? Duration.ZERO : retryDelay, errorCode);
+                });
             });
         }
         publishJob(claimed.getId());
@@ -128,7 +129,10 @@ public class JobWorker {
     /** 방 삭제 후 저장소의 사진·음성(roomId/ 아래)을 지운다. */
     private void deleteMedia(AiJob job) {
         storage.deletePrefix(job.getTargetId());
-        tx.executeWithoutResult(status -> jobs.findById(job.getId()).orElseThrow().succeed());
+        tx.executeWithoutResult(status -> jobs.findById(job.getId()).ifPresent(current -> {
+            if (current.getTargetId().startsWith("reviewer-demo/")) jobs.delete(current);
+            else current.succeed();
+        }));
     }
 
     /** 공개 작업(되묻기 분석 제외)의 상태 변화를 방 전체에 알린다. */
