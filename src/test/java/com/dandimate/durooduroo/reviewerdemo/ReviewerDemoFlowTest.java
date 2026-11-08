@@ -3,6 +3,8 @@ package com.dandimate.durooduroo.reviewerdemo;
 import com.dandimate.durooduroo.common.auth.AccountPrincipal;
 import com.dandimate.durooduroo.member.domain.MemberRole;
 import com.dandimate.durooduroo.member.repository.MemberRepository;
+import com.dandimate.durooduroo.reviewerdemo.domain.ReviewerDemoSession;
+import com.dandimate.durooduroo.reviewerdemo.repository.ReviewerDemoSessionRepository;
 import com.dandimate.durooduroo.room.domain.RoomStatus;
 import com.dandimate.durooduroo.room.repository.RoomRepository;
 import com.dandimate.durooduroo.scroll.repository.ScrollRepository;
@@ -39,6 +41,7 @@ class ReviewerDemoFlowTest {
     @Autowired RoomRepository rooms;
     @Autowired MemberRepository members;
     @Autowired ScrollRepository scrolls;
+    @Autowired ReviewerDemoSessionRepository demoSessions;
 
     @Test
     void loggedInReviewerGetsThreeReusableSampleRooms() throws Exception {
@@ -71,6 +74,28 @@ class ReviewerDemoFlowTest {
                 .andExpect(jsonPath("$.data.hostRoomId").value(hostRoomId))
                 .andExpect(jsonPath("$.data.memberRoomId").value(memberRoomId))
                 .andExpect(jsonPath("$.data.completedRoomId").value(completedRoomId));
+    }
+
+    @Test
+    void olderDemoPhotosAreReplacedWhenTheSeedVersionChanges() throws Exception {
+        String userId = accounts.findOrCreate(UUID.randomUUID().toString());
+        MockHttpSession session = session(userId);
+        String first = mvc.perform(post("/api/v1/reviewer-demo/activate").session(session).with(csrf()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String oldHostRoomId = JsonPath.read(first, "$.data.hostRoomId");
+        String oldMemberRoomId = JsonPath.read(first, "$.data.memberRoomId");
+        String oldCompletedRoomId = JsonPath.read(first, "$.data.completedRoomId");
+
+        demoSessions.deleteById(demoSessions.findByUserId(userId).orElseThrow().getId());
+        demoSessions.save(ReviewerDemoSession.create(userId, oldHostRoomId, oldMemberRoomId, oldCompletedRoomId, 1));
+
+        String refreshed = mvc.perform(post("/api/v1/reviewer-demo/activate").session(session).with(csrf()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String newHostRoomId = JsonPath.read(refreshed, "$.data.hostRoomId");
+
+        assertThat(newHostRoomId).isNotEqualTo(oldHostRoomId);
+        assertThat(rooms.findById(oldHostRoomId)).isEmpty();
+        assertThat(rooms.findById(newHostRoomId)).isPresent();
     }
 
     private static MockHttpSession session(String userId) {
