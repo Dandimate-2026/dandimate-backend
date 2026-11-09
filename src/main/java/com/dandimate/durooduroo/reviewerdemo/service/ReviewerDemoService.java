@@ -1,5 +1,7 @@
 package com.dandimate.durooduroo.reviewerdemo.service;
 
+import com.dandimate.durooduroo.askback.domain.Askback;
+import com.dandimate.durooduroo.askback.repository.AskbackRepository;
 import com.dandimate.durooduroo.common.exception.BusinessException;
 import com.dandimate.durooduroo.common.exception.ErrorCode;
 import com.dandimate.durooduroo.member.domain.FlowerCode;
@@ -26,6 +28,7 @@ import com.dandimate.durooduroo.scroll.repository.ScrollRepository;
 import com.dandimate.durooduroo.storage.ObjectStorage;
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.beans.factory.annotation.Value;
@@ -54,13 +57,14 @@ public class ReviewerDemoService {
         return ReviewerDemoView.off();
     }
 
-    private static final int CURRENT_SEED_VERSION = 3;
+    private static final int CURRENT_SEED_VERSION = 4;
 
     private final ReviewerDemoSessionRepository sessions;
     private final RoomRepository rooms;
     private final MemberRepository members;
     private final PhotoRepository photos;
     private final MemoryEntryRepository entries;
+    private final AskbackRepository askbacks;
     private final ScrollRepository scrolls;
     private final ParagraphRepository paragraphs;
     private final ParagraphSourceRepository sources;
@@ -69,10 +73,10 @@ public class ReviewerDemoService {
     private final boolean enabled;
 
     public ReviewerDemoService(ReviewerDemoSessionRepository sessions, RoomRepository rooms, MemberRepository members,
-                               PhotoRepository photos, MemoryEntryRepository entries, ScrollRepository scrolls,
+                               PhotoRepository photos, MemoryEntryRepository entries, AskbackRepository askbacks, ScrollRepository scrolls,
                                ParagraphRepository paragraphs, ParagraphSourceRepository sources, ObjectStorage storage, RoomAdminService roomAdmin,
                                @Value("${app.reviewer-demo.enabled:false}") boolean enabled) {
-        this.sessions = sessions; this.rooms = rooms; this.members = members; this.photos = photos; this.entries = entries;
+        this.sessions = sessions; this.rooms = rooms; this.members = members; this.photos = photos; this.entries = entries; this.askbacks = askbacks;
         this.scrolls = scrolls; this.paragraphs = paragraphs; this.sources = sources; this.storage = storage; this.roomAdmin = roomAdmin; this.enabled = enabled;
     }
 
@@ -107,12 +111,15 @@ public class ReviewerDemoService {
         Room hostRoom = newRoom("[심사용] 경주 가을 산책", LocalDate.of(2026, 11, 7));
         Member host = members.save(Member.host(hostRoom.getId(), "운영진", userId));
         Member seoyeon = members.save(Member.join(hostRoom.getId(), "서연", FlowerCode.FORSYTHIA));
-        seedPhoto(hostRoom, host, "첨성대", "경주 첨성대", "경주", 35.8346, 129.2191,
+        SeededPhoto cheomseongdaePhoto = seedPhoto(hostRoom, host, "첨성대", "경주 첨성대", "경주", 35.8346, 129.2191,
                 "gyeongju-cheomseongdae-night.jpeg", "밤이 되자 첨성대가 분홍빛으로 물들어서 한참 발걸음을 멈췄어요.");
         seedPhoto(hostRoom, seoyeon, "월정교", "경주 월정교", "경주", 35.8299, 129.2147,
                 "gyeongju-woljeonggyo-night.jpeg", "불빛을 따라 걷던 월정교가 물 위에 길게 비쳐서 밤 산책이 더 특별했어요.");
         seedPhoto(hostRoom, host, "황리단길 카페", "경주 황리단길", "경주", 35.8428, 129.2119,
                 "gyeongju-cafe.jpeg", "잠시 쉬어 간 카페에서 케이크를 나눠 먹으며 다음에 갈 곳을 골랐어요.");
+        askbacks.save(Askback.create(hostRoom.getId(), cheomseongdaePhoto.photo().getId(), host.getId(), "SCENE_DETAIL",
+                "첨성대가 분홍빛으로 물들던 순간, 가장 먼저 눈에 들어온 장면은 무엇이었나요?",
+                java.util.List.of(cheomseongdaePhoto.entry().getId()), LocalDateTime.now().plusDays(3)));
         hostRoom.startCirculating();
 
         Room memberRoom = newRoom("[심사용] 포항 바다의 밤", LocalDate.of(2026, 10, 25));
