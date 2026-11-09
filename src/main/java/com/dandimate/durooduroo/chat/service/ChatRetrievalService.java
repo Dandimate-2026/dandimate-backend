@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 /** Rank photos by lexical + semantic reciprocal rank fusion; no universal cosine cutoff. */
 @Service
 public class ChatRetrievalService {
+  private static final org.slf4j.Logger log=org.slf4j.LoggerFactory.getLogger(ChatRetrievalService.class);
  private final MemoryEmbeddingRepository index;private final OpenAiEmbeddingService embeddings;
  public ChatRetrievalService(MemoryEmbeddingRepository index,OpenAiEmbeddingService embeddings){this.index=index;this.embeddings=embeddings;}
  private static final Pattern WORD=Pattern.compile("[가-힣a-z0-9]+");
@@ -21,7 +22,9 @@ public class ChatRetrievalService {
    if(v==null||!v.ready()||!v.getModel().equals(embeddings.model())||!v.getSourceHash().equals(r.hash()))
     throw new BusinessException(ErrorCode.AI_TEMPORARILY_UNAVAILABLE,"새 기록의 검색을 준비하고 있어요. 잠시 후 다시 질문해 주세요.");
   }
-  var queries=embeddings.embed(EmbeddingText.chunks(question)).vectors();
+   long embeddingStarted=System.nanoTime();
+   var queries=embeddings.embed(EmbeddingText.chunks(question)).vectors();
+   log.info("Chat query embedding done model={} chunks={} latencyMs={}",embeddings.model(),queries.size(),(System.nanoTime()-embeddingStarted)/1_000_000);
   Map<String,Double> semantic=new HashMap<>(),lexical=new HashMap<>();
   var words=keywords(question);
   for(var r:allowed.values()){

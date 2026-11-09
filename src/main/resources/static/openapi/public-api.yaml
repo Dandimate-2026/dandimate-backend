@@ -924,7 +924,7 @@ paths:
       summary: 내 계정 조회
       responses:
         '200':
-          description: 내부 계정 ID와 가입 시각
+          description: 서비스 계정 ID와 생성 시각
           content:
             application/json:
               schema:
@@ -937,6 +937,18 @@ paths:
                       id: {type: string, format: uuid}
                       createdAt: {type: string, format: date-time}
         '401': {description: 로그인 필요}
+    delete:
+      tags: [사용자]
+      summary: 내 계정 탈퇴
+      description: 카카오 계정 연결과 개인 챗봇 대화·사용량, 알림 구독, 동의 정보를 제거하고 참여 중인 방에서는 나갑니다. 사진·이야기와 작성자 표시는 공동 기록으로 유지됩니다. 방장인 진행 중 방이 있으면 먼저 방장을 넘기거나 방을 삭제해야 탈퇴할 수 있습니다. 탈퇴하면 모든 로그인 세션이 무효화됩니다.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '204': {description: 탈퇴 완료}
+        '401': {description: 로그인 필요 또는 탈퇴한 계정}
+        '403': {description: CSRF 토큰 오류}
+        '409': {description: 방장인 진행 중 방의 방장을 넘기거나 방을 삭제해야 탈퇴 가능}
   /users/me/rooms:
     get:
       tags: [사용자]

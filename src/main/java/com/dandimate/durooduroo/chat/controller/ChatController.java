@@ -9,6 +9,7 @@ import com.dandimate.durooduroo.chat.service.ChatConversationService;
 import org.springframework.web.bind.annotation.*;
 @RestController @RequestMapping("/api/v1/chat")
 public class ChatController {
+    private static final org.slf4j.Logger log=org.slf4j.LoggerFactory.getLogger(ChatController.class);
     private final ChatConversationService conversations;
     public ChatController(ChatConversationService conversations){this.conversations=conversations;}
     @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.chat.quota.ChatQuotaService quota;
@@ -16,7 +17,15 @@ public class ChatController {
     public ApiResponse<?> quota() { return ApiResponse.success(quota.get(CurrentUser.requireId())); }
     @PostMapping("/messages")
     public ApiResponse<ChatMessageResponse> message(@Valid @RequestBody ChatMessageRequest request, HttpSession session) {
-        return ApiResponse.success(conversations.answer(CurrentUser.requireId(), request, session));
+        long started=System.nanoTime();
+        try {
+            var response=conversations.answer(CurrentUser.requireId(), request, session);
+            log.info("Chat request completed outcome={} latencyMs={}",response.outcome(),(System.nanoTime()-started)/1_000_000);
+            return ApiResponse.success(response);
+        } catch (RuntimeException failure) {
+            log.info("Chat request failed errorType={} latencyMs={}",failure.getClass().getSimpleName(),(System.nanoTime()-started)/1_000_000);
+            throw failure;
+        }
     }
     @GetMapping("/conversations")
     public ApiResponse<?> conversationIds() { return ApiResponse.success(java.util.Map.of("conversationIds", conversations.conversations(CurrentUser.requireId()))); }
