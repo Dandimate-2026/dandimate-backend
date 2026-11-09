@@ -23,15 +23,16 @@ public class PaymentService {
     private final PaymentGateway gateway;
     private final ObjectMapper json;
     private final RoomEvents events;
+    private final com.dandimate.durooduroo.notification.service.Notifier notifier;
     private final TransactionTemplate tx;
     private final com.dandimate.durooduroo.room.service.RoomDetailsService details;
     @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
 
     public PaymentService(PaymentOrderRepository orders, RoomRepository rooms, MemberRepository members,
-            PaymentGateway gateway, ObjectMapper json, RoomEvents events, PlatformTransactionManager manager, com.dandimate.durooduroo.room.service.RoomDetailsService details) {
+            PaymentGateway gateway, ObjectMapper json, RoomEvents events, PlatformTransactionManager manager, com.dandimate.durooduroo.room.service.RoomDetailsService details, com.dandimate.durooduroo.notification.service.Notifier notifier) {
         this.details = details;
         this.orders = orders; this.rooms = rooms; this.members = members; this.gateway = gateway;
-        this.json = json; this.events = events; this.tx = new TransactionTemplate(manager);
+        this.json = json; this.events = events; this.tx = new TransactionTemplate(manager); this.notifier = notifier;
     }
 
     @org.springframework.beans.factory.annotation.Autowired private com.dandimate.durooduroo.chat.quota.ChatQuotaService quota;
@@ -121,7 +122,12 @@ public class PaymentService {
                 } catch (com.fasterxml.jackson.core.JsonProcessingException ex) { throw new IllegalStateException(ex); }
             } else {
                 if (room == null) throw new IllegalStateException("Reserved payment room missing");
+                RoomPlan previousPlan = room.getPlanType();
                 room.upgradePlan(o.getTargetPlan());
+                String message = "\uBC29 \uD50C\uB79C\uC774 " + previousPlan.name() + "\uC5D0\uC11C " + room.getPlanType().name() + "(\uC73C)\uB85C \uC5C5\uADF8\uB808\uC774\uB4DC\uB410\uC5B4\uC694.";
+                for (Member recipient : members.findAllByRoomIdAndLeftAtIsNull(room.getId())) {
+                    notifier.notify(room.getId(), recipient.getId(), "ROOM_PLAN_UPGRADED", "ROOM", room.getId(), message);
+                }
             }
             o.succeed(room.getId());
             events.toRoom(room.getId(), "room.updated", Map.of("planType", room.getPlanType().name()));

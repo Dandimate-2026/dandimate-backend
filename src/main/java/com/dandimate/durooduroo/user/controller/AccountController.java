@@ -13,6 +13,7 @@ import com.dandimate.durooduroo.memory.domain.EntryKind;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.web.csrf.CsrfToken;
 import java.util.Map;
+import jakarta.servlet.http.HttpSession;
 @RestController
 @RequestMapping("/api/v1")
 public class AccountController {
@@ -23,8 +24,9 @@ public class AccountController {
     private final PhotoRepository photos;
     private final MemoryEntryRepository entries;
     private final PhotoPassRepository passes;
-    public AccountController(UserAccountRepository users, MemberRepository members, RoomRepository rooms, NotificationRepository notifications, PhotoRepository photos, MemoryEntryRepository entries, PhotoPassRepository passes) {
-        this.users=users; this.members=members; this.rooms=rooms; this.notifications=notifications; this.photos=photos; this.entries=entries; this.passes=passes;
+    private final com.dandimate.durooduroo.user.service.AccountWithdrawalService withdrawal;
+    public AccountController(UserAccountRepository users, MemberRepository members, RoomRepository rooms, NotificationRepository notifications, PhotoRepository photos, MemoryEntryRepository entries, PhotoPassRepository passes, com.dandimate.durooduroo.user.service.AccountWithdrawalService withdrawal) {
+        this.users=users; this.members=members; this.rooms=rooms; this.notifications=notifications; this.photos=photos; this.entries=entries; this.passes=passes; this.withdrawal=withdrawal;
     }
     @GetMapping("/auth/csrf")
     public ApiResponse<?> csrf(CsrfToken token) {
@@ -34,6 +36,13 @@ public class AccountController {
     public ApiResponse<?> me() {
         var user = users.findById(CurrentUser.requireId()).orElseThrow(() -> new BusinessException("UNAUTHORIZED", "다시 로그인해 주세요."));
         return ApiResponse.success(Map.of("id", user.getId(), "createdAt", user.getCreatedAt()));
+    }
+    @DeleteMapping("/users/me")
+    public org.springframework.http.ResponseEntity<Void> withdraw(HttpSession session) {
+        withdrawal.withdraw(CurrentUser.requireId());
+        session.invalidate();
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        return org.springframework.http.ResponseEntity.noContent().build();
     }
     @GetMapping("/users/me/rooms")
     public ApiResponse<?> rooms() {

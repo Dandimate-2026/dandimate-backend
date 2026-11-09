@@ -924,7 +924,7 @@ paths:
       summary: 내 계정 조회
       responses:
         '200':
-          description: 내부 계정 ID와 가입 시각
+          description: 서비스 계정 ID와 생성 시각
           content:
             application/json:
               schema:
@@ -937,6 +937,18 @@ paths:
                       id: {type: string, format: uuid}
                       createdAt: {type: string, format: date-time}
         '401': {description: 로그인 필요}
+    delete:
+      tags: [사용자]
+      summary: 내 계정 탈퇴
+      description: 카카오 계정 연결과 개인 챗봇 대화·사용량, 알림 구독, 동의 정보를 제거하고 참여 중인 방에서는 나갑니다. 사진·이야기와 작성자 표시는 공동 기록으로 유지됩니다. 방장인 진행 중 방이 있으면 먼저 방장을 넘기거나 방을 삭제해야 탈퇴할 수 있습니다. 탈퇴하면 모든 로그인 세션이 무효화됩니다.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '204': {description: 탈퇴 완료}
+        '401': {description: 로그인 필요 또는 탈퇴한 계정}
+        '403': {description: CSRF 토큰 오류}
+        '409': {description: 방장인 진행 중 방의 방장을 넘기거나 방을 삭제해야 탈퇴 가능}
   /users/me/rooms:
     get:
       tags: [사용자]
@@ -1052,9 +1064,8 @@ paths:
       tags: [플랜]
       summary: 방장에게 플랜 변경 요청 알림 보내기
       description: >-
-        FREE 방의 활성 일반 참가자만 요청할 수 있습니다. LITE/PRO에서는 요청할 수 없습니다. 방장 알림에 type=PLAN_UPGRADE_REQUESTED,
-        resourceType=PHOTO/VOICE/REWEAVE, resourceId=roomId로 저장합니다.
-        결제나 플랜 변경은 수행하지 않습니다. 같은 Idempotency-Key 재전송은 알림을 중복 생성하지 않습니다.
+        Active non-host members in FREE and LITE rooms can request a higher plan from the host. PRO rooms cannot upgrade.
+        If targetPlan is omitted, the next higher plan is requested. This creates a notification only and does not change the room plan.
       security:
         - sessionCookie: []
           csrfToken: []
@@ -1070,6 +1081,7 @@ paths:
               required: [reason]
               properties:
                 reason: {type: string, enum: [PHOTO, VOICE, REWEAVE]}
+                targetPlan: {type: string, enum: [LITE, PRO], description: Optional requested target; omitted means the next higher plan.}
       responses:
         '201':
           description: 방장 알림 생성
@@ -1081,10 +1093,11 @@ paths:
                 properties:
                   data:
                     type: object
-                    required: [notificationId, reason, status]
+                    required: [notificationId, reason, targetPlan, status]
                     properties:
                       notificationId: {$ref: '#/components/schemas/Id'}
                       reason: {type: string, enum: [PHOTO, VOICE, REWEAVE]}
+                      targetPlan: {type: string, enum: [LITE, PRO]}
                       status: {type: string, const: REQUESTED}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {description: 로그인 필요}
@@ -1856,6 +1869,33 @@ paths:
                   data:
                     type: array
                     items: {$ref: '#/components/schemas/Notification'}
+  /notifications:
+    get:
+      security:
+        - sessionCookie: []
+      tags: [알림]
+      summary: "\uC804\uCCB4 \uBC29 \uC54C\uB9BC \uC870\uD68C"
+      description: "\uB85C\uADF8\uC778\uD55C \uC0AC\uC6A9\uC790\uAC00 \uCC38\uC5EC \uC911\uC778 \uBAA8\uB4E0 \uBC29\uC758 \uC54C\uB9BC\uC744 \uCD5C\uC2E0\uC21C\uC73C\uB85C \uC870\uD68C\uD569\uB2C8\uB2E4. \uAC01 \uC54C\uB9BC\uC5D0 roomId\uC640 roomName\uC774 \uD3EC\uD568\uB429\uB2C8\uB2E4."
+      responses:
+        '200':
+          description: Notification list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Notification'
+                        - type: object
+                          required: [roomId, roomName]
+                          properties:
+                            roomId: {$ref: '#/components/schemas/Id'}
+                            roomName: {type: string}
+        '401': {description: Authentication required}
   /notifications/{notificationId}/read:
     post:
       security:
@@ -1881,6 +1921,7 @@ paths:
         - member.updated: 닉네임 변경 {memberId}, 방장 위임 {memberId, previousHostId}.
         - room.updated: 방 이름·모임 날짜·마감 수정 {roomId}, 결제 후 플랜 변경 {planType}.
         - askback.updated: 질문 상태 변경 {askbackId}. 해당 질문 대상자에게만 전달합니다.
+        - notification.created: New notification stored {notificationId, type, resourceId}. Refresh GET /notifications to load all room alerts.
       security: []
       parameters:
         - $ref: '#/components/parameters/RoomId'
@@ -2795,10 +2836,12 @@ components:
       required: [id, type, resourceType, resourceId, createdAt]
       properties:
         id: {$ref: '#/components/schemas/Id'}
-        type: {type: string, enum: [ASKBACK_RECEIVED, SCROLL_READY, REPLY_APPLIED, PLAN_UPGRADE_REQUESTED, ROOM_DELETION_DUE_30D, ROOM_DELETION_DUE_7D, ROOM_DELETION_DUE_1D]}
+        type: {type: string, enum: [ASKBACK_RECEIVED, SCROLL_READY, REPLY_APPLIED, PLAN_UPGRADE_REQUESTED, HOST_TRANSFERRED, PHOTO_ADDON_ADDED, ROOM_PLAN_UPGRADED, ROOM_DELETION_DUE_30D, ROOM_DELETION_DUE_7D, ROOM_DELETION_DUE_1D]}
         resourceType: {type: string}
         resourceId: {$ref: '#/components/schemas/Id'}
         message: {type: [string, 'null']}
+        roomId: {$ref: '#/components/schemas/Id'}
+        roomName: {type: string}
         scheduledFor: {type: [string, 'null'], format: date-time, description: "자동 삭제 예정 시각"}
         readAt: {type: [string, 'null'], format: date-time}
         createdAt: {type: string, format: date-time}
