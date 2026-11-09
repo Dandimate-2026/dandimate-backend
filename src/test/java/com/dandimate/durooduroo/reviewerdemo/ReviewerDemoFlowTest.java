@@ -3,6 +3,7 @@ package com.dandimate.durooduroo.reviewerdemo;
 import com.dandimate.durooduroo.common.auth.AccountPrincipal;
 import com.dandimate.durooduroo.member.domain.MemberRole;
 import com.dandimate.durooduroo.member.repository.MemberRepository;
+import com.dandimate.durooduroo.askback.repository.AskbackRepository;
 import com.dandimate.durooduroo.reviewerdemo.domain.ReviewerDemoSession;
 import com.dandimate.durooduroo.reviewerdemo.repository.ReviewerDemoSessionRepository;
 import com.dandimate.durooduroo.room.domain.RoomStatus;
@@ -42,6 +43,7 @@ class ReviewerDemoFlowTest {
     @Autowired MemberRepository members;
     @Autowired ScrollRepository scrolls;
     @Autowired ReviewerDemoSessionRepository demoSessions;
+    @Autowired AskbackRepository askbacks;
 
     @Test
     void loggedInReviewerGetsThreeReusableSampleRooms() throws Exception {
@@ -61,6 +63,8 @@ class ReviewerDemoFlowTest {
         assertThat(members.findByRoomIdAndUserId(memberRoomId, userId).orElseThrow().getRole()).isEqualTo(MemberRole.MEMBER);
         assertThat(rooms.findById(completedRoomId).orElseThrow().getStatus()).isEqualTo(RoomStatus.GROWING);
         assertThat(scrolls.findTopByRoomIdOrderByVersionDesc(completedRoomId)).isPresent();
+        assertThat(askbacks.findAllByRoomIdAndStatus(hostRoomId, "PENDING"))
+                .anyMatch(askback -> askback.getTargetMemberId().equals(members.findByRoomIdAndUserId(hostRoomId, userId).orElseThrow().getId()));
 
         mvc.perform(get("/api/v1/users/me/rooms").session(session))
                 .andExpect(status().isOk())
