@@ -24,7 +24,7 @@ public class MembershipController {
     }
 
     public record RenameRequest(@NotBlank @Size(max = 10) String nickname) {}
-    public record PlanRequest(@NotNull MembershipService.PlanRequestReason reason) {}
+    public record PlanRequest(@NotNull MembershipService.PlanRequestReason reason, com.dandimate.durooduroo.room.domain.RoomPlan targetPlan) {}
 
     @PatchMapping("/members/me")
     public ApiResponse<?> rename(@PathVariable String roomId, @Valid @RequestBody RenameRequest request) {
@@ -45,6 +45,6 @@ public class MembershipController {
 
     @PostMapping("/plan-requests")
     public ResponseEntity<ApiResponse<?>> requestPlan(@PathVariable String roomId, @Valid @RequestBody PlanRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(service.requestPlan(roomId, request.reason())));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(service.requestPlan(roomId, request.reason(), request.targetPlan())));
     }
 }
