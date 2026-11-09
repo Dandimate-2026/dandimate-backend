@@ -84,19 +84,31 @@ public class MembershipService {
         me.changeRole(MemberRole.MEMBER);
         target.changeRole(MemberRole.HOST);
         events.toRoom(roomId, "member.updated", Map.of("memberId", target.getId(), "previousHostId", me.getId()));
+        String message = me.getNickname() + "\uB2D8\uC774 " + target.getNickname() + "\uB2D8\uC5D0\uAC8C \uBC29\uC7A5\uC744 \uB118\uACBC\uC5B4\uC694.";
+        for (Member recipient : members.findAllByRoomIdAndLeftAtIsNull(roomId)) {
+            notifier.notify(roomId, recipient.getId(), "HOST_TRANSFERRED", "ROOM", roomId, message);
+        }
         return Map.of("hostMemberId", target.getId(), "previousHostMemberId", me.getId());
     }
 
-    public Map<String, Object> requestPlan(String roomId, PlanRequestReason reason) {
+    public Map<String, Object> requestPlan(String roomId, PlanRequestReason reason, com.dandimate.durooduroo.room.domain.RoomPlan requestedPlan) {
         Member me = active(roomId);
-        if (me.getRole() == MemberRole.HOST) throw new BusinessException("FORBIDDEN", "방장에게 요청하는 기능입니다.");
-        if (rooms.findById(roomId).orElseThrow().getPlanType() != com.dandimate.durooduroo.room.domain.RoomPlan.FREE)
-            throw new BusinessException("VALIDATION_ERROR", "무료 방에서만 방장에게 플랜 변경을 요청할 수 있습니다.");
+        if (me.getRole() == MemberRole.HOST) throw new BusinessException("FORBIDDEN", "\uBC29\uC7A5\uC5D0\uAC8C \uC694\uCCAD\uD558\uB294 \uAE30\uB2A5\uC785\uB2C8\uB2E4.");
+        var room = rooms.findById(roomId).orElseThrow(() -> new BusinessException("ROOM_NOT_FOUND", "\uBC29\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4."));
+        var currentPlan = room.getPlanType();
+        if (currentPlan == com.dandimate.durooduroo.room.domain.RoomPlan.PRO)
+            throw new BusinessException("VALIDATION_ERROR", "\uC774\uBBF8 \uAC00\uC7A5 \uB192\uC740 \uD50C\uB79C\uC785\uB2C8\uB2E4.");
+        var targetPlan = requestedPlan == null
+                ? (currentPlan == com.dandimate.durooduroo.room.domain.RoomPlan.FREE ? com.dandimate.durooduroo.room.domain.RoomPlan.LITE : com.dandimate.durooduroo.room.domain.RoomPlan.PRO)
+                : requestedPlan;
+        if (targetPlan.priceKrw() <= currentPlan.priceKrw())
+            throw new BusinessException("VALIDATION_ERROR", "\uD604\uC7AC \uD50C\uB79C\uBCF4\uB2E4 \uB192\uC740 \uD50C\uB79C\uB9CC \uC694\uCCAD\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.");
         Member host = members.findAllByRoomIdAndLeftAtIsNull(roomId).stream()
                 .filter(m -> m.getRole() == MemberRole.HOST).findFirst()
-                .orElseThrow(() -> new BusinessException("ROOM_NOT_FOUND", "방장을 찾을 수 없습니다."));
-        // 프론트 알림 계약: type은 요청 종류, resourceType은 한도 사유, resourceId는 방 ID.
-        var notification = notifier.notify(roomId, host.getId(), "PLAN_UPGRADE_REQUESTED", reason.name(), roomId);
-        return Map.of("notificationId", notification.getId(), "reason", reason, "status", "REQUESTED");
+                .orElseThrow(() -> new BusinessException("ROOM_NOT_FOUND", "\uBC29\uC7A5\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4."));
+        String message = me.getNickname() + "\uB2D8\uC774 " + targetPlan.name() + " \uD50C\uB79C \uC5C5\uADF8\uB808\uC774\uB4DC\uB97C \uC694\uCCAD\uD588\uC5B4\uC694. (" + reason.name() + ")";
+        var notification = notifier.notify(roomId, host.getId(), "PLAN_UPGRADE_REQUESTED", reason.name(), roomId, message);
+        return Map.of("notificationId", notification.getId(), "reason", reason, "targetPlan", targetPlan, "status", "REQUESTED");
     }
+
 }

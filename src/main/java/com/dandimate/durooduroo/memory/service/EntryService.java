@@ -45,6 +45,7 @@ public class EntryService {
     private final com.dandimate.durooduroo.room.service.RoomHomeService roomHome;
     private final com.dandimate.durooduroo.scroll.service.ReplyService replyService;
     private final com.dandimate.durooduroo.notification.service.RoomEvents roomEvents;
+    private final com.dandimate.durooduroo.notification.service.Notifier notifier;
 
     public EntryService(PhotoRepository photos, MemberRepository members, MemoryEntryRepository entries,
                         PhotoPassRepository passes, RoomStateService roomStates,
@@ -52,7 +53,8 @@ public class EntryService {
                         com.dandimate.durooduroo.storage.MediaUrls mediaUrls, com.dandimate.durooduroo.askback.service.AskbackAnalysisService askbackAnalysis,
                         com.dandimate.durooduroo.event.EventLogger events, com.dandimate.durooduroo.room.service.RoomHomeService roomHome,
                         com.dandimate.durooduroo.scroll.service.ReplyService replyService, com.dandimate.durooduroo.notification.service.RoomEvents roomEvents,
-                        com.dandimate.durooduroo.embedding.service.EmbeddingIndexService embeddingIndex) {
+                        com.dandimate.durooduroo.embedding.service.EmbeddingIndexService embeddingIndex,
+                        com.dandimate.durooduroo.notification.service.Notifier notifier) {
         this.embeddingIndex = embeddingIndex;
         this.photos = photos;
         this.members = members;
@@ -67,6 +69,7 @@ public class EntryService {
         this.roomHome = roomHome;
         this.replyService = replyService;
         this.roomEvents = roomEvents;
+        this.notifier = notifier;
     }
 
     /** askbackJobId는 이 확정으로 만들어진(또는 이미 대기 중인) 되묻기 분석 작업. 질문을 만들 수 없는 상태면 null. */
@@ -109,6 +112,13 @@ public class EntryService {
         if (request.kind() == EntryKind.FIRST) {
             publish(photo);
         } else {
+            if (!own) {
+                Member photoOwner = members.findById(photo.getMemberId()).orElse(null);
+                if (photoOwner != null) {
+                    String message = me.getNickname() + "\uB2D8\uC774 \uB0B4 \uC0AC\uC9C4\uC5D0 \uC774\uC57C\uAE30\uB97C \uB367\uBD99\uC600\uC5B4\uC694.";
+                    notifier.notify(photo.getRoomId(), photoOwner.getId(), "PHOTO_ADDON_ADDED", "PHOTO", photo.getId(), message);
+                }
+            }
             passes.findByPhotoIdAndMemberId(photoId, me.getId()).ifPresent(passes::delete);
             events.log(photo.getRoomId(), me.getId(), "addon_submitted", java.util.Map.of("photoId", photoId));
             logIfAllCompleted(photo.getRoomId());

@@ -21,8 +21,12 @@ public class Notifier {
     }
 
     public Notification notify(String roomId, String memberId, String type, String resourceType, String resourceId) {
-        Notification notification = notifications.save(Notification.create(memberId, type, resourceType, resourceId));
-        events.toMember(roomId, memberId, "notification.created", Map.of("notificationId", notification.getId(), "type", type));
+        return notify(roomId, memberId, type, resourceType, resourceId, null);
+    }
+
+    public Notification notify(String roomId, String memberId, String type, String resourceType, String resourceId, String message) {
+        Notification notification = notifications.save(Notification.create(memberId, type, resourceType, resourceId, message));
+        events.toMember(roomId, memberId, "notification.created", Map.of("notificationId", notification.getId(), "type", type, "resourceId", resourceId));
         publisher.publishEvent(new PushNotificationEvent(notification, roomId));
         return notification;
     }

@@ -180,7 +180,7 @@ class ContractCoverageTest {
         all.removeAll(Set.of("GET /chat/quota", "POST /payments/credit-orders", "DELETE /rooms/{roomId}/members/{memberId}", "GET /invites/{inviteToken}/cover", "POST /chat/messages", "GET /auth/csrf", "POST /auth/logout", "GET /users/me", "GET /users/me/rooms", "GET /users/me/map", "POST /reviewer-demo/activate", "GET /reviewer-demo", "PUT /reviewer-demo",
                 "GET /oauth2/authorization/kakao", "GET /login/oauth2/code/kakao",
                 "PATCH /rooms/{roomId}/members/me", "DELETE /rooms/{roomId}/members/me", "POST /rooms/{roomId}/plan-requests", "POST /rooms/{roomId}/host-transfer",
-                "POST /payments/room-orders", "POST /payments/confirm", "GET /payments/orders/{orderId}",
+                "GET /notifications", "POST /payments/room-orders", "POST /payments/confirm", "GET /payments/orders/{orderId}",
                 "POST /rooms/{roomId}/plan-orders", "POST /room-covers", "GET /room-covers/{coverId}/image"));
         assertThat(all).as("호출하지 않은 계약서 operation").isEmpty();
         assertThat(problems).as("계약서와 다른 응답").isEmpty();
