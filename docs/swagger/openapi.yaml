@@ -4,7 +4,7 @@ info:
   version: 0.1.0
   description: "모바일 웹에서 사용하는 단일 Spring Boot 서버의 API입니다. OpenAI는 서버에서만 호출하며 클라이언트에 직접 노출하지 않습니다."
 servers:
-  - url: https://api.example.com/api/v1
+  - url: https://43-201-73-60.sslip.io/api/v1
 tags:
   - name: 챗봇
   - name: 인증
