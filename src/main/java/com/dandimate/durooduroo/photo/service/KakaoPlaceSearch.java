@@ -50,6 +50,10 @@ public class KakaoPlaceSearch {
             for (JsonNode place : body.path("documents")) {
                 String road = place.path("road_address_name").asText("");
                 String lot = place.path("address_name").asText("");
+                String address = road.isBlank() ? lot : road;
+                // 기록 지도와 지역 템플릿의 범위를 대구·경북으로 한정한다.
+                // 검색어 자체는 그대로 카카오에 보내 정확도를 유지하고 결과만 서비스 지역으로 거른다.
+                if (!isDaeGuGyeongBuk(address)) continue;
                 places.add(new PlaceView(place.path("place_name").asText(), road.isBlank() ? lot : road,
                         PlaceCity.of(lot.isBlank() ? road : lot), place.path("y").asDouble(), place.path("x").asDouble(), place.path("id").asText(null)));
             }
@@ -61,6 +65,11 @@ public class KakaoPlaceSearch {
             log.warn("카카오 장소 검색 실패: {}", ex.getClass().getSimpleName());
             throw unavailable();
         }
+    }
+
+    private boolean isDaeGuGyeongBuk(String address) {
+        String normalized = address == null ? "" : address.replaceAll("\\s+", " ").strip();
+        return normalized.startsWith("대구") || normalized.startsWith("경북") || normalized.startsWith("경상북도");
     }
 
     private BusinessException unavailable() {

@@ -1194,8 +1194,8 @@ paths:
         - sessionCookie: []
           csrfToken: []
       tags: [모임방]
-      summary: "모임방 설정·장소·대표 사진 수정 (방장 전용)"
-      description: "place·coverImageUrl 생략 시 유지, null이면 삭제. 본인이 업로드한 대표 사진만 지정 가능합니다. capacity는 방장만 COLLECTING/CIRCULATING 상태에서 현재 참여 인원 이상~8명까지 변경합니다. 정원 오류는 422 INVALID_CAPACITY이며 변경 시 room.updated 이벤트를 보냅니다."
+      summary: "모임방 설정·장소·대표 사진·두루마리 템플릿 수정 (방장 전용)"
+      description: "place·coverImageUrl 생략 시 유지, null이면 삭제. 본인이 업로드한 대표 사진만 지정 가능합니다. capacity는 방장만 COLLECTING/CIRCULATING 상태에서 현재 참여 인원 이상~8명까지 변경합니다. scrollTemplateId는 방 참여자 전체에 적용되며 플랜별 허용값을 검증하고 변경 시 scroll.template.updated 이벤트를 보냅니다."
       requestBody:
         required: true
         content:
@@ -1206,7 +1206,8 @@ paths:
                 capacity: {type: integer, minimum: 1, maximum: 8, description: "나간 사람을 제외한 현재 인원보다 줄일 수 없음"}
                 name: {type: string, minLength: 1, maxLength: 20}
                 meetingDate: {type: string, format: date}
-                deadlineAt: {type: string, format: date-time}
+                deadlineAt: {type: [string, 'null'], format: date-time}
+                scrollTemplateId: {type: string, enum: [CLASSIC, DAEGU, GYEONGJU, ANDONG, POHANG, YEONGCHEON, CHRISTMAS]}
                 place: {$ref: '#/components/schemas/NullableRoomPlace'}
                 coverPhoto: {$ref: '#/components/schemas/NullableCoverPhotoRef'}
                 coverImageUrl: {type: [string, "null"], description: "대표 사진 업로드 응답 imageUrl. 같은 서버의 /api/v1/room-covers/{id}/image 주소. 생략하면 유지, 수정 시 null은 삭제"}
@@ -1312,11 +1313,33 @@ paths:
           csrfToken: []
       tags: [사진]
       summary: "저장소에 업로드한 사진의 업로드 완료 확인"
+      description: >-
+        JPEG/PNG는 READY, HEIC/HEIF는 JPEG 파생본 생성 중 PROCESSING으로 응답합니다.
+        PROCESSING 상태에서 같은 요청을 반복해도 안전하며 현재 상태를 돌려줍니다.
+        변환 실패 시 FAILED가 되며 다시 complete하면 변환 작업을 재시도합니다.
       parameters:
         - $ref: '#/components/parameters/PhotoId'
         - $ref: '#/components/parameters/IdempotencyKey'
       responses:
-        '200': {$ref: '#/components/responses/Ok'}
+        '200':
+          description: "현재 사진 처리 상태"
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [photo]
+                    properties:
+                      photo:
+                        type: object
+                        required: [id, status, displayOrder]
+                        properties:
+                          id: {$ref: '#/components/schemas/Id'}
+                          status: {type: string, enum: [UPLOADING, PROCESSING, READY, FAILED]}
+                          displayOrder: {type: integer, minimum: 0}
         '409': {$ref: '#/components/responses/Conflict'}
   /photos/{photoId}:
     delete:
@@ -1385,7 +1408,7 @@ paths:
     get:
       tags: [사진]
       summary: "사진에 넣을 장소 검색"
-      description: "카카오 로컬 검색 결과를 최대 10건 돌려줍니다. 고른 값을 사진 장소 입력에 그대로 보내면 됩니다."
+      description: "카카오 로컬 검색 결과 중 서비스 지역인 대구·경북 장소만 최대 10건 돌려줍니다. 고른 값을 사진 장소 입력에 그대로 보내면 됩니다."
       parameters:
         - name: query
           in: query
@@ -1910,6 +1933,101 @@ paths:
           schema: {$ref: '#/components/schemas/Id'}
       responses:
         '200': {$ref: '#/components/responses/Ok'}
+  /notifications/{notificationId}:
+    delete:
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      tags: [알림]
+      summary: "내 알림 서버 삭제"
+      description: "본인 알림만 삭제할 수 있으며 방별 목록과 읽지 않은 알림 수에 즉시 반영됩니다."
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema: {$ref: '#/components/schemas/Id'}
+      responses:
+        '204': {description: "삭제 완료"}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /push/vapid-public-key:
+    get:
+      tags: [알림]
+      summary: "브라우저 푸시 설정 조회"
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: "VAPID 공개키 설정 여부"
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [enabled]
+                    properties:
+                      enabled: {type: boolean}
+                      publicKey: {type: [string, 'null']}
+  /push/subscriptions:
+    post:
+      tags: [알림]
+      summary: "현재 기기의 브라우저 푸시 구독 등록"
+      security: [{sessionCookie: [], csrfToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint, keys]
+              properties:
+                endpoint: {type: string, format: uri}
+                keys:
+                  type: object
+                  required: [p256dh, auth]
+                  properties:
+                    p256dh: {type: string}
+                    auth: {type: string}
+      responses:
+        '200': {$ref: '#/components/responses/Ok'}
+    delete:
+      tags: [알림]
+      summary: "현재 기기의 브라우저 푸시 구독 해제"
+      security: [{sessionCookie: [], csrfToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint]
+              properties:
+                endpoint: {type: string, format: uri}
+      responses:
+        '200': {$ref: '#/components/responses/Ok'}
+  /consents/current:
+    get:
+      tags: [인증]
+      summary: "현재 약관 버전과 내 동의 상태 조회"
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: "현재 약관 버전과 재동의 필요 여부"
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [version, consented]
+                    properties:
+                      version: {type: string}
+                      consented: {type: boolean}
+                      consentedAt: {type: [string, 'null'], format: date-time}
   /rooms/{roomId}/events:
     get:
       tags: [알림]
@@ -2382,6 +2500,7 @@ components:
         capacity: {type: integer, minimum: 1, maximum: 8, default: 8, description: "방장 포함 정원. 생략 시 8명"}
         name: {type: string, minLength: 1, maxLength: 20}
         meetingDate: {type: string, format: date}
+        deadlineAt: {type: [string, 'null'], format: date-time, description: "방 생성 또는 유료 방 결제 승인 시 함께 저장할 기록 마감·두루마리 생성 시작 시각"}
         hostNickname: {type: string, minLength: 1, maxLength: 10}
         consent: {$ref: '#/components/schemas/Consent'}
     CreateRoomResponse:
@@ -2408,6 +2527,7 @@ components:
         id: {$ref: '#/components/schemas/Id'}
         capacity: {type: integer, minimum: 1, maximum: 8}
         planType: {$ref: '#/components/schemas/RoomPlan'}
+        scrollTemplateId: {type: string, enum: [CLASSIC, DAEGU, GYEONGJU, ANDONG, POHANG, YEONGCHEON, CHRISTMAS], description: "방 참여자에게 공통 적용되는 두루마리 템플릿. 방장만 변경 가능하며 FREE는 CLASSIC, LITE는 CHRISTMAS 외 템플릿, PRO는 전체 사용 가능"}
         quota:
           allOf: [{$ref: '#/components/schemas/RoomQuota'}]
           description: "방 홈 조회에 포함. 생성/입장 응답에는 포함하지 않습니다."

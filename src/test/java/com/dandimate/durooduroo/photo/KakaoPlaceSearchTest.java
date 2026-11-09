@@ -15,7 +15,8 @@ import org.junit.jupiter.api.Test;
 class KakaoPlaceSearchTest {
     private static final String RESULT = """
             {"documents":[{"place_name":"황리단길","address_name":"경북 경주시 황남동 1","road_address_name":"경북 경주시 포석로 1080","x":"129.21","y":"35.83"},
-            {"place_name":"동성로","address_name":"대구 중구 동성로2가","road_address_name":"","x":"128.59","y":"35.86"}]}""";
+            {"place_name":"동성로","address_name":"대구 중구 동성로2가","road_address_name":"","x":"128.59","y":"35.86"},
+            {"place_name":"청계천","address_name":"서울 중구 태평로1가","road_address_name":"서울 중구 세종대로 110","x":"126.97","y":"37.57"}]}""";
 
     private HttpServer server(int status, String body, AtomicReference<String> seen) throws Exception {
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -46,6 +47,7 @@ class KakaoPlaceSearchTest {
             assertThat(places.get(0).longitude()).isEqualTo(129.21);
             assertThat(places.get(1).address()).isEqualTo("대구 중구 동성로2가");
             assertThat(places.get(1).city()).isEqualTo("대구");
+            assertThat(places).noneMatch(place -> place.city().equals("서울"));
         } finally { server.stop(0); }
     }
 
