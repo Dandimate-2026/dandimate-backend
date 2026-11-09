@@ -18,7 +18,15 @@ import java.util.List;
 @org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication(type = org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type.SERVLET)
 public class SecurityConfig {
     @Bean
-    SecurityFilterChain security(HttpSecurity http, KakaoUserService users, ObjectMapper json,
+    org.springframework.boot.web.servlet.FilterRegistrationBean<com.dandimate.durooduroo.common.auth.WithdrawnAccountFilter> withdrawnAccountFilterRegistration(
+            com.dandimate.durooduroo.common.auth.WithdrawnAccountFilter filter) {
+        var registration = new org.springframework.boot.web.servlet.FilterRegistrationBean<>(filter);
+        registration.setEnabled(false); // Run only inside Spring Security, after authentication is loaded.
+        return registration;
+    }
+
+    @Bean
+    SecurityFilterChain security(HttpSecurity http, KakaoUserService users, ObjectMapper json, com.dandimate.durooduroo.common.auth.WithdrawnAccountFilter withdrawnAccountFilter,
             org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient<org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest> tokenClient,
             @Value("${KAKAO_CLIENT_ID:}") String clientId,
             @Value("${KAKAO_CLIENT_SECRET:}") String secret,
@@ -47,6 +55,7 @@ public class SecurityConfig {
                 }))
             .logout(l -> l.logoutUrl("/api/v1/auth/logout").invalidateHttpSession(true)
                 .deleteCookies("JSESSIONID").logoutSuccessHandler((req, res, auth) -> res.setStatus(204)));
+        http.addFilterAfter(withdrawnAccountFilter, org.springframework.security.web.authentication.AnonymousAuthenticationFilter.class);
         if (!clientId.isBlank() && !secret.isBlank() && !redirect.isBlank()) {
             var kakao = ClientRegistration.withRegistrationId("kakao")
                 .clientId(clientId).clientSecret(secret)
