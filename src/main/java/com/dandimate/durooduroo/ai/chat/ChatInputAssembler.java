@@ -20,7 +20,7 @@ final class ChatInputAssembler {
    String roomKey=Objects.toString(e.roomId(),e.roomName());
    var room=rooms.computeIfAbsent(roomKey,k->{Map<String,Object> x=new LinkedHashMap<>();x.put("roomId","room_"+(rooms.size()+1));x.put("name",e.roomName());x.put("meetingDate",e.meetingDate());x.put("photos",new ArrayList<Map<String,Object>>());return x;});
    var photo=photos.get(e.photoId());
-   if(photo==null){photo=new LinkedHashMap<>();photo.put("photoId","photo_"+(photos.size()+1));photo.put("uploader",personRef(roomKey,e.uploaderUserId(),e.uploaderNickname(),userIds,personRefs,people));photo.put("entries",new ArrayList<Map<String,Object>>());photos.put(e.photoId(),photo);((List<Map<String,Object>>)room.get("photos")).add(photo);}
+   if(photo==null){photo=new LinkedHashMap<>();photo.put("photoId","photo_"+(photos.size()+1));photo.put("uploader",personRef(roomKey,e.uploaderUserId(),e.uploaderNickname(),userIds,personRefs,people));photo.put("place",Map.of("name",Objects.toString(e.placeName(),""),"address",Objects.toString(e.address(),""),"city",Objects.toString(e.city(),"")));photo.put("entries",new ArrayList<Map<String,Object>>());photos.put(e.photoId(),photo);((List<Map<String,Object>>)room.get("photos")).add(photo);}
    Map<String,Object> entry=new LinkedHashMap<>();entry.put("entryId",aliases.get(e.entryId()));entry.put("kind",e.kind());entry.put("author",personRef(roomKey,e.authorUserId(),e.authorNickname(),userIds,personRefs,people));entry.put("createdAt",e.createdAt());entry.put("text",e.text());
    ((List<Map<String,Object>>)photo.get("entries")).add(entry);
   }

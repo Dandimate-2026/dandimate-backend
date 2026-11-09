@@ -2154,6 +2154,15 @@ components:
               format: date-time
             uploader:
               $ref: '#/components/schemas/ChatAuthor'
+            placeName:
+              type: [string, 'null']
+              description: 사진에 저장된 장소 이름
+            address:
+              type: [string, 'null']
+              description: 사진에 저장된 장소 주소
+            city:
+              type: [string, 'null']
+              description: 사진 장소의 도시
         entries:
           type: array
           description: 해당 사진의 열람 가능한 덧붙임 전체. createdAt, entryId 오름차순.

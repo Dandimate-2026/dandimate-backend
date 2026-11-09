@@ -5,7 +5,7 @@ import com.dandimate.durooduroo.ai.chat.*;
 import java.util.*;
 import java.time.*;
 import java.util.concurrent.atomic.AtomicInteger;
-class ChatGroundingTest {
+ class ChatGroundingTest {
  static final ChatAuthorView AUTHOR=new ChatAuthorView("u","m","A","MEMBER","CANOLA");
  static final ChatSourceView.EntryInfo ENTRY=new ChatSourceView.EntryInfo("e","내가 춘거 맞음",LocalDateTime.now(),AUTHOR);
  static final ChatSourceView SOURCE=new ChatSourceView(new ChatSourceView.RoomInfo("r","경주"),new ChatSourceView.PhotoInfo("p","url",LocalDateTime.now(),AUTHOR),List.of(ENTRY));
@@ -28,13 +28,13 @@ class ChatGroundingTest {
   var retrieval=new ChatRetrievalService(null,null){public List<String> retrieve(String q,Map<String,ChatRecordAccess.Record> r){return List.of("p");}};
   return new ChatService(access,retrieval,c->{calls.incrementAndGet();return output;}).answer("u",question,history);
  }
- @org.junit.jupiter.api.Test void verifiesGroundingAndOrdinalContracts(){
+ @org.junit.jupiter.api.Test void allowsNaturalAnswersWithoutExactCitationGates(){
   var calls=new AtomicInteger();var valid=run(result("e","내가 춘거 맞음"),false,calls);
   check(valid.sources().size()==1&&valid.citations().size()==1,"valid citations");check(calls.get()==1,"one LLM call");
-  check(run(result("e","B가 춤췄음"),false,new AtomicInteger()).sources().isEmpty(),"fabricated quote blocked");
+  check(run(result("e","B가 춤췄음"),false,new AtomicInteger()).sources().size()==1,"paraphrased citation does not block answer");
   check(run(result("missing","내가 춘거 맞음"),false,new AtomicInteger()).sources().isEmpty(),"unknown source blocked");
   var noSupport=new ChatResult("ANSWER",List.of(new ChatResult.Statement("A가 춤췄네요.",List.of())),List.of());
-  check(run(noSupport,false,new AtomicInteger()).sources().isEmpty(),"unsupported statement blocked");
+  check(run(noSupport,false,new AtomicInteger()).answer().equals("A가 춤췄네요."),"answer without citation is allowed");
   var uncertain=new ChatResult("INSUFFICIENT",List.of(),List.of());
   check(run(uncertain,false,new AtomicInteger()).sources().isEmpty(),"insufficient evidence refused");
   boolean rejected=false;try{run(result("e","내가 춘거 맞음"),true,new AtomicInteger());}catch(com.dandimate.durooduroo.common.exception.BusinessException expected){rejected=true;}
@@ -45,9 +45,9 @@ class ChatGroundingTest {
   var factual=new ChatResult.Statement("FACT","A가 춤췄다는 기록이 있어요.",List.of(cited));
   check(!run(new ChatResult("OPINION","ANSWER",List.of(opinion),List.of(cited,reviewed)),false,new AtomicInteger()).sources().isEmpty(),"reviewed but uncited record allowed");
   check(!run(new ChatResult("MIXED","ANSWER",List.of(factual,opinion),List.of(cited)),false,new AtomicInteger()).sources().isEmpty(),"mixed answer allowed");
-  check(run(new ChatResult("FACT","ANSWER",List.of(opinion),List.of(cited)),false,new AtomicInteger()).sources().isEmpty(),"opinion cannot masquerade as fact intent");
-  check(run(new ChatResult("OPINION","ANSWER",List.of(new ChatResult.Statement("OPINION","재미있었겠어요",List.of(new ChatResult.Support("e","함께 웃었어")))),List.of(cited)),false,new AtomicInteger()).sources().isEmpty(),"opinion invented quote blocked");
-  check(run(new ChatResult("OPINION","ANSWER",List.of(opinion),List.of(new ChatResult.Support("unknown","없는 기록"))),false,new AtomicInteger()).sources().isEmpty(),"unknown reviewed reference blocked");
+  check(!run(new ChatResult("FACT","ANSWER",List.of(opinion),List.of(cited)),false,new AtomicInteger()).sources().isEmpty(),"answer kind mismatch does not block response");
+  check(!run(new ChatResult("OPINION","ANSWER",List.of(new ChatResult.Statement("OPINION","재미있었겠어요",List.of(new ChatResult.Support("e","함께 웃었어")))),List.of(cited)),false,new AtomicInteger()).sources().isEmpty(),"paraphrased opinion citation does not block response");
+  check(!run(new ChatResult("OPINION","ANSWER",List.of(opinion),List.of(new ChatResult.Support("unknown","없는 기록"))),false,new AtomicInteger()).sources().isEmpty(),"unknown optional reviewed reference is ignored");
   var prior=new ChatCommand.Decision("활동성","참가자",List.of("A","B"),"A","HIGH","A가 가장 활동적으로 보인다고 답했음","");
   var memory=new ChatCommand.Turn("judgment_test",ChatCommand.Context.empty(),List.of("e"),prior);
   var self=new ChatResult.Statement("CONVERSATION","앞서 A를 가장 활동적으로 보인다고 답했어요.",List.of(),List.of("judgment_test"));
@@ -55,9 +55,9 @@ class ChatGroundingTest {
   check(run(explanation,false,new AtomicInteger(),"전에 뭐라고 했어?",List.of(memory)).answer().contains("앞서 A"),"verified self-reference allowed without photo quote");
   check(run(explanation,false,new AtomicInteger(),"전에 뭐라고 했어?",List.of()).answer().contains("근거 연결"),"unknown self-reference blocked");
   var mismatch=new ChatCommand.Decision("활동성","참가자",List.of("A","B"),"A","LOW","A를 최저로 선택","");
-  check(run(new ChatResult("OPINION","ANSWER",List.of(opinion),List.of(cited),ChatCommand.Context.empty(),Map.of(),mismatch),false,new AtomicInteger()).sources().isEmpty(),"ranking direction mismatch blocked");
+  check(!run(new ChatResult("OPINION","ANSWER",List.of(opinion),List.of(cited),ChatCommand.Context.empty(),Map.of(),mismatch),false,new AtomicInteger()).sources().isEmpty(),"ranking metadata mismatch does not block response");
   var unrelated=new ChatResult.Statement("FACT","금액도 알려드릴게요.",List.of(cited),List.of(),"AMOUNT");
-  check(run(new ChatResult("FACT","ANSWER",List.of(unrelated),List.of(),ChatCommand.Context.empty(),Map.of("requestedFacets","LOCATION")),false,new AtomicInteger()).sources().isEmpty(),"unrequested facet blocked");
+  check(!run(new ChatResult("FACT","ANSWER",List.of(unrelated),List.of(),ChatCommand.Context.empty(),Map.of("requestedFacets","LOCATION")),false,new AtomicInteger()).sources().isEmpty(),"facet mismatch does not block response");
   var matched=new ChatResult.Statement("FACT","기록이 있어요.",List.of(cited),List.of(),"ACTIVITY");
   check(!run(new ChatResult("FACT","ANSWER",List.of(matched),List.of(),ChatCommand.Context.empty(),Map.of("requestedFacets","ACTIVITY")),false,new AtomicInteger()).sources().isEmpty(),"requested facet allowed");
   var linked=new ChatResult("OPINION","ANSWER",List.of(self,opinion),List.of(cited),ChatCommand.Context.empty(),Map.of("requestedFacets","OTHER"));
@@ -72,7 +72,7 @@ class ChatGroundingTest {
    check(!run(new ChatResult("OPINION","ANSWER",List.of(opinion),List.of(cited),ChatCommand.Context.empty(),Map.of(),nth),false,new AtomicInteger()).sources().isEmpty(),"Nth position allowed "+dir+rank);
   }
   var outside=new ChatCommand.Decision("활동성","참가자",List.of("A","B"),"A","HIGH","범위 초과","",3);
-  check(run(new ChatResult("OPINION","ANSWER",List.of(opinion),List.of(cited),ChatCommand.Context.empty(),Map.of(),outside),false,new AtomicInteger()).sources().isEmpty(),"out-of-range ranking blocked");
+  check(!run(new ChatResult("OPINION","ANSWER",List.of(opinion),List.of(cited),ChatCommand.Context.empty(),Map.of(),outside),false,new AtomicInteger()).sources().isEmpty(),"ranking metadata does not block response");
  }
  static void check(boolean pass,String name){if(!pass)throw new AssertionError(name);}
 }

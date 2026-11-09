@@ -17,9 +17,14 @@ public record ChatCommand(String question,List<Evidence> evidence,String viewerU
  }
  public ChatCommand {conversationState=List.copyOf(conversationState);evidence=List.copyOf(evidence);}
  public record Evidence(String entryId,String photoId,String roomName,String uploaderNickname,String authorNickname,String text,
-                        String kind,String createdAt,String roomId,String meetingDate,String authorUserId,String uploaderUserId) {
+                        String kind,String createdAt,String roomId,String meetingDate,String authorUserId,String uploaderUserId,
+                        String placeName,String address,String city) {
   public Evidence(String entryId,String photoId,String roomName,String uploaderNickname,String authorNickname,String text){
-   this(entryId,photoId,roomName,uploaderNickname,authorNickname,text,"ADDON",null,null,null,null,null);
+   this(entryId,photoId,roomName,uploaderNickname,authorNickname,text,"ADDON",null,null,null,null,null,null,null,null);
+  }
+  public Evidence(String entryId,String photoId,String roomName,String uploaderNickname,String authorNickname,String text,
+                  String kind,String createdAt,String roomId,String meetingDate,String authorUserId,String uploaderUserId){
+   this(entryId,photoId,roomName,uploaderNickname,authorNickname,text,kind,createdAt,roomId,meetingDate,authorUserId,uploaderUserId,null,null,null);
   }
  }
 }
