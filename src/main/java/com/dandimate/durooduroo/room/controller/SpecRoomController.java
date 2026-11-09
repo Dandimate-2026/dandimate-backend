@@ -44,6 +44,8 @@ public class SpecRoomController {
                     "유료 플랜 결제 기능이 아직 연결되지 않았습니다.");
         }
         Room room = rooms.save(Room.create(request.name().trim(), request.meetingDate(), request.selectedCapacity(), request.planType()));
+        if (request.deadlineAt() != null)
+            room.changeDeadline(request.deadlineAt().atZoneSameInstant(java.time.ZoneId.systemDefault()).toLocalDateTime(), java.time.LocalDateTime.now());
         details.apply(room, request.place(), request.selectedCover(), com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull());
         Member host = members.save(Member.host(room.getId(), request.hostNickname().trim(), com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull()));
         consents.recordIfUser(com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull(), request.consent());

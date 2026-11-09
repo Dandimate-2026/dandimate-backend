@@ -12,6 +12,7 @@ import com.dandimate.durooduroo.room.repository.RoomRepository;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -64,6 +65,22 @@ public class NotificationController {
         notification.read();
         notifications.save(notification);
         return ApiResponse.success(Map.of("id", notification.getId(), "read", true));
+    }
+
+    @DeleteMapping("/api/v1/notifications/{notificationId}")
+    public ResponseEntity<Void> delete(@PathVariable String notificationId, @RequestHeader(required = false) String authorization) {
+        var notification = notifications.findById(notificationId)
+                .orElseThrow(() -> new BusinessException("NOTIFICATION_NOT_FOUND", "알림이 없습니다."));
+        String token = MemberTokenResolver.resolve(authorization);
+        var target = members.findById(notification.getMemberId())
+                .orElseThrow(() -> new BusinessException("FORBIDDEN", "본인 알림만 삭제할 수 있습니다."));
+        var me = members.findByRoomIdAndMemberToken(target.getRoomId(), token)
+                .orElseThrow(() -> new BusinessException("FORBIDDEN", "방 참여자만 사용할 수 있습니다."));
+        if (!me.getId().equals(notification.getMemberId())) {
+            throw new BusinessException("FORBIDDEN", "본인 알림만 삭제할 수 있습니다.");
+        }
+        notifications.delete(notification);
+        return ResponseEntity.noContent().build();
     }
 
     private Map<String, Object> view(Notification notification, Member member, Map<String, String> roomNames) {

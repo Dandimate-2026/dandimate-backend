@@ -117,6 +117,8 @@ public class PaymentService {
                 try {
                     var request = json.readValue(o.getRoomRequest(), SpecCreateRoomRequest.class);
                     room = rooms.save(Room.create(request.name().strip(), request.meetingDate(), request.selectedCapacity(), o.getTargetPlan()));
+                    if (request.deadlineAt() != null)
+                        room.changeDeadline(request.deadlineAt().atZoneSameInstant(java.time.ZoneId.systemDefault()).toLocalDateTime(), LocalDateTime.now());
                     details.apply(room, request.place(), request.selectedCover(), user);
                     members.save(Member.host(room.getId(), request.hostNickname().strip(), user));
                 } catch (com.fasterxml.jackson.core.JsonProcessingException ex) { throw new IllegalStateException(ex); }
