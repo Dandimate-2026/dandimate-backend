@@ -28,12 +28,14 @@ public class ChatRetrievalService {
   Map<String,Double> semantic=new HashMap<>(),lexical=new HashMap<>();
   var words=keywords(question);
   for(var r:allowed.values()){
-   String photo=r.source().photo().photoId();double best=-1;
-   for(var q:queries)for(var v:rows.get(r.entryId()).vectors())best=Math.max(best,cosine(q,v));
-   semantic.merge(photo,best,Math::max);
-   String document=(r.source().room().name()+" "+r.source().room().meetingDate()+" "+r.entry().author().nickname()+" "+r.entry().text()).toLowerCase(Locale.ROOT);
+   String photoId=r.source().photo().photoId();double best=-1;
+   var documentVectors=rows.get(r.entryId()).vectors();
+   for(var q:queries)for(var v:documentVectors)best=Math.max(best,cosine(q,v));
+   semantic.merge(photoId,best,Math::max);
+   var photo=r.source().photo();
+   String document=(r.source().room().name()+" "+r.source().room().meetingDate()+" "+photo.placeName()+" "+photo.address()+" "+photo.city()+" "+r.entry().author().nickname()+" "+r.entry().text()).toLowerCase(Locale.ROOT);
    double score=0;for(var word:words)if(document.contains(word))score+=word.length();
-   lexical.merge(photo,score,Math::max);
+   lexical.merge(photoId,score,Math::max);
   }
   Map<String,Double> fused=new HashMap<>();rank(semantic,fused,false);rank(lexical,fused,true);
   return fused.keySet().stream().sorted(Comparator.<String>comparingDouble(fused::get).reversed().thenComparing(x->x)).toList();

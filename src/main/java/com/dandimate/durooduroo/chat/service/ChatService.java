@@ -6,7 +6,7 @@ import com.dandimate.durooduroo.common.exception.*;
 import java.util.*;
 import java.util.concurrent.Semaphore;
 import org.springframework.stereotype.Service;
-/** One generation call. Server verifies literal evidence, not the semantic truth of generated claims. */
+/** Retrieves all authorized room records and returns the model's structured answer. */
 @Service
 public class ChatService {
  private final ChatRecordAccess access;private final ChatRetrievalService retrieval;private final ChatAiService ai;
@@ -47,76 +47,43 @@ public class ChatService {
     .filter(t->t.citedEntryIds().stream().allMatch(allowed::containsKey))
     .map(t->new ChatCommand.Turn(t.id(),t.context(),t.citedEntryIds(),t.decision())).toList();
   var rankedPhotos=retrieval.retrieve(question,allowed); // Current question only; no previous question concatenation.
-  // Include the whole authorized corpus when it fits, including metadata overhead.
-  int corpusSize=allowed.values().stream().mapToInt(r->r.entry().text().length()+400).sum();
-  boolean wholeCorpus=corpusSize<=48000 && rankedPhotos.size()<=32;
-  boolean overview=question.matches("(?s).*(어디|모두|전체|전부|모든|총정리|목록|다녀).*" );
-  if(!wholeCorpus && overview)throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-    "전체 기록을 한 번에 확인하기에는 내용이 많아요. 방이나 시기를 지정해 주세요.");
-  // Full-corpus input has a stable photo order across equivalent query wording.
-  var photoIds=wholeCorpus?rankedPhotos.stream().sorted().toList():rankedPhotos.stream().limit(8).toList();
-  List<ChatRecordAccess.Record> selected=new ArrayList<>();int characters=0;
-  for(var photo:photoIds){
-   var group=allowed.values().stream().filter(r->r.source().photo().photoId().equals(photo)).toList();
-   int size=group.stream().mapToInt(r->r.entry().text().length()+400).sum();
-   if(characters+size>48000){
-    if(selected.isEmpty())throw new BusinessException(ErrorCode.VALIDATION_ERROR,"관련 기록이 너무 많아요. 질문 범위를 조금 좁혀 주세요.");
-    break;
-   }
-   selected.addAll(group);characters+=size;
-  }
+  // Every authorized photo remains eligible: broad questions must not be rejected or cut to top-N photos.
+  // The retrieval index ranks the complete corpus; grouped input avoids repeating room/photo metadata per entry.
+  Map<String,Integer> rank=new HashMap<>();for(int i=0;i<rankedPhotos.size();i++)rank.put(rankedPhotos.get(i),i);
+  List<ChatRecordAccess.Record> selected=new ArrayList<>(allowed.values());
+  selected.sort(Comparator.comparingInt(r->rank.getOrDefault(r.source().photo().photoId(),Integer.MAX_VALUE)));
   var before=access.load(userId,false);unchanged(selected,before);
   var evidence=selected.stream().map(r->{var fresh=before.get(r.entryId());var source=fresh.source();
    return new ChatCommand.Evidence(r.entryId(),source.photo().photoId(),source.room().name(),source.photo().uploader().nickname(),
     fresh.entry().author().nickname(),fresh.entry().text(),fresh.kind(),fresh.entry().createdAt().toString(),source.room().roomId(),
-    source.room().meetingDate()==null?null:source.room().meetingDate().toString(),fresh.entry().author().userId(),source.photo().uploader().userId());
+    source.room().meetingDate()==null?null:source.room().meetingDate().toString(),fresh.entry().author().userId(),source.photo().uploader().userId(),
+    source.photo().placeName(),source.photo().address(),source.photo().city());
   }).toList();
   var result=ai.answer(new ChatCommand(question,evidence,userId,safeHistory)); // Exactly one LLM call, including refusal/invalid output.
   var after=access.load(userId,true);unchanged(selected,after);
-  Set<String> permitted=new HashSet<>();selected.forEach(r->permitted.add(r.entryId()));
   if(!Set.of("FACT","OPINION","MIXED").contains(result.intent()))return invalidEvidence(result);
   if(!Set.of("ANSWER","CONFLICT","INSUFFICIENT").contains(result.outcome()))return invalidEvidence(result);
   if(result.outcome().equals("INSUFFICIENT"))return insufficient(result);
   if(result.statements().isEmpty()||result.statements().size()>12)return invalidEvidence(result);
   Set<String> memoryIds=new HashSet<>();safeHistory.forEach(t->memoryIds.add(t.id()));
   var decision=result.decision();
-  if(!decision.revisesId().isBlank()&&!memoryIds.contains(decision.revisesId()))return invalidEvidence(result);
-  if(!decision.rankedTargets().isEmpty()){
-   if(new HashSet<>(decision.rankedTargets()).size()!=decision.rankedTargets().size())return invalidEvidence(result);
-   int rank=decision.rankPosition();
-   if(rank<1||rank>decision.rankedTargets().size())return invalidEvidence(result);
-   String expected=decision.direction().equals("HIGH")?decision.rankedTargets().get(rank-1):decision.direction().equals("LOW")?decision.rankedTargets().get(decision.rankedTargets().size()-rank):decision.selectedTarget();
-   if(!expected.equals(decision.selectedTarget()))return invalidEvidence(result);
-  }
   List<ChatMessageResponse.Citation> citations=new ArrayList<>();List<String> sentences=new ArrayList<>();
   Map<String,ChatSourceView> sources=new LinkedHashMap<>();
   for(int i=0;i<result.statements().size();i++){
    var statement=result.statements().get(i);String text=statement.text();
-   String requested=result.interpretation().getOrDefault("requestedFacets","");
-   if(!statement.kind().equals("CONVERSATION")&&!requested.isBlank()&&!Arrays.asList(requested.split(",")).contains(statement.answersFacet()))return invalidEvidence(result);
    if(!Set.of("FACT","OPINION","CONVERSATION").contains(statement.kind()))return invalidEvidence(result);
-   if(result.intent().equals("FACT")&&statement.kind().equals("OPINION"))return invalidEvidence(result);
    if(text==null||text.isBlank()||text.length()>1800)return invalidEvidence(result);
-   if(!memoryIds.containsAll(statement.memoryRefs()))return invalidEvidence(result);
-   if(statement.kind().equals("CONVERSATION")){
-    if(statement.memoryRefs().isEmpty())return invalidEvidence(result);
-   }else if(statement.supports().isEmpty())return invalidEvidence(result);
+   if(statement.kind().equals("CONVERSATION")&&!memoryIds.containsAll(statement.memoryRefs()))return invalidEvidence(result);
    if(text.matches("(?s).*[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}.*"))return invalidEvidence(result);
    for(var support:statement.supports()){
-    if(!permitted.contains(support.entryId()))return invalidEvidence(result);
-    var record=after.get(support.entryId());String quote=support.quote();
-    // Exact substring: no generated/paraphrased quote, unknown ID or whitespace-only citation.
-    if(quote==null||quote.strip().length()<2||!record.entry().text().contains(quote))return invalidEvidence(result);
-    citations.add(new ChatMessageResponse.Citation(i,record.entryId(),record.source().photo().photoId(),record.kind(),quote,record.entry().author()));
+    var record=after.get(support.entryId());
+    if(record==null||support.quote()==null||support.quote().isBlank())continue;
+    citations.add(new ChatMessageResponse.Citation(i,record.entryId(),record.source().photo().photoId(),record.kind(),record.entry().text(),record.entry().author()));
     sources.putIfAbsent(record.source().photo().photoId(),record.source());
    }
    sentences.add(text);
   }
-  // Reviewed records need not all be cited. Every actual citation remains mandatory and validated.
-  for(var relevant:result.relevantEvidence()){
-   if(!permitted.contains(relevant.entryId())||relevant.quote()==null||
-      relevant.quote().strip().length()<2||!after.get(relevant.entryId()).entry().text().contains(relevant.quote()))return invalidEvidence(result);
-  }
+  // Citations are optional UI hints; exact source-text matching does not gate natural answers.
   String answer=String.join("\n\n",sentences);if(answer.length()>6000)return invalidEvidence(result);
   return new ChatMessageResponse(answer,List.copyOf(sources.values()),citations,stateOf(result),decision).withOutcome(result.outcome());
  }

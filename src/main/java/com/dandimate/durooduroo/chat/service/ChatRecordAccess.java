@@ -38,8 +38,8 @@ public class ChatRecordAccess {
     var first=visible.stream().filter(e->e.getKind()==EntryKind.FIRST).map(e->views.get(e.getId())).findFirst().orElse(null);
     var addons=visible.stream().filter(e->e.getKind()==EntryKind.ADDON).map(e->views.get(e.getId())).toList();
     var source=new ChatSourceView(new ChatSourceView.RoomInfo(room.getId(),room.getTitle(),room.getMeetingDate()),
-     new ChatSourceView.PhotoInfo(photo.getId(),imageUrls?media.imageUrl(photo):null,photo.getCreatedAt(),authors.get(photo.getMemberId())),addons,first);
-    String version=EmbeddingText.hash(source.room().toString()+authors.get(photo.getMemberId()).toString()+unlocked+views.toString());
+     new ChatSourceView.PhotoInfo(photo.getId(),imageUrls?media.imageUrl(photo):null,photo.getCreatedAt(),authors.get(photo.getMemberId()),photo.getPlaceName(),photo.getAddress(),photo.getCity()),addons,first);
+    String version=EmbeddingText.hash(source.room().toString()+source.photo().placeName()+source.photo().address()+source.photo().city()+authors.get(photo.getMemberId()).toString()+unlocked+views.toString());
     for(var e:visible)result.put(e.getId(),new Record(e.getId(),EmbeddingText.hash(e.getTranscript()),version,e.getKind().name(),source,views.get(e.getId())));
    }
   }

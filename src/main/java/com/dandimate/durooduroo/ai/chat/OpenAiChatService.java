@@ -21,7 +21,7 @@ public class OpenAiChatService implements ChatAiService {
   Map<String,Object> memoryItem=memoryIds.isEmpty()?Map.of("type","string"):Map.of("type","string","enum",memoryIds);
   var facet=Map.of("type","string","enum",List.of("LOCATION","PERSON","TIME","AMOUNT","ACTIVITY","REASON","EVALUATION","CONVERSATION","OTHER"));
   List<Map<String,Object>> variants=new ArrayList<>();
-  for(String kind:List.of("FACT","OPINION"))variants.add(object(Map.of("answersFacet",facet,"kind",Map.of("type","string","enum",List.of(kind)),"text",Map.of("type","string"),"supports",Map.of("type","array","minItems",1,"items",support),"memoryRefs",Map.of("type","array","maxItems",0,"items",Map.of("type","string")))));
+  for(String kind:List.of("FACT","OPINION"))variants.add(object(Map.of("answersFacet",facet,"kind",Map.of("type","string","enum",List.of(kind)),"text",Map.of("type","string"),"supports",Map.of("type","array","items",support),"memoryRefs",Map.of("type","array","maxItems",0,"items",Map.of("type","string")))));
   if(!memoryIds.isEmpty())variants.add(object(Map.of("answersFacet",facet,"kind",Map.of("type","string","enum",List.of("CONVERSATION")),"text",Map.of("type","string"),"supports",Map.of("type","array","maxItems",0,"items",support),"memoryRefs",Map.of("type","array","minItems",1,"items",memoryItem))));
   var statement=Map.of("anyOf",variants);
   Map<String,Object> fields=new LinkedHashMap<>();

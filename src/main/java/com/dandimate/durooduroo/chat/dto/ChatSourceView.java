@@ -8,6 +8,11 @@ public record ChatSourceView(RoomInfo room, PhotoInfo photo, List<EntryInfo> ent
  public record RoomInfo(String roomId,String name,LocalDate meetingDate) {
   public RoomInfo(String roomId,String name){this(roomId,name,null);}
  }
- public record PhotoInfo(String photoId,String imageUrl,LocalDateTime createdAt,ChatAuthorView uploader) {}
+ public record PhotoInfo(String photoId,String imageUrl,LocalDateTime createdAt,ChatAuthorView uploader,
+                         String placeName,String address,String city) {
+  public PhotoInfo(String photoId,String imageUrl,LocalDateTime createdAt,ChatAuthorView uploader) {
+   this(photoId,imageUrl,createdAt,uploader,null,null,null);
+  }
+ }
  public record EntryInfo(String entryId,String text,LocalDateTime createdAt,ChatAuthorView author) {}
 }
