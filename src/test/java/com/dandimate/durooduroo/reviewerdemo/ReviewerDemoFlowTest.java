@@ -4,6 +4,7 @@ import com.dandimate.durooduroo.common.auth.AccountPrincipal;
 import com.dandimate.durooduroo.member.domain.MemberRole;
 import com.dandimate.durooduroo.member.repository.MemberRepository;
 import com.dandimate.durooduroo.askback.repository.AskbackRepository;
+import com.dandimate.durooduroo.memory.repository.PhotoPassRepository;
 import com.dandimate.durooduroo.reviewerdemo.domain.ReviewerDemoSession;
 import com.dandimate.durooduroo.reviewerdemo.repository.ReviewerDemoSessionRepository;
 import com.dandimate.durooduroo.room.domain.RoomStatus;
@@ -44,6 +45,7 @@ class ReviewerDemoFlowTest {
     @Autowired ScrollRepository scrolls;
     @Autowired ReviewerDemoSessionRepository demoSessions;
     @Autowired AskbackRepository askbacks;
+    @Autowired PhotoPassRepository passes;
 
     @Test
     void loggedInReviewerGetsThreeReusableSampleRooms() throws Exception {
@@ -63,8 +65,16 @@ class ReviewerDemoFlowTest {
         assertThat(members.findByRoomIdAndUserId(memberRoomId, userId).orElseThrow().getRole()).isEqualTo(MemberRole.MEMBER);
         assertThat(rooms.findById(completedRoomId).orElseThrow().getStatus()).isEqualTo(RoomStatus.GROWING);
         assertThat(scrolls.findTopByRoomIdOrderByVersionDesc(completedRoomId)).isPresent();
-        assertThat(askbacks.findAllByRoomIdAndStatus(hostRoomId, "PENDING"))
-                .anyMatch(askback -> askback.getTargetMemberId().equals(members.findByRoomIdAndUserId(hostRoomId, userId).orElseThrow().getId()));
+        String hostMemberId = members.findByRoomIdAndUserId(hostRoomId, userId).orElseThrow().getId();
+        var pendingAskback = askbacks.findAllByRoomIdAndStatus(hostRoomId, "PENDING").stream()
+                .filter(askback -> askback.getTargetMemberId().equals(hostMemberId))
+                .findFirst().orElseThrow();
+        assertThat(passes.findByPhotoIdAndMemberId(pendingAskback.getPhotoId(), hostMemberId)).isPresent();
+
+        mvc.perform(get("/api/v1/rooms/" + hostRoomId + "/askbacks/me").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.askbacks.length()").value(1))
+                .andExpect(jsonPath("$.data.askbacks[0].question").value("월정교 불빛이 물 위에 번지던 순간, 가장 먼저 눈에 들어온 장면은 무엇이었나요?"));
 
         mvc.perform(get("/api/v1/users/me/rooms").session(session))
                 .andExpect(status().isOk())

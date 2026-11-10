@@ -9,7 +9,9 @@ import com.dandimate.durooduroo.member.domain.Member;
 import com.dandimate.durooduroo.member.repository.MemberRepository;
 import com.dandimate.durooduroo.memory.domain.EntryKind;
 import com.dandimate.durooduroo.memory.domain.MemoryEntry;
+import com.dandimate.durooduroo.memory.domain.PhotoPass;
 import com.dandimate.durooduroo.memory.repository.MemoryEntryRepository;
+import com.dandimate.durooduroo.memory.repository.PhotoPassRepository;
 import com.dandimate.durooduroo.photo.domain.Photo;
 import com.dandimate.durooduroo.photo.repository.PhotoRepository;
 import com.dandimate.durooduroo.reviewerdemo.domain.ReviewerDemoSession;
@@ -57,7 +59,7 @@ public class ReviewerDemoService {
         return ReviewerDemoView.off();
     }
 
-    private static final int CURRENT_SEED_VERSION = 4;
+    private static final int CURRENT_SEED_VERSION = 5;
 
     private final ReviewerDemoSessionRepository sessions;
     private final RoomRepository rooms;
@@ -65,6 +67,7 @@ public class ReviewerDemoService {
     private final PhotoRepository photos;
     private final MemoryEntryRepository entries;
     private final AskbackRepository askbacks;
+    private final PhotoPassRepository passes;
     private final ScrollRepository scrolls;
     private final ParagraphRepository paragraphs;
     private final ParagraphSourceRepository sources;
@@ -73,10 +76,10 @@ public class ReviewerDemoService {
     private final boolean enabled;
 
     public ReviewerDemoService(ReviewerDemoSessionRepository sessions, RoomRepository rooms, MemberRepository members,
-                               PhotoRepository photos, MemoryEntryRepository entries, AskbackRepository askbacks, ScrollRepository scrolls,
+                               PhotoRepository photos, MemoryEntryRepository entries, AskbackRepository askbacks, PhotoPassRepository passes, ScrollRepository scrolls,
                                ParagraphRepository paragraphs, ParagraphSourceRepository sources, ObjectStorage storage, RoomAdminService roomAdmin,
                                @Value("${app.reviewer-demo.enabled:false}") boolean enabled) {
-        this.sessions = sessions; this.rooms = rooms; this.members = members; this.photos = photos; this.entries = entries; this.askbacks = askbacks;
+        this.sessions = sessions; this.rooms = rooms; this.members = members; this.photos = photos; this.entries = entries; this.askbacks = askbacks; this.passes = passes;
         this.scrolls = scrolls; this.paragraphs = paragraphs; this.sources = sources; this.storage = storage; this.roomAdmin = roomAdmin; this.enabled = enabled;
     }
 
@@ -113,13 +116,16 @@ public class ReviewerDemoService {
         Member seoyeon = members.save(Member.join(hostRoom.getId(), "서연", FlowerCode.FORSYTHIA));
         SeededPhoto cheomseongdaePhoto = seedPhoto(hostRoom, host, "첨성대", "경주 첨성대", "경주", 35.8346, 129.2191,
                 "gyeongju-cheomseongdae-night.jpeg", "밤이 되자 첨성대가 분홍빛으로 물들어서 한참 발걸음을 멈췄어요.");
-        seedPhoto(hostRoom, seoyeon, "월정교", "경주 월정교", "경주", 35.8299, 129.2147,
+        SeededPhoto woljeonggyoPhoto = seedPhoto(hostRoom, seoyeon, "월정교", "경주 월정교", "경주", 35.8299, 129.2147,
                 "gyeongju-woljeonggyo-night.jpeg", "불빛을 따라 걷던 월정교가 물 위에 길게 비쳐서 밤 산책이 더 특별했어요.");
         seedPhoto(hostRoom, host, "황리단길 카페", "경주 황리단길", "경주", 35.8428, 129.2119,
                 "gyeongju-cafe.jpeg", "잠시 쉬어 간 카페에서 케이크를 나눠 먹으며 다음에 갈 곳을 골랐어요.");
-        askbacks.save(Askback.create(hostRoom.getId(), cheomseongdaePhoto.photo().getId(), host.getId(), "SCENE_DETAIL",
-                "첨성대가 분홍빛으로 물들던 순간, 가장 먼저 눈에 들어온 장면은 무엇이었나요?",
-                java.util.List.of(cheomseongdaePhoto.entry().getId()), LocalDateTime.now().plusDays(3)));
+        // 실제 되묻기는 패스한 친구 사진에서만 보인다. 심사 방장에게도 카드가 보이도록
+        // 서연 사진을 패스한 상황과 그 사진을 근거로 한 질문을 함께 준비한다.
+        passes.save(PhotoPass.of(hostRoom.getId(), woljeonggyoPhoto.photo().getId(), host.getId()));
+        askbacks.save(Askback.create(hostRoom.getId(), woljeonggyoPhoto.photo().getId(), host.getId(), "SCENE_DETAIL",
+                "월정교 불빛이 물 위에 번지던 순간, 가장 먼저 눈에 들어온 장면은 무엇이었나요?",
+                java.util.List.of(woljeonggyoPhoto.entry().getId()), LocalDateTime.now().plusDays(3)));
         hostRoom.startCirculating();
 
         Room memberRoom = newRoom("[심사용] 포항 바다의 밤", LocalDate.of(2026, 10, 25));
