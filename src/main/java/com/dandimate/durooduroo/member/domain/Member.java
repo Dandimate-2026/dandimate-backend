@@ -1,6 +1,8 @@
 /** 방에 참여한 사용자의 닉네임, 토큰 해시, 역할을 관리한다. */
 package com.dandimate.durooduroo.member.domain;
 
+import com.dandimate.durooduroo.common.exception.BusinessException;
+import com.dandimate.durooduroo.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -76,7 +78,7 @@ public class Member implements Persistable<String> {
         this.activeFlowerCode = null;
     }
     public void rejoin(String nickname, FlowerCode flower) {
-        if(isKicked())throw new com.dandimate.durooduroo.common.exception.BusinessException("FORBIDDEN","내보내진 방에는 다시 참여할 수 없습니다.");
+        if(isKicked())throw new BusinessException(ErrorCode.FORBIDDEN,"내보내진 방에는 다시 참여할 수 없습니다.");
         this.nickname = nickname;
         this.flowerCode = flower;
         this.activeFlowerCode = flower.name();

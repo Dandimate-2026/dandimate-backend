@@ -1,4 +1,4 @@
-/** 도메인 규칙 위반을 표현하는 공통 비즈니스 예외다. 새 코드는 ErrorCode 생성자를 사용한다. */
+/** 도메인 규칙 위반을 표현하는 공통 비즈니스 예외다. 오류 코드는 ErrorCode로 지정한다. */
 package com.dandimate.durooduroo.common.exception;
 
 import java.util.Map;
@@ -16,11 +16,6 @@ public class BusinessException extends RuntimeException {
         super(message);
         this.errorCode = errorCode;
         this.details = details;
-    }
-
-    /** 기존 문자열 코드 호환용. ErrorCode.from으로 명세 코드에 매핑된다. */
-    public BusinessException(String code, String message) {
-        this(ErrorCode.from(code), message, null);
     }
 
     public ErrorCode getErrorCode() {

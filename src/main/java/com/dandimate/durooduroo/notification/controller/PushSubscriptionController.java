@@ -3,6 +3,7 @@ package com.dandimate.durooduroo.notification.controller;
 import com.dandimate.durooduroo.common.api.ApiResponse;
 import com.dandimate.durooduroo.common.auth.CurrentUser;
 import com.dandimate.durooduroo.common.exception.BusinessException;
+import com.dandimate.durooduroo.common.exception.ErrorCode;
 import com.dandimate.durooduroo.notification.domain.PushSubscription;
 import com.dandimate.durooduroo.notification.repository.PushSubscriptionRepository;
 import jakarta.validation.Valid;
@@ -53,7 +54,7 @@ public class PushSubscriptionController {
 
     public record PushConfig(boolean enabled, String publicKey) {}
     public record SubscriptionRequest(@NotBlank String endpoint, @Valid Keys keys) {
-        public SubscriptionRequest { if (keys == null) throw new BusinessException("VALIDATION_ERROR", "브라우저 푸시 키가 필요합니다."); }
+        public SubscriptionRequest { if (keys == null) throw new BusinessException(ErrorCode.VALIDATION_ERROR, "브라우저 푸시 키가 필요합니다."); }
     }
     public record Keys(@NotBlank String p256dh, @NotBlank String auth) {}
     public record EndpointRequest(@NotBlank String endpoint) {}

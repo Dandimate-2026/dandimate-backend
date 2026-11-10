@@ -60,7 +60,7 @@ public class RoomHomeService {
 
     @Transactional(readOnly = true)
     public RoomHomeView home(String roomId, String authorization) {
-        Room room = rooms.findById(roomId).orElseThrow(() -> new BusinessException(ErrorCode.ROOM_NOT_FOUND, "존재하지 않는 방입니다."));
+        Room room = rooms.requireById(roomId);
         Member me = members.findByRoomIdAndMemberToken(roomId, MemberTokenResolver.resolve(authorization))
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "방 참여자만 조회할 수 있습니다."));
         List<Member> roomMembers = members.findAllByRoomIdAndLeftAtIsNull(roomId).stream().sorted(Comparator.comparing(m -> m.getFlowerCode().ordinal())).toList();

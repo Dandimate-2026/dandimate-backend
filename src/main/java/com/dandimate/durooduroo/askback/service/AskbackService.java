@@ -200,7 +200,7 @@ public class AskbackService {
     }
 
     private Member requireMember(String roomId, String authorization) {
-        rooms.findById(roomId).orElseThrow(() -> new BusinessException(ErrorCode.ROOM_NOT_FOUND, "존재하지 않는 방입니다."));
+        rooms.requireById(roomId);
         return members.findByRoomIdAndMemberToken(roomId, MemberTokenResolver.resolve(authorization))
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "방 참여자만 사용할 수 있습니다."));
     }

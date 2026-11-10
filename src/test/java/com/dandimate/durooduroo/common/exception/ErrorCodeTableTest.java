@@ -2,10 +2,7 @@ package com.dandimate.durooduroo.common.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.regex.Pattern;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -57,21 +54,5 @@ class ErrorCodeTableTest {
                 .collect(Collectors.toMap(Enum::name, c -> c.status().value(), (x, y) -> x, LinkedHashMap::new));
         assertThat(actual).containsExactlyInAnyOrderEntriesOf(SPEC);
         assertThat(ErrorCode.INTERNAL_ERROR.status().value()).isEqualTo(500);
-    }
-
-    /** 소스에 남은 문자열 오류 코드가 모두 명세 코드로 매핑되는지 확인한다. 빠지면 VALIDATION_ERROR로 조용히 바뀌기 때문이다. */
-    @Test
-    void 소스의_문자열_오류_코드는_모두_명세_코드로_매핑된다() throws Exception {
-        Pattern literal = Pattern.compile("BusinessException\\(\"([A-Z_]+)\"");
-        try (var files = Files.walk(Path.of("src/main/java"))) {
-            var unmapped = files.filter(f -> f.toString().endsWith(".java")).flatMap(f -> {
-                try {
-                    return literal.matcher(Files.readString(f)).results().map(m -> m.group(1));
-                } catch (Exception e) {
-                    throw new IllegalStateException(e);
-                }
-            }).filter(code -> !ErrorCode.isMapped(code)).distinct().toList();
-            assertThat(unmapped).isEmpty();
-        }
     }
 }

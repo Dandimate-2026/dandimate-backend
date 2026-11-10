@@ -83,6 +83,6 @@ public class VoiceQuotaService {
     }
 
     private Room lock(String roomId) {
-        return rooms.findByIdForUpdate(roomId).orElseThrow(() -> new BusinessException(ErrorCode.ROOM_NOT_FOUND, "방이 없습니다."));
+        return rooms.requireByIdForUpdate(roomId);
     }
 }

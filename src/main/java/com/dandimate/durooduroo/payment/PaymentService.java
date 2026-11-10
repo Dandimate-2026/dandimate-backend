@@ -155,7 +155,7 @@ public class PaymentService {
         return order;
     }
     private Room hostRoom(String id, String user) {
-        Room room = rooms.findByIdForUpdate(id).orElseThrow(() -> new BusinessException(ErrorCode.ROOM_NOT_FOUND, "방이 없습니다."));
+        Room room = rooms.requireByIdForUpdate(id);
         requireHost(id, user); return room;
     }
     private void requireHost(String id, String user) {

@@ -3,6 +3,7 @@ package com.dandimate.durooduroo.room.controller;
 
 import com.dandimate.durooduroo.common.api.ApiResponse;
 import com.dandimate.durooduroo.common.exception.BusinessException;
+import com.dandimate.durooduroo.common.exception.ErrorCode;
 import com.dandimate.durooduroo.member.domain.Member;
 import com.dandimate.durooduroo.member.repository.MemberRepository;
 import com.dandimate.durooduroo.room.domain.Room;
@@ -36,7 +37,7 @@ public class SpecRoomController {
         try {
             request.consent().validate();
         } catch (IllegalArgumentException e) {
-            throw new BusinessException("CONSENT_REQUIRED", e.getMessage());
+            throw new BusinessException(ErrorCode.CONSENT_REQUIRED, e.getMessage());
         }
         // 유료 플랜은 결제 검증이 연결되기 전까지 생성하지 않는다. FREE로 대체하지 않는다.
         if (request.planType().requiresPayment()) {

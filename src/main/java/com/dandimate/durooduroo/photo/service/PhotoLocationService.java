@@ -51,10 +51,10 @@ public class PhotoLocationService {
     }
 
     private Photo editable(String photoId, String authorization) {
-        Photo photo = photos.findById(photoId).orElseThrow(() -> new BusinessException("PHOTO_NOT_FOUND", "사진이 없습니다."));
+        Photo photo = photos.findById(photoId).orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "사진이 없습니다."));
         String token = MemberTokenResolver.resolve(authorization);
         var member = members.findByRoomIdAndMemberToken(photo.getRoomId(), token)
-                .orElseThrow(() -> new BusinessException("MEMBER_FORBIDDEN", "참여자만 장소를 바꿀 수 있습니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "참여자만 장소를 바꿀 수 있습니다."));
         if (!member.getId().equals(photo.getMemberId())) throw new BusinessException(ErrorCode.FORBIDDEN, "본인 사진의 장소만 바꿀 수 있습니다.");
         roomStates.require(photo.getRoomId(), RoomAction.EDIT_PHOTO_LOCATION);
         return photo;

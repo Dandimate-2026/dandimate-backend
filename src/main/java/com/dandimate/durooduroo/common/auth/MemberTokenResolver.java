@@ -5,12 +5,13 @@
 package com.dandimate.durooduroo.common.auth;
 
 import com.dandimate.durooduroo.common.exception.BusinessException;
+import com.dandimate.durooduroo.common.exception.ErrorCode;
 
 public final class MemberTokenResolver {
     private MemberTokenResolver() {}
     public static String resolve(String authorization) {
         if (CurrentUser.idOrNull() != null) return "session";
         if (authorization != null && authorization.startsWith("Bearer ") && authorization.length() > 7) return authorization.substring(7);
-        throw new BusinessException("UNAUTHORIZED", "memberAccessToken이 필요합니다.");
+        throw new BusinessException(ErrorCode.INVALID_MEMBER_TOKEN, "memberAccessToken이 필요합니다.");
     }
 }

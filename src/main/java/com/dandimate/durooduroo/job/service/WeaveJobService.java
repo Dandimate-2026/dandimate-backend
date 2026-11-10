@@ -127,8 +127,7 @@ public class WeaveJobService {
     }
 
     private Room lockRoom(String roomId) {
-        return rooms.findByIdForUpdate(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ROOM_NOT_FOUND, "존재하지 않는 방입니다."));
+        return rooms.requireByIdForUpdate(roomId);
     }
 
     private Optional<AiJob> activeJob(String roomId) {
