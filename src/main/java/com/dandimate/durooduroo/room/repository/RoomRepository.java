@@ -2,6 +2,8 @@
 package com.dandimate.durooduroo.room.repository;
 
 import com.dandimate.durooduroo.common.auth.Tokens;
+import com.dandimate.durooduroo.common.exception.BusinessException;
+import com.dandimate.durooduroo.common.exception.ErrorCode;
 import com.dandimate.durooduroo.room.domain.Room;
 import jakarta.persistence.LockModeType;
 import com.dandimate.durooduroo.room.domain.RoomStatus;
@@ -36,4 +38,18 @@ public interface RoomRepository extends JpaRepository<Room, String> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from Room r where r.id = :id")
     Optional<Room> findByIdForUpdate(@Param("id") String id);
+
+    /** 방을 찾고, 없으면 404 ROOM_NOT_FOUND. */
+    default Room requireById(String id) {
+        return findById(id).orElseThrow(RoomRepository::roomNotFound);
+    }
+
+    /** {@link #findByIdForUpdate}로 행을 잠그고 찾는다. 없으면 404 ROOM_NOT_FOUND. */
+    default Room requireByIdForUpdate(String id) {
+        return findByIdForUpdate(id).orElseThrow(RoomRepository::roomNotFound);
+    }
+
+    private static BusinessException roomNotFound() {
+        return new BusinessException(ErrorCode.ROOM_NOT_FOUND, "존재하지 않는 방입니다.");
+    }
 }

@@ -55,7 +55,7 @@ public class ReplyService {
         Paragraph paragraph = paragraphs.findById(paragraphId).orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "문단이 없습니다."));
         Member me = members.findByRoomIdAndMemberToken(paragraph.getRoomId(), MemberTokenResolver.resolve(authorization))
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "방 참여자만 답가를 남길 수 있습니다."));
-        var room = rooms.findByIdForUpdate(paragraph.getRoomId()).orElseThrow(() -> new BusinessException(ErrorCode.ROOM_NOT_FOUND, "방이 없습니다."));
+        var room = rooms.requireByIdForUpdate(paragraph.getRoomId());
         room.requireAllows(RoomAction.REPLY);
         if (!"VOICE".equals(inputMode) && !"TEXT".equals(inputMode)) throw new BusinessException(ErrorCode.VALIDATION_ERROR, "inputMode는 VOICE 또는 TEXT여야 합니다.");
         String text = transcript == null ? "" : transcript.strip();

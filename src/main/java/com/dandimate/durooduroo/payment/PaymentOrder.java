@@ -1,5 +1,7 @@
 package com.dandimate.durooduroo.payment;
 
+import com.dandimate.durooduroo.common.exception.BusinessException;
+import com.dandimate.durooduroo.common.exception.ErrorCode;
 import com.dandimate.durooduroo.room.domain.RoomPlan;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
@@ -33,7 +35,7 @@ public class PaymentOrder {
             case "light" -> new int[]{10,900};
             case "basic" -> new int[]{30,1900};
             case "plenty" -> new int[]{50,2900};
-            default -> throw new com.dandimate.durooduroo.common.exception.BusinessException("VALIDATION_ERROR","크레딧 상품을 확인해 주세요.");
+            default -> throw new BusinessException(ErrorCode.VALIDATION_ERROR,"크레딧 상품을 확인해 주세요.");
         };
         PaymentOrder o=new PaymentOrder();o.id=UUID.randomUUID().toString();o.userId=user;
         o.orderType="CREDIT";o.packId=pack;o.creditAmount=values[0];o.amount=values[1];

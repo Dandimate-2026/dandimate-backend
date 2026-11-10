@@ -4,6 +4,7 @@ package com.dandimate.durooduroo.member.controller;
 import com.dandimate.durooduroo.common.api.ApiResponse;
 import com.dandimate.durooduroo.common.auth.CurrentUser;
 import com.dandimate.durooduroo.common.exception.BusinessException;
+import com.dandimate.durooduroo.common.exception.ErrorCode;
 import com.dandimate.durooduroo.member.dto.SpecJoinRoomRequest;
 import com.dandimate.durooduroo.member.dto.SpecJoinRoomResponse;
 import com.dandimate.durooduroo.member.repository.MemberRepository;
@@ -36,7 +37,7 @@ public class InviteController {
     public ApiResponse<?> preview(@PathVariable String inviteToken) {
         invites.remember(inviteToken);
         var room = rooms.findByInviteToken(inviteToken)
-                .orElseThrow(() -> new BusinessException("INVITE_NOT_FOUND", "유효하지 않은 초대 토큰입니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.ROOM_NOT_FOUND, "유효하지 않은 초대 토큰입니다."));
         var roomMembers = members.findAllByRoomIdAndLeftAtIsNull(room.getId());
         long count = roomMembers.size();
         String userId = CurrentUser.idOrNull();
@@ -60,7 +61,7 @@ public class InviteController {
 
     @GetMapping("/{inviteToken}/cover")
     public ResponseEntity<?> cover(@PathVariable String inviteToken) {
-        var room=rooms.findByInviteToken(inviteToken).orElseThrow(()->new BusinessException("INVITE_NOT_FOUND","초대 링크가 없습니다."));
+        var room=rooms.findByInviteToken(inviteToken).orElseThrow(()->new BusinessException(ErrorCode.ROOM_NOT_FOUND,"초대 링크가 없습니다."));
         return covers.inviteImage(room.getCoverPhotoId());
     }
     @PostMapping("/{inviteToken}/join")
@@ -69,7 +70,7 @@ public class InviteController {
         try {
             request.consent().validate();
         } catch (IllegalArgumentException e) {
-            throw new BusinessException("CONSENT_REQUIRED", e.getMessage());
+            throw new BusinessException(ErrorCode.CONSENT_REQUIRED, e.getMessage());
         }
         consents.recordIfUser(CurrentUser.idOrNull(), request.consent());
         return ResponseEntity.status(HttpStatus.CREATED)

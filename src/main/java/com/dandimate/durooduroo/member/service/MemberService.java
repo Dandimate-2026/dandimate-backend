@@ -2,6 +2,7 @@
 package com.dandimate.durooduroo.member.service;
 
 import com.dandimate.durooduroo.common.exception.BusinessException;
+import com.dandimate.durooduroo.common.exception.ErrorCode;
 import com.dandimate.durooduroo.member.domain.FlowerCode;
 import com.dandimate.durooduroo.member.domain.Member;
 import com.dandimate.durooduroo.member.dto.SpecJoinRoomRequest;
@@ -31,14 +32,14 @@ public class MemberService {
     @Transactional
     public SpecJoinRoomResponse joinByInvite(String inviteToken, SpecJoinRoomRequest request) {
         Room room = roomRepository.findByInviteTokenHashForUpdate(com.dandimate.durooduroo.common.auth.Tokens.hash(inviteToken))
-                .orElseThrow(() -> new BusinessException("INVITE_NOT_FOUND", "유효하지 않은 초대 토큰입니다."));
-        if(demos.existsByDemoRoomId(room.getId())) throw new BusinessException("FORBIDDEN","심사용 방에는 초대 링크로 참여할 수 없습니다.");
+                .orElseThrow(() -> new BusinessException(ErrorCode.ROOM_NOT_FOUND, "유효하지 않은 초대 토큰입니다."));
+        if(demos.existsByDemoRoomId(room.getId())) throw new BusinessException(ErrorCode.FORBIDDEN,"심사용 방에는 초대 링크로 참여할 수 없습니다.");
         String userId = com.dandimate.durooduroo.common.auth.CurrentUser.idOrNull();
         Member existing = userId == null ? null : memberRepository.findByRoomIdAndUserId(room.getId(), userId).orElse(null);
-        if (existing != null && existing.isKicked()) throw new BusinessException("FORBIDDEN", "내보내진 방에는 다시 참여할 수 없습니다.");
+        if (existing != null && existing.isKicked()) throw new BusinessException(ErrorCode.FORBIDDEN, "내보내진 방에는 다시 참여할 수 없습니다.");
         if (existing != null && existing.isActive()) return SpecJoinRoomResponse.from(room, existing);
         if (memberRepository.countByRoomIdAndLeftAtIsNull(room.getId()) >= room.getCapacity()) {
-            throw new BusinessException("ROOM_FULL", "방 정원이 가득 찼습니다.");
+            throw new BusinessException(ErrorCode.ROOM_FULL, "방 정원이 가득 찼습니다.");
         }
         String nickname = request.nickname().trim();
         if (memberRepository.existsByRoomIdAndNicknameAndIdNot(room.getId(), nickname, existing == null ? "" : existing.getId())) {
@@ -70,7 +71,7 @@ public class MemberService {
     private FlowerCode nextFlower(String roomId) {
         var used = memberRepository.findAllByRoomIdAndLeftAtIsNull(roomId).stream().map(Member::getFlowerCode).toList();
         FlowerCode flower = FlowerCode.firstAvailable(used);
-        if (flower == null) throw new BusinessException("ROOM_FULL", "방 정원이 가득 찼습니다.");
+        if (flower == null) throw new BusinessException(ErrorCode.ROOM_FULL, "방 정원이 가득 찼습니다.");
         return flower;
     }
 }

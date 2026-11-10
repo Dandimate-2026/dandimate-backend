@@ -5,6 +5,7 @@ import com.dandimate.durooduroo.member.repository.MemberRepository;
 import com.dandimate.durooduroo.room.repository.RoomRepository;
 import com.dandimate.durooduroo.user.repository.UserAccountRepository;
 import com.dandimate.durooduroo.common.exception.BusinessException;
+import com.dandimate.durooduroo.common.exception.ErrorCode;
 import com.dandimate.durooduroo.notification.repository.NotificationRepository;
 import com.dandimate.durooduroo.photo.repository.PhotoRepository;
 import com.dandimate.durooduroo.memory.repository.MemoryEntryRepository;
@@ -34,7 +35,7 @@ public class AccountController {
     }
     @GetMapping("/users/me")
     public ApiResponse<?> me() {
-        var user = users.findById(CurrentUser.requireId()).orElseThrow(() -> new BusinessException("UNAUTHORIZED", "다시 로그인해 주세요."));
+        var user = users.findById(CurrentUser.requireId()).orElseThrow(() -> new BusinessException(ErrorCode.INVALID_MEMBER_TOKEN, "다시 로그인해 주세요."));
         return ApiResponse.success(Map.of("id", user.getId(), "createdAt", user.getCreatedAt()));
     }
     @DeleteMapping("/users/me")

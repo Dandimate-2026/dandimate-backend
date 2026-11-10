@@ -4,6 +4,7 @@ import com.dandimate.durooduroo.common.api.ApiResponse;
 import com.dandimate.durooduroo.common.auth.CurrentUser;
 import com.dandimate.durooduroo.common.auth.MemberTokenResolver;
 import com.dandimate.durooduroo.common.exception.BusinessException;
+import com.dandimate.durooduroo.common.exception.ErrorCode;
 import com.dandimate.durooduroo.member.domain.Member;
 import com.dandimate.durooduroo.member.repository.MemberRepository;
 import com.dandimate.durooduroo.notification.domain.Notification;
@@ -45,7 +46,7 @@ public class NotificationController {
     public ApiResponse<?> list(@PathVariable String roomId, @RequestHeader(required = false) String authorization) {
         String token = MemberTokenResolver.resolve(authorization);
         var me = members.findByRoomIdAndMemberToken(roomId, token)
-                .orElseThrow(() -> new BusinessException("MEMBER_FORBIDDEN", "\uCC38\uC5EC\uC790\uB9CC\uC54C\uB9BC\uC744\uC870\uD68C\uD560\uC218\uC788\uC2B5\uB2C8\uB2E4\u002E"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "\uCC38\uC5EC\uC790\uB9CC\uC54C\uB9BC\uC744\uC870\uD68C\uD560\uC218\uC788\uC2B5\uB2C8\uB2E4\u002E"));
         var roomNames = Map.of(roomId, rooms.findById(roomId).map(room -> room.getTitle()).orElse(""));
         var items = notifications.findAllByMemberIdOrderByCreatedAtDesc(me.getId()).stream()
                 .map(notification -> view(notification, me, roomNames)).toList();
@@ -55,13 +56,13 @@ public class NotificationController {
     @PostMapping("/api/v1/notifications/{notificationId}/read")
     public ApiResponse<?> read(@PathVariable String notificationId, @RequestHeader(required = false) String authorization) {
         var notification = notifications.findById(notificationId)
-                .orElseThrow(() -> new BusinessException("NOTIFICATION_NOT_FOUND", "\uC54C\uB9BC\uC774\uC5C6\uC2B5\uB2C8\uB2E4\u002E"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "\uC54C\uB9BC\uC774\uC5C6\uC2B5\uB2C8\uB2E4\u002E"));
         String token = MemberTokenResolver.resolve(authorization);
         var target = members.findById(notification.getMemberId())
-                .orElseThrow(() -> new BusinessException("FORBIDDEN", "\uBCF8\uC778\uC54C\uB9BC\uB9CC\uC77D\uC744\uC218\uC788\uC2B5\uB2C8\uB2E4\u002E"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "\uBCF8\uC778\uC54C\uB9BC\uB9CC\uC77D\uC744\uC218\uC788\uC2B5\uB2C8\uB2E4\u002E"));
         var me = members.findByRoomIdAndMemberToken(target.getRoomId(), token)
-                .orElseThrow(() -> new BusinessException("FORBIDDEN", "\uCC38\uC5EC\uC790\uB9CC\uC54C\uB9BC\uC744\uC870\uD68C\uD560\uC218\uC788\uC2B5\uB2C8\uB2E4\u002E"));
-        if (!me.getId().equals(notification.getMemberId())) throw new BusinessException("FORBIDDEN", "\uBCF8\uC778\uC54C\uB9BC\uB9CC\uC77D\uC744\uC218\uC788\uC2B5\uB2C8\uB2E4\u002E");
+                .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "\uCC38\uC5EC\uC790\uB9CC\uC54C\uB9BC\uC744\uC870\uD68C\uD560\uC218\uC788\uC2B5\uB2C8\uB2E4\u002E"));
+        if (!me.getId().equals(notification.getMemberId())) throw new BusinessException(ErrorCode.FORBIDDEN, "\uBCF8\uC778\uC54C\uB9BC\uB9CC\uC77D\uC744\uC218\uC788\uC2B5\uB2C8\uB2E4\u002E");
         notification.read();
         notifications.save(notification);
         return ApiResponse.success(Map.of("id", notification.getId(), "read", true));
@@ -70,14 +71,14 @@ public class NotificationController {
     @DeleteMapping("/api/v1/notifications/{notificationId}")
     public ResponseEntity<Void> delete(@PathVariable String notificationId, @RequestHeader(required = false) String authorization) {
         var notification = notifications.findById(notificationId)
-                .orElseThrow(() -> new BusinessException("NOTIFICATION_NOT_FOUND", "알림이 없습니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "알림이 없습니다."));
         String token = MemberTokenResolver.resolve(authorization);
         var target = members.findById(notification.getMemberId())
-                .orElseThrow(() -> new BusinessException("FORBIDDEN", "본인 알림만 삭제할 수 있습니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "본인 알림만 삭제할 수 있습니다."));
         var me = members.findByRoomIdAndMemberToken(target.getRoomId(), token)
-                .orElseThrow(() -> new BusinessException("FORBIDDEN", "방 참여자만 사용할 수 있습니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN, "방 참여자만 사용할 수 있습니다."));
         if (!me.getId().equals(notification.getMemberId())) {
-            throw new BusinessException("FORBIDDEN", "본인 알림만 삭제할 수 있습니다.");
+            throw new BusinessException(ErrorCode.FORBIDDEN, "본인 알림만 삭제할 수 있습니다.");
         }
         notifications.delete(notification);
         return ResponseEntity.noContent().build();

@@ -1,8 +1,6 @@
 /** 상태별 쓰기 허용 검사와 첫 한마디 확정에 따른 상태 전이를 처리한다. */
 package com.dandimate.durooduroo.room.service;
 
-import com.dandimate.durooduroo.common.exception.BusinessException;
-import com.dandimate.durooduroo.common.exception.ErrorCode;
 import com.dandimate.durooduroo.room.domain.Room;
 import com.dandimate.durooduroo.room.domain.RoomAction;
 import com.dandimate.durooduroo.room.repository.RoomRepository;
@@ -20,8 +18,7 @@ public class RoomStateService {
 
     @Transactional(readOnly = true)
     public Room require(String roomId, RoomAction action) {
-        Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ROOM_NOT_FOUND, "존재하지 않는 방입니다."));
+        Room room = roomRepository.requireById(roomId);
         room.requireAllows(action);
         return room;
     }

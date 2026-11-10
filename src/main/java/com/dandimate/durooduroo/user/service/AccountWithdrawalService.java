@@ -46,7 +46,7 @@ public class AccountWithdrawalService {
     @Transactional
     public void withdraw(String userId) {
         var user = users.findById(userId)
-                .orElseThrow(() -> new BusinessException("UNAUTHORIZED", "로그인 정보를 확인해 주세요."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_MEMBER_TOKEN, "로그인 정보를 확인해 주세요."));
 
         boolean ownsActiveRoom = members.findAllByUserIdAndLeftAtIsNull(userId).stream()
                 .anyMatch(member -> member.getRole() == MemberRole.HOST
