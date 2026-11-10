@@ -9,7 +9,6 @@ import java.security.Security;
 import nl.martijndwars.webpush.PushService;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -40,14 +39,17 @@ public class WebPushSender {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void send(PushNotificationEvent event) {
+        // 알림 DB 트랜잭션이 실제로 커밋된 뒤에만 외부 푸시를 보낸다.
         if (publicKey.isBlank() || privateKey.isBlank()) return;
         Notification notification = event.notification();
+        // 방별 참가자를 서비스 계정으로 연결해, 계정에 등록된 모든 기기로 보낸다.
         String userId = members.findById(notification.getMemberId()).map(m -> m.getUserId()).orElse(null);
         if (userId == null) return;
         String payload = payload(notification, event.roomId());
         for (PushSubscription subscription : subscriptions.findAllByUserId(userId)) {
             try {
                 int status = service().send(new nl.martijndwars.webpush.Notification(subscription.getEndpoint(), subscription.getP256dh(), subscription.getAuth(), payload.getBytes(StandardCharsets.UTF_8))).getStatusLine().getStatusCode();
+                // 구독이 취소되거나 만료된 응답은 재시도하지 않도록 저장소에서도 제거한다.
                 if (status == 404 || status == 410) subscriptions.delete(subscription);
             } catch (Exception ignored) {
                 // 네트워크 일시 실패는 다음 앱 알림에서 다시 시도한다. 구독 자체는 보존한다.
@@ -61,6 +63,7 @@ public class WebPushSender {
         synchronized (this) {
             if (push == null) {
                 Security.addProvider(new BouncyCastleProvider());
+                // 네트워크 요청마다 암호화 클라이언트를 만들지 않고 설정당 한 번만 초기화한다.
                 push = new PushService(publicKey, privateKey, subject);
             }
             return push;
