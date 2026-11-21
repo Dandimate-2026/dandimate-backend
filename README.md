@@ -3,6 +3,21 @@
 친구들이 올린 사진과 음성·글을 모아 AI가 한 편의 두루마리로 엮는 서비스의 Spring Boot 단일 서버입니다.
 공개 API와 OpenAI 호출을 모두 이 애플리케이션 하나가 담당합니다.
 
+## 기술 스택
+
+| 영역 | 사용 기술 | 역할 |
+|---|---|---|
+| **Language / Framework** | Java 21 · Spring Boot 3.5.6 · Gradle | REST API와 도메인 서버 구현 |
+| **Data** | Spring Data JPA · Hibernate · MySQL 8.4 · H2 | 운영 DB와 로컬 개발 DB 분리 |
+| **DB Migration** | Flyway | 운영 스키마 버전 관리 및 검증 |
+| **Authentication** | Spring Security · Kakao OAuth 2.0 · Session / CSRF | 카카오 로그인과 사용자·방 권한 관리 |
+| **AI** | OpenAI Responses API · GPT-5.4-mini · gpt-transcribe | 사진 장면 분석, 되묻기, 두루마리 생성, 음성 받아쓰기 |
+| **Storage** | AWS S3 · Presigned URL · MinIO 호환 | 사진·음성 파일 저장 및 안전한 업로드·조회 |
+| **Real-time / Push** | SSE · Web Push (VAPID) | 방 활동, AI 작업 완료, 알림 실시간 전달 |
+| **Location** | Kakao Local API · 위도/경도(WGS84) | 사진 장소 검색과 기록 지도 데이터 제공 |
+| **Deployment** | AWS EC2 · Docker Compose · Nginx · GitHub Actions · GHCR | 컨테이너 기반 운영 배포와 CI/CD |
+| **API Documentation** | OpenAPI · Swagger UI | 프론트엔드 연동 계약 및 API 테스트 |
+
 - API 계약(단일 출처): `Dandimate-2026/dandimate-backend`의 `docs/swagger/openapi.yaml`
   → 이 레포에는 `src/main/resources/static/openapi/public-api.yaml`로 복사해 두고, 실행 중인 서버의 `/swagger-ui.html`에서 볼 수 있습니다.
   계약서를 바꾸면 이 파일도 같이 바꾸세요. `ContractSchemaTest`가 실제 응답을 이 스키마로 검사합니다.
